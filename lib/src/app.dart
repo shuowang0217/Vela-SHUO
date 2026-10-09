@@ -185,7 +185,7 @@ class _DesktopNav extends StatelessWidget {
               ? _blue.withValues(alpha: .15) : Colors.transparent,
           borderRadius: BorderRadius.circular(13),
           child: InkWell(
-            key: ValueKey('nav_' + i.toString()),
+            key: ValueKey('nav_$i'),
             onTap: () => onSelect(i),
             borderRadius: BorderRadius.circular(13),
             child: Container(
@@ -391,9 +391,9 @@ class _DemoTag extends StatelessWidget {
       border: Border.all(color: _line),
       borderRadius: BorderRadius.circular(30),
     ),
-    child: const Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(Icons.visibility_outlined, color: _blue, size: 14),
-      SizedBox(width: 6),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      const Icon(Icons.visibility_outlined, color: _blue, size: 14),
+      const SizedBox(width: 6),
       Text(compact ? 'UI 演示' : 'UI 演示 · 尚未接入代理',
           style: const TextStyle(color: _muted, fontSize: 11)),
     ]),
@@ -503,7 +503,7 @@ class _ConnectionCard extends StatelessWidget {
                   style: const TextStyle(fontSize: 23)),
               const SizedBox(width: 10),
               Expanded(child: Text(
-                demo.selected.country + ' · ' + demo.selected.title,
+                '${demo.selected.country} · ${demo.selected.title}',
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white, fontSize: 15,
@@ -520,11 +520,11 @@ class _ConnectionCard extends StatelessWidget {
         const Icon(Icons.route_outlined, size: 15, color: _muted),
         const SizedBox(width: 6),
         Expanded(child: Text(
-          demo.selected.city + ' · ' + demo.routingMode + ' · 模拟节点',
+          '${demo.selected.city} · ${demo.routingMode} · 模拟节点',
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 12, color: _muted),
         )),
-        Text(demo.selected.latency.toString() + ' ms',
+        Text('${demo.selected.latency} ms',
             style: const TextStyle(color: _mint, fontSize: 12)),
       ]),
       const SizedBox(height: 15),
@@ -632,7 +632,7 @@ class _MetricCard extends StatelessWidget {
               TextSpan(text: value, style: TextStyle(
                 color: highlight, fontSize: 26, fontWeight: FontWeight.bold,
               )),
-              TextSpan(text: unit.isEmpty ? '' : ' ' + unit,
+              TextSpan(text: unit.isEmpty ? '' : ' $unit',
                   style: const TextStyle(color: _muted, fontSize: 12)),
             ])),
           ),
@@ -776,11 +776,10 @@ class _NodesPage extends StatelessWidget {
               leading: Text(node.flag,
                 style: const TextStyle(fontSize: 29),
               ),
-              title: Text(node.country + ' · ' + node.title,
+              title: Text('${node.country} · ${node.title}',
                 style: const TextStyle(color: Colors.white)),
               subtitle: Text(
-                node.city + ' · 演示节点 · ' +
-                    node.latency.toString() + ' ms（示意）',
+                '${node.city} · 演示节点 · ${node.latency} ms（示意）',
                 style: const TextStyle(color: _muted),
               ),
               trailing: demo.selected.id == node.id
