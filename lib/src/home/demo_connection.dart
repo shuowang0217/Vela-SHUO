@@ -30,6 +30,17 @@ class VelaDemoNode {
   final double downloadMbps;
   final double uploadMbps;
 
+  /// Only labels painted on the globe use the concise English city names.
+  /// The Chinese names in node selection cards remain unchanged.
+  String get mapLabel => switch (id) {
+    'jp' => 'TOKYO',
+    'sg' => 'SINGAPORE',
+    'us' => 'LOS ANGELES',
+    'gb' => 'LONDON',
+    'de' => 'FRANKFURT',
+    _ => title.split('-').first.toUpperCase(),
+  };
+
   static const samples = [
     VelaDemoNode(
       id: 'jp', country: '日本', city: '东京', title: 'Tokyo-01',
