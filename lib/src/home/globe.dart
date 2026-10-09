@@ -594,7 +594,6 @@ class _GlobePainter extends CustomPainter {
     final arrival = p.project(node.longitude, node.latitude);
     if (arrival == null) return null;
     final departure = _visibleDeparture(p);
-    if (departure == null) return null;
     return VelaFlightRoute(
       start: departure,
       end: arrival,
