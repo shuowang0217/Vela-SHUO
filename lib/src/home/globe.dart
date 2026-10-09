@@ -571,27 +571,29 @@ class _GlobePainter extends CustomPainter {
     }
   }
 
+  /// Visible departure shared by the route and the homebound ship.
+  /// This prevents a one-frame position jump when the return route fades.
+  Offset _visibleDeparture(_Projector p) {
+    final china = p.project(_startLongitude, _startLatitude);
+    if (china != null) return china;
+    for (var i = 1; i <= 180; i++) {
+      final geo = _greatCircle(
+        _startLongitude, _startLatitude,
+        node.longitude, node.latitude, i / 180,
+      );
+      final visible = p.project(geo.dx, geo.dy);
+      if (visible != null) return visible;
+    }
+    return p.projectAtLimb(_startLongitude, _startLatitude);
+  }
+
   /// If China is behind the globe (e.g. when looking at North America),
   /// start the visible arc from the first point emerging at the limb.
   VelaFlightRoute? _visibleFlight(_Projector p) {
     if (phase == VelaPhase.idle) return null;
     final arrival = p.project(node.longitude, node.latitude);
     if (arrival == null) return null;
-    var departure = p.project(_startLongitude, _startLatitude);
-    if (departure == null) {
-      for (var i = 1; i <= 180; i++) {
-        final geo = _greatCircle(
-          _startLongitude, _startLatitude,
-          node.longitude, node.latitude,
-          i / 180,
-        );
-        final visible = p.project(geo.dx, geo.dy);
-        if (visible != null) {
-          departure = visible;
-          break;
-        }
-      }
-    }
+    final departure = _visibleDeparture(p);
     if (departure == null) return null;
     return VelaFlightRoute(
       start: departure,
@@ -654,14 +656,13 @@ class _GlobePainter extends CustomPainter {
           china.translate(-p.radius * .085, -p.radius * .09), side);
     }
     if (phase == VelaPhase.idle) {
-      // While turning back, the Chinese coastline may initially be
-      // behind the horizon. Keep the boat at the limb until it emerges.
-      final position = china ?? (homebound
-          ? p.projectAtLimb(_startLongitude, _startLatitude) : null);
+      // Use the SAME departure point and sprite offset as the route.
+      // It stays continuous as the sphere rotates through the horizon.
+      final position = homebound ? _visibleDeparture(p) : china;
       if (position != null) {
         _drawSail(
           canvas,
-          position.translate(p.radius * .095, -p.radius * .09),
+          position.translate(0, -p.radius * .041),
           p.radius * .058,
         );
       }
