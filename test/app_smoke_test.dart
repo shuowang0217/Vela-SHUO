@@ -4,15 +4,15 @@ import 'package:vela_shuo/src/app.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 
 void main() {
-  testWidgets('no misleading proxy status before engine integration', (tester) async {
-    await tester.pumpWidget(VelaShuoApp(settings: SettingsController()));
-    await tester.pumpAndSettle();
-    expect(find.text('Vela-SHUO'), findsOneWidget);
-    expect(find.text('尚未连接'), findsOneWidget);
-    expect(find.text('连接功能将在 v0.2 开放'), findsOneWidget);
-    final button = tester.widget<FilledButton>(
-      find.byWidgetPredicate((widget) => widget is FilledButton),
+  testWidgets('the globe dashboard is clearly identified as UI-only', (tester) async {
+    await tester.pumpWidget(
+      VelaShuoApp(settings: SettingsController()),
     );
-    expect(button.onPressed, isNull);
+    await tester.pump();
+    expect(find.text('Vela-SHUO'), findsOneWidget);
+    expect(find.textContaining('UI 演示'), findsWidgets);
+    expect(find.byType(MaterialApp), findsOneWidget);
+    // A simulated node must never be described as a real VPN connection.
+    expect(find.text('连接已保护'), findsNothing);
   });
 }

@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLUTTER_VERSION: '3.35.4'
+  FLUTTER_VERSION: '3.47.4'
 
 jobs:
   verify:
@@ -26,7 +26,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
+          channel: master
           cache: true
       - name: Generate official Flutter platform scaffolding
         run: flutter create --project-name vela_shuo --org com.shuowang --platforms android,windows .
@@ -41,14 +41,14 @@ jobs:
   windows:
     name: Windows x64 portable EXE
     needs: verify
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
+          channel: master
           cache: true
       - name: Generate Windows runner
         run: flutter create --project-name vela_shuo --org com.shuowang --platforms windows .
@@ -86,7 +86,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
+          channel: master
           cache: true
       - uses: actions/setup-java@v4
         with:
