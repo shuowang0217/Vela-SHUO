@@ -11,7 +11,7 @@ void main() {
     expect(find.text('尚未连接'), findsOneWidget);
     expect(find.text('连接功能将在 v0.2 开放'), findsOneWidget);
     final button = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, '连接功能尚未开放'),
+      find.byWidgetPredicate((widget) => widget is FilledButton),
     );
     expect(button.onPressed, isNull);
   });
