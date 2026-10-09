@@ -40,9 +40,15 @@ class _VelaGlobeState extends State<VelaGlobe>
   static Future<_EarthTextures> _loadTextures() async {
     Future<ui.Image> loadImage(String file) async {
       final bytes = await rootBundle.load(file);
-      return ui.decodeImageFromList(
+      final codec = await ui.instantiateImageCodec(
         bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
       );
+      try {
+        final frame = await codec.getNextFrame();
+        return frame.image;
+      } finally {
+        codec.dispose();
+      }
     }
 
     final pair = await Future.wait([
