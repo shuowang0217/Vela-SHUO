@@ -34,6 +34,7 @@ class _VelaGlobeState extends State<VelaGlobe>
   static Future<_EarthTextures>? _textures;
   late final AnimationController _turn;
   late final AnimationController _sail;
+  late final AnimationController _clouds;
   VelaPhase? _lastPhase;
   String? _lastNode;
 
@@ -90,6 +91,10 @@ class _VelaGlobeState extends State<VelaGlobe>
       vsync: this,
       duration: const Duration(milliseconds: 1550),
     );
+    _clouds = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 95),
+    )..repeat();
     widget.demo.addListener(_syncView);
     _syncView();
   }
@@ -145,6 +150,7 @@ class _VelaGlobeState extends State<VelaGlobe>
     widget.demo.removeListener(_syncView);
     _turn.dispose();
     _sail.dispose();
+    _clouds.dispose();
     super.dispose();
   }
 
@@ -156,7 +162,7 @@ class _VelaGlobeState extends State<VelaGlobe>
         future: _textures,
         builder: (context, texture) => RepaintBoundary(
           child: AnimatedBuilder(
-            animation: Listenable.merge([_turn, _sail, widget.demo]),
+            animation: Listenable.merge([_turn, _sail, _clouds, widget.demo]),
             builder: (context, _) {
               final f = Curves.easeInOutCubic.transform(_turn.value);
               return CustomPaint(
@@ -168,6 +174,7 @@ class _VelaGlobeState extends State<VelaGlobe>
                   node: widget.demo.selected,
                   phase: widget.demo.phase,
                   sailProgress: _sail.value,
+                  cloudProgress: _clouds.value,
                 ),
                 child: const SizedBox.expand(),
               );
@@ -186,6 +193,7 @@ class _GlobePainter extends CustomPainter {
     required this.coastlines,
     required this.textures,
     required this.sailProgress,
+    required this.cloudProgress,
     required this.longitude,
     required this.latitude,
     required this.node,
@@ -195,6 +203,7 @@ class _GlobePainter extends CustomPainter {
   final List<List<Offset>> coastlines;
   final _EarthTextures? textures;
   final double sailProgress;
+  final double cloudProgress;
   final double longitude;
   final double latitude;
   final VelaDemoNode node;
@@ -253,6 +262,8 @@ class _GlobePainter extends CustomPainter {
     _drawGrid(canvas, projector);
     if (textures != null) _drawLand(canvas, projector);
 
+    _drawClouds(canvas, center, radius);
+
     // Night-side limb and reflected light lend depth without any photo asset.
     canvas.drawCircle(
       center,
@@ -300,8 +311,10 @@ class _GlobePainter extends CustomPainter {
     _Projector p,
     _EarthTextures earth,
   ) {
-    const columns = 144;
-    const rows = 72;
+    // Smaller projection mesh reduces CPU work each frame while preserving
+    // the full-resolution source texture and geographical detail.
+    const columns = 96;
+    const rows = 48;
     final positions = <Offset>[];
     final texels = <Offset>[];
     final visible = <bool>[];
@@ -379,6 +392,30 @@ class _GlobePainter extends CustomPainter {
         ]),
     );
     mesh.dispose();
+  }
+
+  /// Lightweight atmospheric bands, clipped to the globe. The slow phase
+  /// shift gives a gentle drift without a second textured projection mesh.
+  void _drawClouds(Canvas canvas, Offset center, double radius) {
+    final drift = cloudProgress * math.pi * 2;
+    final paint = Paint()
+      ..color = const Color(0xFFD3ECFA).withValues(alpha: .075)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * .038);
+    for (var i = 0; i < 9; i++) {
+      final phase = i * 2.39996;
+      final x = math.sin(phase + drift) * .72;
+      final y = math.cos(phase * .81 + drift * .24) * .67;
+      final width = radius * (.21 + (i % 3) * .075);
+      final height = radius * (.035 + (i % 2) * .018);
+      canvas.save();
+      canvas.translate(center.dx + radius * x, center.dy + radius * y);
+      canvas.rotate(-.25 + math.sin(phase) * .35);
+      canvas.drawOval(
+        Rect.fromCenter(center: Offset.zero, width: width, height: height),
+        paint,
+      );
+      canvas.restore();
+    }
   }
 
   void _drawGrid(Canvas canvas, _Projector p) {
@@ -691,6 +728,7 @@ class _GlobePainter extends CustomPainter {
       old.latitude != latitude ||
       old.phase != phase ||
       old.sailProgress != sailProgress ||
+      old.cloudProgress != cloudProgress ||
       old.textures != textures ||
       old.node != node ||
       old.coastlines != coastlines;
