@@ -1,15 +1,30 @@
-# Vela-SHUO roadmap
+# Vela-SHUO 开发路线图（Windows 优先）
 
-- **0.1-A:** Independent Flutter source, responsive four-page shell, theme preference, Windows portable EXE ZIP and Android ARM64 debug DEV APK built by GitHub Actions.
-- **0.1-B:** Original ocean-blue globe dashboard matching the approved visual reference; real geographic Earth projection, minimal sail markers, route animation, demo node switching, responsive desktop/mobile design. UI simulation only.
-- **0.1-C:** Redacted local diagnostics, offline startup and data corruption recovery.
-- **Windows-first (2026-10-09):** Freeze Android work and CI builds; finish and validate the Windows EXE before resuming Android.
-- **0.1-D:** Windows installer, signed/versioned Windows release process. Android permanent signing is postponed until after Windows stable release.
-- **0.2:** Securely integrate a license-reviewed proxy engine and real connection lifecycle.
-- **0.3:** Vela Smart Engine: throughput probes, rolling score, stable switching and fault recovery.
+**产品首页 UI 已确认定稿**：采用「一帆越洋，尽览四方。」；地球、云层、曲线航线、返航动画、英文地名及自适应布局视为后续版本的设计基准。完整规范见 [HOME_UI_FINAL.md](HOME_UI_FINAL.md)。
 
-Never overwrite the stable `FlClash-Custom` packages.
+## 当前阶段与验收状态
 
-## Delivery order
+| 阶段 | 内容 | 状态 |
+| --- | --- | --- |
+| 0.1-A | 原创 Flutter 框架、Windows 便携版构建、基础页面与主题 | 已实现原型 |
+| 0.1-B | 地球首页、英文地名、帆船与返航动画、云层、定稿品牌语 | **设计定稿，代码已提交**；CI/用户实机验收分别记录 |
+| 0.1-C | 配置安全、脱敏本地诊断、离线启动、异常恢复与稳定性测试 | **下一开发阶段** |
+| 0.2 | Windows 真实代理内核接入、真实连接生命周期与节点/订阅管理 | 待开发，不得混同 UI 模拟 |
+| 0.3 | SHUO Smart Engine：真实测速、节点评分、切换冷却、防抖与故障恢复 | 待开发 |
+| Windows 正式版 | Windows EXE/安装器发布、系统代理清理、窗口/DPI/异常实测、版本升级 | 待验收 |
+| Android 正式版 | 在 Windows 正式版后单独开发 VPN 权限/生命周期，打包签名 APK | 暂停 |
 
-**Windows EXE stable first → Android adaptation, release signing, device verification → Android APK stable.** The original Vela UI remains responsive in Flutter, but the Android-specific VPN, permission and lifecycle work cannot be treated as automatically validated by Windows testing.
+## 近期实施顺序
+
+1. 在已冻结首页 UI 的基础上完善回归测试：三种 DPI、窗口缩放、连接完成前后船只运动、断开/重连中断、品牌文案锁定。
+2. **0.1-C：**对 UI 配置读取和写入失败提供安全兜底；加入不含订阅 URL、密钥、流量内容或用户个人信息的本地诊断事件；验证断电/崩溃场景恢复路径。
+3. **0.2 真实 Windows 核心：**确定许可与内核二进制的版本来源与安全更新方式，建立核心进程生命周期，订阅/配置解析与验证，显式系统代理开启/还原和错误报告。
+4. **0.3 智能切换：**测速/稳定性得分、触发阈值、滞后、退避、冷却、防频繁切换；异常恢复测试。
+5. 确认真实流量连接、Windows 便携/安装、异常重启及系统清理行为后再作为正式版发布，之后恢复 Android。
+
+## 安全及产品底线
+
+- 演示版只能显示模拟数据；没有真实连接时不应声称已联网或显示真实性能测试值。
+- 不依赖 FlClash-Custom 源码，也不覆盖旧软件安装身份、配置与网络设置。
+- 系统代理/VPN 的改变必须可识别、可退出、可恢复，敏感信息不进入本地日志。
+- GitHub Actions 暂时只构建 Windows x64，Android 不随每次提交自动构建。
