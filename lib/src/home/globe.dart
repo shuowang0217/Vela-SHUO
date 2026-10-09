@@ -37,6 +37,9 @@ class _VelaGlobeState extends State<VelaGlobe>
   late final AnimationController _clouds;
   VelaPhase? _lastPhase;
   String? _lastNode;
+  VelaDemoNode? _visibleNode;
+  bool _returning = false;
+  bool _homebound = false;
 
   static Future<_EarthTextures> _loadTextures() async {
     Future<ui.Image> loadImage(String file) async {
@@ -91,6 +94,21 @@ class _VelaGlobeState extends State<VelaGlobe>
       vsync: this,
       duration: const Duration(milliseconds: 1550),
     );
+    _sail.addStatusListener((status) {
+      if (status == AnimationStatus.dismissed && _returning && mounted) {
+        // Keep the original route on screen until the boat reaches its
+        // departure point, then rotate the globe home.
+        _returning = false;
+        _homebound = true;
+        _rotateTo(111, 29);
+        setState(() {});
+      }
+    });
+    _turn.addStatusListener((status) {
+      if (status == AnimationStatus.completed && _homebound && mounted) {
+        setState(() => _homebound = false);
+      }
+    });
     _clouds = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 95),
@@ -99,39 +117,67 @@ class _VelaGlobeState extends State<VelaGlobe>
     _syncView();
   }
 
-  void _syncView() {
-    if (!mounted) return;
-    if (_lastPhase != widget.demo.phase ||
-        _lastNode != widget.demo.selected.id) {
-      final phase = widget.demo.phase;
-      if (phase == VelaPhase.connecting || phase == VelaPhase.switching) {
-        _sail.forward(from: 0);
-      } else if (phase == VelaPhase.idle) {
-        _sail.value = 0;
-      } else if (phase == VelaPhase.connected) {
-        if (_sail.value < 1) _sail.forward();
-      } else {
-        _sail.stop();
-      }
-      _lastPhase = phase;
-      _lastNode = widget.demo.selected.id;
-    }
-    final idle = widget.demo.phase == VelaPhase.idle;
-    final destinationLon = idle ? 111.0 : widget.demo.selected.longitude;
-    final destinationLat = idle ? 29.0 : widget.demo.selected.latitude;
+  void _rotateTo(double longitude, double latitude) {
+    // Retarget from the actually displayed orientation. Interrupted
+    // transitions therefore never snap back to a previous keyframe.
     final f = Curves.easeInOutCubic.transform(_turn.value);
     final currentLon = _fromLon + (_toLon - _fromLon) * f;
     final currentLat = _fromLat + (_toLat - _fromLat) * f;
-    final delta = ((destinationLon - currentLon + 540) % 360) - 180;
-    if ((delta).abs() < .1 && (destinationLat - currentLat).abs() < .1) {
-      setState(() {});
+    final delta = ((longitude - currentLon + 540) % 360) - 180;
+    if (delta.abs() < .1 && (latitude - currentLat).abs() < .1) {
       return;
     }
     _fromLon = currentLon;
     _fromLat = currentLat;
     _toLon = currentLon + delta;
-    _toLat = destinationLat;
+    _toLat = latitude;
     _turn.forward(from: 0);
+  }
+
+  void _syncView() {
+    if (!mounted) return;
+    final phase = widget.demo.phase;
+    final node = widget.demo.selected;
+    if (_lastPhase == phase && _lastNode == node.id) return;
+
+    if (phase == VelaPhase.idle) {
+      if (_lastPhase != null &&
+          _lastPhase != VelaPhase.idle &&
+          _sail.value > .001) {
+        // Disconnect reverses the *current* animation, not an instant
+        // repaint at the origin. Retain the previous node and route.
+        _returning = true;
+        _homebound = false;
+        _sail.reverse();
+      } else if (!_returning) {
+        _homebound = true;
+        _rotateTo(111, 29);
+      }
+    } else {
+      final resumeReturn = _returning && _visibleNode?.id == node.id;
+      _returning = false;
+      _homebound = false;
+      _visibleNode = node;
+      if (phase == VelaPhase.connecting ||
+          phase == VelaPhase.switching) {
+        // Reconnecting to the same node midway through a return can
+        // resume from the exact boat position.
+        if (resumeReturn) {
+          _sail.forward();
+        } else {
+          _sail.forward(from: 0);
+        }
+      } else if (phase == VelaPhase.connected) {
+        // The UI becomes "connected" before the boat reaches the end.
+        // Never force the boat to t=1 here: let its ticker finish.
+        if (_sail.value < 1) _sail.forward();
+      } else {
+        _sail.stop();
+      }
+      _rotateTo(node.longitude, node.latitude);
+    }
+    _lastPhase = phase;
+    _lastNode = node.id;
     setState(() {});
   }
 
@@ -171,9 +217,12 @@ class _VelaGlobeState extends State<VelaGlobe>
                   textures: texture.data,
                   longitude: _fromLon + (_toLon - _fromLon) * f,
                   latitude: _fromLat + (_toLat - _fromLat) * f,
-                  node: widget.demo.selected,
-                  phase: widget.demo.phase,
-                  sailProgress: _sail.value,
+                  node: _visibleNode ?? widget.demo.selected,
+                  phase: _returning
+                      ? VelaPhase.switching : widget.demo.phase,
+                  homebound: _homebound,
+                  // One animation value drives BOTH the boat and the trail.
+                  sailProgress: Curves.easeInOutCubic.transform(_sail.value),
                   cloudProgress: _clouds.value,
                 ),
                 child: const SizedBox.expand(),
@@ -193,6 +242,7 @@ class _GlobePainter extends CustomPainter {
     required this.coastlines,
     required this.textures,
     required this.sailProgress,
+    required this.homebound,
     required this.cloudProgress,
     required this.longitude,
     required this.latitude,
@@ -203,6 +253,7 @@ class _GlobePainter extends CustomPainter {
   final List<List<Offset>> coastlines;
   final _EarthTextures? textures;
   final double sailProgress;
+  final bool homebound;
   final double cloudProgress;
   final double longitude;
   final double latitude;
@@ -562,9 +613,7 @@ class _GlobePainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = math.max(1.2, p.radius * .005),
     );
-    final fraction = phase == VelaPhase.connected ||
-            phase == VelaPhase.error
-        ? 1.0 : sailProgress;
+    final fraction = sailProgress;
     final covered = flight.path(until: fraction);
     canvas.drawPath(
       covered,
@@ -601,13 +650,18 @@ class _GlobePainter extends CustomPainter {
     final china = p.project(_startLongitude, _startLatitude);
     if (china != null) {
       _mark(canvas, china, p.radius * .012, const Color(0xFF8FD9FF));
-      _label(canvas, '中国', china.translate(-12, -p.radius * .085), side);
+      _label(canvas, 'BEIJING',
+          china.translate(-p.radius * .085, -p.radius * .09), side);
     }
     if (phase == VelaPhase.idle) {
-      if (china != null) {
+      // While turning back, the Chinese coastline may initially be
+      // behind the horizon. Keep the boat at the limb until it emerges.
+      final position = china ?? (homebound
+          ? p.projectAtLimb(_startLongitude, _startLatitude) : null);
+      if (position != null) {
         _drawSail(
           canvas,
-          china.translate(p.radius * .095, -p.radius * .09),
+          position.translate(p.radius * .095, -p.radius * .09),
           p.radius * .058,
         );
       }
@@ -616,14 +670,12 @@ class _GlobePainter extends CustomPainter {
     final target = p.project(node.longitude, node.latitude);
     if (target != null) {
       _mark(canvas, target, p.radius * .014, const Color(0xFFBAEAFF));
-      _label(canvas, node.country,
+      _label(canvas, node.mapLabel,
           target.translate(p.radius * .035, p.radius * .034), side);
     }
     if (flight != null) {
-      final t = phase == VelaPhase.connected || phase == VelaPhase.error
-          ? 1.0 : sailProgress;
       _drawSail(
-        canvas, flight.pointAt(t).translate(0, -p.radius * .041),
+        canvas, flight.pointAt(sailProgress).translate(0, -p.radius * .041),
         p.radius * .057,
       );
     }
@@ -687,8 +739,11 @@ class _GlobePainter extends CustomPainter {
         text: text,
         style: TextStyle(
           color: const Color(0xFFE8F7FF),
-          fontSize: math.max(11, side * .025),
+          fontFamily: 'Segoe UI',
+          fontFamilyFallback: const ['Arial'],
+          fontSize: math.max(10.5, side * .023),
           fontWeight: FontWeight.w600,
+          letterSpacing: .85,
           shadows: const [Shadow(color: Colors.black, blurRadius: 8)],
         ),
       ),
@@ -727,6 +782,7 @@ class _GlobePainter extends CustomPainter {
       old.longitude != longitude ||
       old.latitude != latitude ||
       old.phase != phase ||
+      old.homebound != homebound ||
       old.sailProgress != sailProgress ||
       old.cloudProgress != cloudProgress ||
       old.textures != textures ||
@@ -743,6 +799,19 @@ class _Projector {
   final double radius;
   final double lon0;
   final double lat0;
+
+  /// Provides a stable off-screen coastline marker during the return
+  /// rotation, instead of letting the boat vanish on the far hemisphere.
+  Offset projectAtLimb(double longitude, double latitude) {
+    final lon = longitude * math.pi / 180;
+    final lat = latitude * math.pi / 180;
+    final dx = math.cos(lat) * math.sin(lon - lon0);
+    final dy = -(math.cos(lat0) * math.sin(lat) -
+        math.sin(lat0) * math.cos(lat) * math.cos(lon - lon0));
+    final length = math.sqrt(dx * dx + dy * dy);
+    if (length < 1e-6) return center + Offset(radius * .97, 0);
+    return center + Offset(dx / length, dy / length) * (radius * .97);
+  }
 
   Offset? project(double longitude, double latitude) {
     final lon = longitude * math.pi / 180;
