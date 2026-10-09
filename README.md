@@ -17,9 +17,9 @@
 
 ### 云端构建
 
-GitHub Actions 会自动验证源码并尝试生成 Windows x64 **完整便携版 ZIP**（内含 Vela-SHUO.exe 和运行所需 DLL/数据文件）及 Android ARM64 **DEV APK**。Flutter / Android SDK / Windows C++ 工具链都由云端提供，无须本地安装。
+**Windows-first 阶段（用户于 2026-10-09 确认）**：GitHub Actions 只运行 Flutter 静态检查、测试和 Windows x64 构建，输出完整便携版 ZIP（内含 Vela-SHUO.exe 与所需 DLL/数据文件）。不再为每次提交自动构建 Android。所有构建工具均在 GitHub 云端运行，无须本地安装。
 
-Android 测试包名：com.shuowang.vela.dev。此阶段采用 CI 运行器临时调试签名，**不同构建之间可能无法覆盖安装**；不要在测试版中保存重要配置。正式签名与 EXE 安装程序计划在 v0.1-D 实现。
+**Android 暂停开发与构建**，直到 Windows EXE 完成正式版验收。届时基于同一套 Dart/Flutter 界面进行 Android 适配和实机验证，再生成正式签名 APK。Android 预留包名：com.shuowang.vela（DEV 后缀 .dev）。历史测试 APK 不视为 Android 正式版。
 
 ### 地图地理数据
 
@@ -33,3 +33,10 @@ Android 测试包名：com.shuowang.vela.dev。此阶段采用 CI 运行器临�
 - 不会申请 VPN 权限或运行后台代理。
 - 不会生成虚假的“真实测速”或“真实连接成功”通知。
 - 不修改已有的 FlClash-Custom 仓库或安装身份。
+
+### 近期发布策略
+
+1. 只迭代 Windows UI、交互、稳定性和网络功能，提供 Windows EXE 测试构建。
+2. 完成 Windows 真实连接、异常恢复及实机验收后，再发布 Windows 正式版。
+3. Windows 正式版确认后，恢复 Android 专项工作流，完成 VPN 服务适配、持久化正式签名与真机测试后再发布 APK。
+4. 此前成功构建过 Android DEV APK，但不再随代码改动重复构建。不要把 UI 原型版误认为完整代理功能。
