@@ -36,6 +36,8 @@ void main() {
 
     demo.connect();
     await tester.pump();
+    // Start the ticker on a real frame before advancing the fake clock.
+    await tester.pump(const Duration(milliseconds: 16));
     await tester.pump(const Duration(milliseconds: 1400));
 
     // The card now says connected, but the 1550 ms sail has not
@@ -54,6 +56,7 @@ void main() {
     expect(_visiblePhase(tester), VelaPhase.switching);
     expect(_sailProgress(tester), closeTo(1, .001));
 
+    await tester.pump(const Duration(milliseconds: 16));
     await tester.pump(const Duration(milliseconds: 750));
     expect(_sailProgress(tester), greaterThan(0));
     expect(_sailProgress(tester), lessThan(1));
