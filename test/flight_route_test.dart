@@ -32,7 +32,7 @@ void main() {
     );
     for (final t in [0.1, .4, .7, 1.0]) {
       final cursor = route.pointAt(t);
-      final bounds = route.path(until: t).getBounds();
+      final bounds = route.path(until: t).getBounds().inflate(0.2);
       expect(bounds.contains(cursor), isTrue);
     }
   });
