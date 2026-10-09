@@ -187,7 +187,7 @@ class _OverviewPage extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text('连接功能将在 v0.2 开放', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 22),
-                const FilledButton.icon(
+                FilledButton.icon(
                   onPressed: null,
                   icon: Icon(Icons.lock_outline),
                   label: Text('连接功能尚未开放'),
