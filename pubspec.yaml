@@ -20,3 +20,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/maps/world_110m.json
+    - assets/earth/earth_day.jpg
+    - assets/earth/earth_night_lights.png

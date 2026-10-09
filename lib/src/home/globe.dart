@@ -1,15 +1,23 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'demo_connection.dart';
+import 'flight_route.dart';
 
 const _cyan = Color(0xFF83CCF8);
 const _sea = Color(0xFF071C31);
 const _startLongitude = 116.4;
 const _startLatitude = 39.9;
+
+class _EarthTextures {
+  const _EarthTextures(this.day, this.night);
+  final ui.Image day;
+  final ui.Image night;
+}
 
 class VelaGlobe extends StatefulWidget {
   const VelaGlobe({super.key, required this.demo});
@@ -21,9 +29,28 @@ class VelaGlobe extends StatefulWidget {
 }
 
 class _VelaGlobeState extends State<VelaGlobe>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static Future<List<List<Offset>>>? _coastlines;
+  static Future<_EarthTextures>? _textures;
   late final AnimationController _turn;
+  late final AnimationController _sail;
+  VelaPhase? _lastPhase;
+  String? _lastNode;
+
+  static Future<_EarthTextures> _loadTextures() async {
+    Future<ui.Image> loadImage(String file) async {
+      final bytes = await rootBundle.load(file);
+      return ui.decodeImageFromList(
+        bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+      );
+    }
+
+    final pair = await Future.wait([
+      loadImage('assets/earth/earth_day.jpg'),
+      loadImage('assets/earth/earth_night_lights.png'),
+    ]);
+    return _EarthTextures(pair[0], pair[1]);
+  }
   double _fromLon = 111;
   double _toLon = 111;
   double _fromLat = 29;
@@ -48,9 +75,14 @@ class _VelaGlobeState extends State<VelaGlobe>
   void initState() {
     super.initState();
     _coastlines ??= _readMap();
+    _textures ??= _loadTextures();
     _turn = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1650),
+    );
+    _sail = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1550),
     );
     widget.demo.addListener(_syncView);
     _syncView();
@@ -58,6 +90,21 @@ class _VelaGlobeState extends State<VelaGlobe>
 
   void _syncView() {
     if (!mounted) return;
+    if (_lastPhase != widget.demo.phase ||
+        _lastNode != widget.demo.selected.id) {
+      final phase = widget.demo.phase;
+      if (phase == VelaPhase.connecting || phase == VelaPhase.switching) {
+        _sail.forward(from: 0);
+      } else if (phase == VelaPhase.idle) {
+        _sail.value = 0;
+      } else if (phase == VelaPhase.connected) {
+        if (_sail.value < 1) _sail.forward();
+      } else {
+        _sail.stop();
+      }
+      _lastPhase = phase;
+      _lastNode = widget.demo.selected.id;
+    }
     final idle = widget.demo.phase == VelaPhase.idle;
     final destinationLon = idle ? 111.0 : widget.demo.selected.longitude;
     final destinationLat = idle ? 29.0 : widget.demo.selected.latitude;
@@ -91,6 +138,7 @@ class _VelaGlobeState extends State<VelaGlobe>
   void dispose() {
     widget.demo.removeListener(_syncView);
     _turn.dispose();
+    _sail.dispose();
     super.dispose();
   }
 
@@ -98,22 +146,27 @@ class _VelaGlobeState extends State<VelaGlobe>
   Widget build(BuildContext context) {
     return FutureBuilder<List<List<Offset>>>(
       future: _coastlines,
-      builder: (context, snapshot) => RepaintBoundary(
-        child: AnimatedBuilder(
-          animation: Listenable.merge([_turn, widget.demo]),
-          builder: (context, _) {
-            final f = Curves.easeInOutCubic.transform(_turn.value);
-            return CustomPaint(
-              painter: _GlobePainter(
-                coastlines: snapshot.data ?? const [],
-                longitude: _fromLon + (_toLon - _fromLon) * f,
-                latitude: _fromLat + (_toLat - _fromLat) * f,
-                node: widget.demo.selected,
-                phase: widget.demo.phase,
-              ),
-              child: const SizedBox.expand(),
-            );
-          },
+      builder: (context, outlines) => FutureBuilder<_EarthTextures>(
+        future: _textures,
+        builder: (context, texture) => RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_turn, _sail, widget.demo]),
+            builder: (context, _) {
+              final f = Curves.easeInOutCubic.transform(_turn.value);
+              return CustomPaint(
+                painter: _GlobePainter(
+                  coastlines: outlines.data ?? const [],
+                  textures: texture.data,
+                  longitude: _fromLon + (_toLon - _fromLon) * f,
+                  latitude: _fromLat + (_toLat - _fromLat) * f,
+                  node: widget.demo.selected,
+                  phase: widget.demo.phase,
+                  sailProgress: _sail.value,
+                ),
+                child: const SizedBox.expand(),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -125,6 +178,8 @@ class _VelaGlobeState extends State<VelaGlobe>
 class _GlobePainter extends CustomPainter {
   const _GlobePainter({
     required this.coastlines,
+    required this.textures,
+    required this.sailProgress,
     required this.longitude,
     required this.latitude,
     required this.node,
@@ -132,6 +187,8 @@ class _GlobePainter extends CustomPainter {
   });
 
   final List<List<Offset>> coastlines;
+  final _EarthTextures? textures;
+  final double sailProgress;
   final double longitude;
   final double latitude;
   final VelaDemoNode node;
@@ -180,10 +237,15 @@ class _GlobePainter extends CustomPainter {
         ).createShader(sphereRect),
     );
 
+    if (textures case final earth?) {
+      _drawTexturedEarth(canvas, projector, earth);
+    } else {
+      _drawLand(canvas, projector);
+      _drawLights(canvas, projector);
+    }
+    // Overlay extremely subtle coordinates and coastline highlights.
     _drawGrid(canvas, projector);
-    _drawLand(canvas, projector);
-    _drawLights(canvas, projector);
-    _drawRoute(canvas, projector);
+    if (textures != null) _drawLand(canvas, projector);
 
     // Night-side limb and reflected light lend depth without any photo asset.
     canvas.drawCircle(
@@ -217,13 +279,105 @@ class _GlobePainter extends CustomPainter {
         ).createShader(sphereRect),
     );
 
-    // Draw markers after the atmosphere so they remain readable.
-    _drawMarkers(canvas, projector, side);
+    // A screen-space flight arc lives ABOVE the sphere, rather than
+    // flattening into a great-circle line on its surface.
+    final flight = _visibleFlight(projector);
+    if (flight != null) _drawRoute(canvas, projector, flight);
+    _drawMarkers(canvas, projector, side, flight);
+  }
+
+  /// GPU-textured equirectangular Earth projected onto a real orthographic
+  /// mesh. This is dramatically more detailed than the old flat land blobs.
+  /// Texture samples remain attached to geographic coordinates as it turns.
+  void _drawTexturedEarth(
+    Canvas canvas,
+    _Projector p,
+    _EarthTextures earth,
+  ) {
+    const columns = 144;
+    const rows = 72;
+    final positions = <Offset>[];
+    final texels = <Offset>[];
+    final visible = <bool>[];
+    final indices = <int>[];
+    for (var row = 0; row <= rows; row++) {
+      final lat = 90 - row * 180.0 / rows;
+      for (var column = 0; column <= columns; column++) {
+        final lon = -180 + column * 360.0 / columns;
+        final projected = p.project(lon, lat);
+        visible.add(projected != null);
+        positions.add(projected ?? p.center);
+        texels.add(Offset(
+          column * earth.day.width / columns,
+          row * earth.day.height / rows,
+        ));
+      }
+    }
+    for (var row = 0; row < rows; row++) {
+      for (var col = 0; col < columns; col++) {
+        final a = row * (columns + 1) + col;
+        final b = a + 1;
+        final c = a + columns + 1;
+        final d = c + 1;
+        if (visible[a] && visible[b] && visible[c]) {
+          indices.addAll([a, b, c]);
+        }
+        if (visible[b] && visible[d] && visible[c]) {
+          indices.addAll([b, d, c]);
+        }
+      }
+    }
+    if (indices.isEmpty) return;
+    final mesh = ui.Vertices(
+      ui.VertexMode.triangles,
+      positions,
+      textureCoordinates: texels,
+      indices: indices,
+    );
+    final earthShader = ui.ImageShader(
+      earth.day, ui.TileMode.clamp, ui.TileMode.clamp,
+      Matrix4.identity().storage,
+    );
+    canvas.drawVertices(
+      mesh,
+      BlendMode.modulate,
+      Paint()
+        ..shader = earthShader
+        ..filterQuality = FilterQuality.medium
+        // Cool, dim night-side globe palette while retaining genuine terrain.
+        ..colorFilter = const ColorFilter.matrix([
+          .38, .07, .03, 0, 4,
+          .02, .51, .06, 0, 5,
+          .06, .10, .68, 0, 9,
+          0, 0, 0, 1, 0,
+        ]),
+    );
+
+    final nightShader = ui.ImageShader(
+      earth.night, ui.TileMode.clamp, ui.TileMode.clamp,
+      Matrix4.identity().storage,
+    );
+    // Authentically located satellite city lights, not random ocean dots.
+    canvas.drawVertices(
+      mesh,
+      BlendMode.modulate,
+      Paint()
+        ..shader = nightShader
+        ..filterQuality = FilterQuality.medium
+        ..blendMode = BlendMode.screen
+        ..colorFilter = const ColorFilter.matrix([
+          1.7, .08, 0, 0, 0,
+          .07, 1.4, 0, 0, 0,
+          0, .07, 1.15, 0, 0,
+          0, 0, 0, 1, 0,
+        ]),
+    );
+    mesh.dispose();
   }
 
   void _drawGrid(Canvas canvas, _Projector p) {
     final gridPaint = Paint()
-      ..color = const Color(0xFF6EB0D6).withValues(alpha: .115)
+      ..color = const Color(0xFF6EB0D6).withValues(alpha: .060)
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(.5, p.radius * .00125);
     for (var lat = -60; lat <= 60; lat += 30) {
@@ -255,7 +409,7 @@ class _GlobePainter extends CustomPainter {
       ..color = const Color(0xFF32526B).withValues(alpha: .72)
       ..style = PaintingStyle.fill;
     final coast = Paint()
-      ..color = const Color(0xFF8CC2DE).withValues(alpha: .49)
+      ..color = const Color(0xFF8CC2DE).withValues(alpha: .18)
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(.65, p.radius * .002);
     for (final ring in coastlines) {
@@ -279,7 +433,7 @@ class _GlobePainter extends CustomPainter {
       }
       if (points >= 3) {
         // Avoid stretching filled shapes across the invisible hemisphere.
-        if (points > ring.length * .83) {
+        if (textures == null && points > ring.length * .83) {
           path.close();
           canvas.drawPath(path, fill);
         }
@@ -323,42 +477,84 @@ class _GlobePainter extends CustomPainter {
     }
   }
 
-  void _drawRoute(Canvas canvas, _Projector p) {
-    if (phase == VelaPhase.idle) return;
-    final route = Path();
-    final points = <Offset>[];
-    var drawing = false;
-    for (var i = 0; i <= 110; i++) {
-      final gps = _greatCircle(
-        _startLongitude, _startLatitude,
-        node.longitude, node.latitude, i / 110,
-      );
-      final xy = p.project(gps.dx, gps.dy);
-      if (xy == null) { drawing = false; continue; }
-      if (!drawing) { route.moveTo(xy.dx, xy.dy); drawing = true; }
-      else { route.lineTo(xy.dx, xy.dy); }
-      points.add(xy);
+  /// If China is behind the globe (e.g. when looking at North America),
+  /// start the visible arc from the first point emerging at the limb.
+  VelaFlightRoute? _visibleFlight(_Projector p) {
+    if (phase == VelaPhase.idle) return null;
+    final arrival = p.project(node.longitude, node.latitude);
+    if (arrival == null) return null;
+    var departure = p.project(_startLongitude, _startLatitude);
+    if (departure == null) {
+      for (var i = 1; i <= 180; i++) {
+        final geo = _greatCircle(
+          _startLongitude, _startLatitude,
+          node.longitude, node.latitude,
+          i / 180,
+        );
+        final visible = p.project(geo.dx, geo.dy);
+        if (visible != null) {
+          departure = visible;
+          break;
+        }
+      }
     }
-    if (points.length < 2) return;
-    canvas.drawPath(
-      route,
-      Paint()
-        ..color = const Color(0xFF56B7FF).withValues(alpha: .8)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = math.max(2, p.radius * .011)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
-    );
-    canvas.drawPath(
-      route,
-      Paint()
-        ..color = const Color(0xFFB6E6FF).withValues(alpha: .90)
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = math.max(1.2, p.radius * .0045),
+    if (departure == null) return null;
+    return VelaFlightRoute(
+      start: departure,
+      end: arrival,
+      globeRadius: p.radius,
     );
   }
 
-  void _drawMarkers(Canvas canvas, _Projector p, double side) {
+  void _drawRoute(Canvas canvas, _Projector p, VelaFlightRoute flight) {
+    final isError = phase == VelaPhase.error;
+    final glow = isError
+        ? const Color(0xFFFF8992)
+        : const Color(0xFF4CB5FF);
+    // Separate subdued full arc and bright travelled progress.
+    canvas.drawPath(
+      flight.path(),
+      Paint()
+        ..color = glow.withValues(alpha: .17)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.2, p.radius * .005),
+    );
+    final fraction = phase == VelaPhase.connected ||
+            phase == VelaPhase.error
+        ? 1.0 : sailProgress;
+    final covered = flight.path(until: fraction);
+    canvas.drawPath(
+      covered,
+      Paint()
+        ..color = glow.withValues(alpha: .72)
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = math.max(7, p.radius * .030)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
+    );
+    canvas.drawPath(
+      covered,
+      Paint()
+        ..color = isError
+            ? const Color(0xFFFFB3B5)
+            : const Color(0xFFBFE9FF)
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = math.max(1.8, p.radius * .007),
+    );
+    final beacon = flight.pointAt(fraction);
+    canvas.drawCircle(
+      beacon, math.max(3, p.radius * .009),
+      Paint()..color = Colors.white.withValues(alpha: .8),
+    );
+  }
+
+  void _drawMarkers(
+    Canvas canvas,
+    _Projector p,
+    double side,
+    VelaFlightRoute? flight,
+  ) {
     final china = p.project(_startLongitude, _startLatitude);
     if (china != null) {
       _mark(canvas, china, p.radius * .012, const Color(0xFF8FD9FF));
@@ -366,17 +562,27 @@ class _GlobePainter extends CustomPainter {
     }
     if (phase == VelaPhase.idle) {
       if (china != null) {
-        _drawSail(canvas, china.translate(p.radius * .095, -p.radius * .09),
-            p.radius * .060);
+        _drawSail(
+          canvas,
+          china.translate(p.radius * .095, -p.radius * .09),
+          p.radius * .058,
+        );
       }
       return;
     }
-    final end = p.project(node.longitude, node.latitude);
-    if (end != null) {
-      _mark(canvas, end, p.radius * .014, const Color(0xFFBAEAFF));
-      _drawSail(canvas, end.translate(-p.radius * .065, -p.radius * .13),
-          p.radius * .058);
-      _label(canvas, node.country, end.translate(5, p.radius * .032), side);
+    final target = p.project(node.longitude, node.latitude);
+    if (target != null) {
+      _mark(canvas, target, p.radius * .014, const Color(0xFFBAEAFF));
+      _label(canvas, node.country,
+          target.translate(p.radius * .035, p.radius * .034), side);
+    }
+    if (flight != null) {
+      final t = phase == VelaPhase.connected || phase == VelaPhase.error
+          ? 1.0 : sailProgress;
+      _drawSail(
+        canvas, flight.pointAt(t).translate(0, -p.radius * .041),
+        p.radius * .057,
+      );
     }
   }
 
@@ -478,6 +684,8 @@ class _GlobePainter extends CustomPainter {
       old.longitude != longitude ||
       old.latitude != latitude ||
       old.phase != phase ||
+      old.sailProgress != sailProgress ||
+      old.textures != textures ||
       old.node != node ||
       old.coastlines != coastlines;
 }
