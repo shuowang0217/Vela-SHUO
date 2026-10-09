@@ -13,6 +13,9 @@ const _blue = Color(0xFF80C7F8);
 const _muted = Color(0xFF97AEC4);
 const _mint = Color(0xFF63E6B7);
 
+/// Approved Vela-SHUO home-screen brand line. Keep this as the one source.
+const velaBrandTagline = '一帆越洋，尽览四方。';
+
 class VelaShuoApp extends StatelessWidget {
   const VelaShuoApp({super.key, required this.settings});
   final SettingsController settings;
@@ -171,11 +174,7 @@ class _DesktopNav extends StatelessWidget {
       const Text('— SHUO —', style: TextStyle(
         color: _blue, fontSize: 12, letterSpacing: 2,
       )),
-      const SizedBox(height: 6),
-      const Text('INTELLIGENT CONNECTIVITY',
-        style: TextStyle(color: _muted, fontSize: 7, letterSpacing: 1),
-      ),
-    ],
+     ],
     const SizedBox(height: 46),
     for (var i = 0; i < _ShellState.destinations.length; i++)
       Padding(
@@ -225,12 +224,6 @@ class _DesktopNav extends StatelessWidget {
         ),
       ),
     const Spacer(),
-    if (extended) ...[
-      const Text('更自由的连接世界',
-        style: TextStyle(color: _muted, fontSize: 10, letterSpacing: 1),
-      ),
-      const SizedBox(height: 25),
-    ],
   ]);
 }
 
@@ -368,26 +361,27 @@ class _HeroIdentity extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const Column(
     crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
     children: [
-      Text('更 自 由 的 连 接 世 界',
-          style: TextStyle(color: _muted, fontSize: 12, letterSpacing: 2)),
-      SizedBox(height: 16),
       Text('VELA', style: TextStyle(
+        fontFamily: 'Segoe UI',
         fontSize: 59, height: .96, letterSpacing: 5,
         color: Color(0xFFF2F8FF), fontWeight: FontWeight.bold,
       )),
-      SizedBox(height: 10),
+      SizedBox(height: 12),
       Text('— SHUO —', style: TextStyle(
+        fontFamily: 'Segoe UI',
         fontSize: 28, letterSpacing: 5, color: _blue,
       )),
-      SizedBox(height: 10),
-      Text('INTELLIGENT CONNECTIVITY',
-          style: TextStyle(color: _muted, fontSize: 11, letterSpacing: 2)),
-      SizedBox(height: 25),
-      Text('智能路由，畅行全球\n让重要的连接，更简单。',
-          style: TextStyle(
-            color: Color(0xFFB1C6DC), fontSize: 15, height: 1.8,
-          )),
+      SizedBox(height: 33),
+      Text(velaBrandTagline,
+        style: TextStyle(
+          color: Color(0xFFB1C6DC),
+          fontSize: 17, height: 1.5,
+          letterSpacing: 1.6,
+          fontWeight: FontWeight.w400,
+        ),
+      ),
     ],
   );
 }
@@ -681,8 +675,8 @@ class _MobileHome extends StatelessWidget {
             Text('Vela-SHUO', style: TextStyle(
               fontSize: 18, fontWeight: FontWeight.bold,
             )),
-            Text('INTELLIGENT CONNECTIVITY',
-              style: TextStyle(color: _muted, fontSize: 8, letterSpacing: 1),
+            Text(velaBrandTagline,
+              style: TextStyle(color: _muted, fontSize: 10, letterSpacing: .5),
             ),
           ],
         )),
