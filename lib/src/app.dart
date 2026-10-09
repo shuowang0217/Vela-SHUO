@@ -314,34 +314,47 @@ class _DesktopHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final width = constraints.maxWidth;
-      final height = math.max(790.0, constraints.maxHeight);
-      final contentWidth = math.min(width - 40, 1320.0);
-      final globeSize = math.min(width * .95, height * 1.34);
-      return SingleChildScrollView(
-        child: Center(
-          child: SizedBox(
-            width: contentWidth, height: height,
-            child: Stack(clipBehavior: Clip.none, children: [
-              Positioned(
-                top: -globeSize * .16,
-                right: -globeSize * .12,
-                width: globeSize, height: globeSize,
-                child: IgnorePointer(child: VelaGlobe(demo: demo)),
-              ),
-              const Positioned(top: 20, right: 4, child: _DemoTag()),
-              const Positioned(left: 22, top: 69, child: _HeroIdentity()),
-              Positioned(
-                left: 18,
-                top: height * .45,
-                width: math.min(contentWidth * .47, 520),
-                child: _ConnectionCard(demo: demo, showNodes: showNodes),
-              ),
-              Positioned(
-                left: 12, right: 12, bottom: 22,
-                child: _Stats(demo: demo, showSmart: showSmart),
-              ),
-            ]),
+      // Fit the entire desktop dashboard to the available client area.
+      // Unlike a forced 790px scroll canvas, the default Windows window
+      // can display the connection controls and four metric cards together.
+      final availableWidth = constraints.maxWidth;
+      final availableHeight = constraints.maxHeight;
+      final designWidth = math.max(820.0, math.min(availableWidth - 24, 1320.0));
+      const designHeight = 760.0;
+      final globeSize = math.min(designWidth * .94, 960.0);
+
+      return Center(
+        child: SizedBox(
+          width: availableWidth,
+          height: availableHeight,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: designWidth,
+              height: designHeight,
+              child: Stack(clipBehavior: Clip.hardEdge, children: [
+                Positioned(
+                  top: -globeSize * .16,
+                  right: -globeSize * .10,
+                  width: globeSize,
+                  height: globeSize,
+                  child: IgnorePointer(child: VelaGlobe(demo: demo)),
+                ),
+                const Positioned(top: 20, right: 12, child: _DemoTag()),
+                const Positioned(left: 22, top: 62, child: _HeroIdentity()),
+                Positioned(
+                  left: 18,
+                  top: 318,
+                  width: math.min(designWidth * .47, 520.0),
+                  child: _ConnectionCard(demo: demo, showNodes: showNodes),
+                ),
+                Positioned(
+                  left: 12, right: 12, bottom: 18,
+                  child: _Stats(demo: demo, showSmart: showSmart),
+                ),
+              ]),
+            ),
           ),
         ),
       );
