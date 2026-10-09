@@ -170,7 +170,9 @@ class _VelaGlobeState extends State<VelaGlobe>
       } else if (phase == VelaPhase.connected) {
         // The UI becomes "connected" before the boat reaches the end.
         // Never force the boat to t=1 here: let its ticker finish.
-        if (_sail.value < 1) _sail.forward();
+        // Calling forward() again while already running restarts the ticker
+        // timing; the phase change must not restart the sailing timeline.
+        if (!_sail.isAnimating && _sail.value < 1) _sail.forward();
       } else {
         _sail.stop();
       }
