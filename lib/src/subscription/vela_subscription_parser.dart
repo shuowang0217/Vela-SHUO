@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:yaml/yaml.dart';
 
+import 'vela_share_link_adapter.dart';
+
 /// A supported, individually selectable remote outbound.
 /// Credentials stay in memory until an explicitly selected node is started.
 class VelaSubscriptionNode {
@@ -44,21 +46,59 @@ class VelaSubscriptionParser {
     if (utf8.encode(raw).length > maxBytes) {
       throw const FormatException('订阅内容超过 2 MB');
     }
-    if (raw.trim().isEmpty) throw const FormatException('订阅内容为空');
+    final source = raw.replaceFirst('\uFEFF', '').trim();
+    if (source.isEmpty) throw const FormatException('订阅内容为空');
+
+    // First classify the response, rather than treating a base64 payload or
+    // HTML login page as a malformed YAML root.
+    if (source.startsWith('<!') || source.startsWith('<html') ||
+        source.startsWith('<HTML')) {
+      throw const FormatException(
+        '服务器返回的是网页而不是节点订阅，请在服务商面板复制专用订阅地址',
+      );
+    }
+
+    if (VelaShareLinkAdapter.looksLikeLinks(source)) {
+      return _parseShareLinks(source, '节点分享链接');
+    }
+    final decoded = VelaShareLinkAdapter.decodeBase64Subscription(source);
+    if (decoded != null) {
+      return _parseShareLinks(decoded, 'Base64 通用订阅');
+    }
+
     dynamic root;
-    var format = 'Clash/Mihomo YAML';
     try {
-      root = jsonDecode(raw);
-      format = 'sing-box JSON';
+      root = jsonDecode(source);
     } on FormatException {
       try {
-        root = loadYaml(raw);
+        root = loadYaml(source);
       } catch (_) {
-        throw const FormatException('无法解析订阅（需要 Clash YAML 或 sing-box JSON）');
+        throw const FormatException(
+          '无法识别订阅内容，请使用 Clash/Mihomo、sing-box 或通用节点订阅',
+        );
       }
     }
+    if (root is String) {
+      if (VelaShareLinkAdapter.looksLikeLinks(root)) {
+        return _parseShareLinks(root, '节点分享链接');
+      }
+      final nested = VelaShareLinkAdapter.decodeBase64Subscription(root);
+      if (nested != null) return _parseShareLinks(nested, 'Base64 通用订阅');
+      throw const FormatException(
+        '订阅返回的是文本而非节点列表，可能是服务商提示或订阅格式不匹配',
+      );
+    }
+    if (root is List) {
+      final lines = root.whereType<String>().join('\n');
+      if (VelaShareLinkAdapter.looksLikeLinks(lines)) {
+        return _parseShareLinks(lines, '节点链接列表');
+      }
+      throw const FormatException(
+        '订阅返回的是数组，但没有识别到受支持的节点分享链接',
+      );
+    }
     if (root is! Map) {
-      throw const FormatException('订阅根节点不是配置对象');
+      throw const FormatException('订阅内容不是受支持的节点配置');
     }
     final data = _plain(root);
     if (data is! Map<String, dynamic>) {
@@ -67,9 +107,11 @@ class VelaSubscriptionParser {
     final isClash = data['proxies'] is List;
     final candidates = isClash ? data['proxies'] : data['outbounds'];
     if (candidates is! List) {
-      throw const FormatException('未找到 proxies 或 outbounds 列表');
+      throw const FormatException(
+        '没有找到节点列表，可能下载了订阅说明页；请尝试 Clash 专用链接',
+      );
     }
-    format = isClash ? 'Clash/Mihomo YAML' : 'sing-box JSON';
+    final format = isClash ? 'Clash/Mihomo YAML' : 'sing-box JSON';
     if (candidates.length > maxNodes) {
       throw const FormatException('单份订阅最多支持 500 个节点');
     }
@@ -90,12 +132,48 @@ class VelaSubscriptionParser {
           nodes.add(node);
         }
       } catch (_) {
-        // Never include node values, credentials or raw errors in UI/logs.
         skipped++;
       }
     }
     if (nodes.isEmpty) {
       throw const FormatException('没有可用节点；请检查订阅类型与协议支持范围');
+    }
+    return VelaSubscriptionResult(
+      nodes: List.unmodifiable(nodes), skipped: skipped, format: format,
+    );
+  }
+
+  static VelaSubscriptionResult _parseShareLinks(
+    String raw, String format,
+  ) {
+    final lines = raw.split(RegExp(r'\r?\n')).map((s) => s.trim())
+        .where((line) => line.isNotEmpty && !line.startsWith('#')).toList();
+    if (lines.length > maxNodes) {
+      throw const FormatException('单份订阅最多支持 500 个节点');
+    }
+    final nodes = <VelaSubscriptionNode>[];
+    var skipped = 0;
+    for (final line in lines) {
+      final candidate = VelaShareLinkAdapter.parseLink(line);
+      if (candidate == null) {
+        skipped++;
+        continue;
+      }
+      try {
+        final node = _fromClash(candidate);
+        if (node == null) {
+          skipped++;
+        } else {
+          nodes.add(node);
+        }
+      } catch (_) {
+        skipped++;
+      }
+    }
+    if (nodes.isEmpty) {
+      throw const FormatException(
+        '检测到节点分享链接，但协议或安全参数暂不兼容；请尝试 Clash 订阅',
+      );
     }
     return VelaSubscriptionResult(
       nodes: List.unmodifiable(nodes), skipped: skipped, format: format,
