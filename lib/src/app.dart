@@ -368,21 +368,28 @@ class _HomePage extends StatelessWidget {
     required this.desktop,
     required this.showNodes,
     required this.showSmart,
+    this.connection,
+    this.subscription,
   });
   final VelaDemoController demo;
+  final VelaConnectionCoordinator? connection;
+  final VelaSubscriptionController? subscription;
   final bool desktop;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: demo,
+    animation: Listenable.merge([demo, if (connection != null) connection!,
+      if (subscription != null) subscription!]),
     builder: (context, _) => desktop
       ? _DesktopHome(
-          demo: demo, showNodes: showNodes, showSmart: showSmart,
+          demo: demo, connection: connection, subscription: subscription,
+          showNodes: showNodes, showSmart: showSmart,
         )
       : _MobileHome(
-          demo: demo, showNodes: showNodes, showSmart: showSmart,
+          demo: demo, connection: connection, subscription: subscription,
+          showNodes: showNodes, showSmart: showSmart,
         ),
   );
 }
@@ -390,8 +397,11 @@ class _HomePage extends StatelessWidget {
 class _DesktopHome extends StatelessWidget {
   const _DesktopHome({
     required this.demo, required this.showNodes, required this.showSmart,
+    this.connection, this.subscription,
   });
   final VelaDemoController demo;
+  final VelaConnectionCoordinator? connection;
+  final VelaSubscriptionController? subscription;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
 
@@ -425,17 +435,22 @@ class _DesktopHome extends StatelessWidget {
                   height: globeSize,
                   child: IgnorePointer(child: VelaGlobe(demo: demo)),
                 ),
-                Positioned(top: 20, right: 12, child: _DemoTag()),
+                Positioned(top: 20, right: 12, child: subscription?.selected
+                    != null ? _RealTag() : _DemoTag()),
                 Positioned(left: 22, top: 62, child: _HeroIdentity()),
                 Positioned(
                   left: 18,
                   top: 318,
                   width: math.min(designWidth * .47, 520.0),
-                  child: _ConnectionCard(demo: demo, showNodes: showNodes),
+                  child: subscription?.selected != null && connection != null
+                      ? _RealConnectionCard(
+                          connection: connection!, showNodes: showNodes)
+                      : _ConnectionCard(demo: demo, showNodes: showNodes),
                 ),
                 Positioned(
                   left: 12, right: 12, bottom: 18,
-                  child: _Stats(demo: demo, showSmart: showSmart),
+                  child: _Stats(demo: demo, showSmart: showSmart,
+                    real: subscription?.selected != null),
                 ),
               ]),
             ),
@@ -655,24 +670,26 @@ class _ConnectionCard extends StatelessWidget {
 }
 
 class _Stats extends StatelessWidget {
-  const _Stats({required this.demo, required this.showSmart});
+  const _Stats({required this.demo, required this.showSmart,
+    this.real = false});
   final VelaDemoController demo;
   final VoidCallback showSmart;
+  final bool real;
 
   @override
   Widget build(BuildContext context) => Row(children: [
     Expanded(child: _MetricCard(
       icon: Icons.bolt_outlined,
       label: '网络延迟',
-      value: demo.isConnected ? demo.selected.latency.toString() : '—',
+      value: real ? '—' : (demo.isConnected ? demo.selected.latency.toString() : '—'),
       unit: 'ms', caption: '示意数据 · 非真实测速', highlight: _mint,
     )),
     SizedBox(width: 11),
     Expanded(child: _MetricCard(
       icon: Icons.download_outlined,
       label: '下载速度',
-      value: demo.isConnected
-          ? demo.selected.downloadMbps.toStringAsFixed(0) : '—',
+      value: real ? '—' : (demo.isConnected
+          ? demo.selected.downloadMbps.toStringAsFixed(0) : '—'),
       unit: 'Mbps', caption: '示意数据 · 非真实测速', highlight: _blue,
     )),
     SizedBox(width: 11),
@@ -748,8 +765,11 @@ class _MetricCard extends StatelessWidget {
 class _MobileHome extends StatelessWidget {
   const _MobileHome({
     required this.demo, required this.showNodes, required this.showSmart,
+    this.connection, this.subscription,
   });
   final VelaDemoController demo;
+  final VelaConnectionCoordinator? connection;
+  final VelaSubscriptionController? subscription;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
 
@@ -771,7 +791,8 @@ class _MobileHome extends StatelessWidget {
             ),
           ],
         )),
-        _DemoTag(compact: true),
+        subscription?.selected != null ? _RealTag(compact: true)
+            : _DemoTag(compact: true),
       ]),
       SizedBox(height: 7),
       SizedBox(
@@ -779,19 +800,22 @@ class _MobileHome extends StatelessWidget {
         child: VelaGlobe(demo: demo),
       ),
       SizedBox(height: 8),
-      _ConnectionCard(demo: demo, showNodes: showNodes, compact: true),
+      subscription?.selected != null && connection != null
+          ? _RealConnectionCard(connection: connection!,
+              showNodes: showNodes, compact: true)
+          : _ConnectionCard(demo: demo, showNodes: showNodes, compact: true),
       SizedBox(height: 12),
       Row(children: [
         Expanded(child: _MetricCard(
           icon: Icons.bolt_outlined, label: '网络延迟',
-          value: demo.isConnected ? demo.selected.latency.toString() : '—',
+          value: subscription?.selected != null ? '—' : (demo.isConnected ? demo.selected.latency.toString() : '—'),
           unit: 'ms', caption: '示意数据', highlight: _mint,
         )),
         SizedBox(width: 10),
         Expanded(child: _MetricCard(
           icon: Icons.download_outlined, label: '下载速度',
-          value: demo.isConnected
-              ? demo.selected.downloadMbps.toStringAsFixed(0) : '—',
+          value: subscription?.selected != null ? '—' : (demo.isConnected
+              ? demo.selected.downloadMbps.toStringAsFixed(0) : '—'),
           unit: 'Mbps', caption: '示意数据', highlight: _blue,
         )),
       ]),
