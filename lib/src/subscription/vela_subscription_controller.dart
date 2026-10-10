@@ -400,14 +400,18 @@ class VelaSubscriptionController extends ChangeNotifier {
   /// silently enables Windows proxy, or starts an Android VPN.
   Future<bool> restoreSaved() async {
     if (_disposed || loading || _vaultBusy ||
-        core.busy || core.isListening || nodes.isNotEmpty) return false;
+        core.busy || core.isListening || nodes.isNotEmpty) {
+      return false;
+    }
     _vaultBusy = true;
     _phase = VelaSubscriptionPhase.loading;
     final generation = ++_generation;
     _notify();
     try {
       final encoded = await _vault.read().timeout(const Duration(seconds: 6));
-      if (_disposed || generation != _generation) return false;
+      if (_disposed || generation != _generation) {
+        return false;
+      }
       if (encoded == null) {
         _phase = VelaSubscriptionPhase.idle;
         return false;
@@ -422,7 +426,9 @@ class VelaSubscriptionController extends ChangeNotifier {
       }
       final raw = obj['raw'] as String;
       final parsed = VelaSubscriptionParser.parse(raw);
-      if (_disposed || generation != _generation) return false;
+      if (_disposed || generation != _generation) {
+        return false;
+      }
       _source = raw;
       _result = parsed;
       _selected = null;
@@ -451,7 +457,9 @@ class VelaSubscriptionController extends ChangeNotifier {
   /// URL, only the validated source body and currently selected index.
   Future<bool> saveOnDevice() async {
     final source = _source;
-    if (_disposed || _vaultBusy || loading || source == null) return false;
+    if (_disposed || _vaultBusy || loading || source == null) {
+      return false;
+    }
     _vaultBusy = true;
     _notify();
     try {
@@ -459,7 +467,9 @@ class VelaSubscriptionController extends ChangeNotifier {
         'v': 1, 'raw': source, 'selected': _selected,
       });
       await _vault.write(snapshot).timeout(const Duration(seconds: 8));
-      if (_disposed) return false;
+      if (_disposed) {
+        return false;
+      }
       _stored = true;
       _error = null;
       return true;
@@ -475,7 +485,9 @@ class VelaSubscriptionController extends ChangeNotifier {
   /// Removes only Vela's own encrypted snapshot, not other applications'
   /// keys, current nodes, theme settings or Windows proxy recovery journal.
   Future<bool> clearSaved() async {
-    if (_disposed || _vaultBusy || loading) return false;
+    if (_disposed || _vaultBusy || loading) {
+      return false;
+    }
     _vaultBusy = true;
     _notify();
     try {
