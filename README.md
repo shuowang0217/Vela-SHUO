@@ -14,7 +14,7 @@
 - 节点页可选择**演示节点**，智能页可操作**演示开关**。
 - 深色主题默认开启，仍可切换浅色或跟随系统，主题本地持久化。
 
-**重要：主界面节点、动画、延迟与速度仍属于演示数据，不代表真实联网。** 0.2-a 已独立增加 Windows 设置页的本地 sing-box 内核进程控制（用户自行提供二进制与本地 JSON），可以启动 127.0.0.1 HTTP/mixed 代理监听，但暂不修改系统代理、不检测远程线路、不提供订阅或自动测速。
+**重要：主界面节点、动画、延迟与速度仍属于演示数据，不代表真实联网。** 0.2-a 已独立增加 Windows 设置页的本地 sing-box 内核进程控制。新版 Windows ZIP 随包提供经 SHA-256 校验的官方稳定版 sing-box 1.14.3；首次启动自动生成无账号、无海外线路的本地 direct 测试配置，可以启动 127.0.0.1 HTTP/mixed 代理监听，但暂不修改系统代理、不检测远程线路、不提供订阅或自动测速。
 
 ### 云端构建
 
@@ -26,11 +26,11 @@
 
 球体采用 Natural Earth 公开地理边界资料，由 https://github.com/holtzy/D3-graph-gallery/blob/master/DATA/world.geojson 的示例数据提取和简化。Natural Earth public-domain 地图数据；地图绘制、渲染算法、航线、简笔帆船及界面均在本项目中实现。
 
-主界面定稿见 [docs/HOME_UI_FINAL.md](docs/HOME_UI_FINAL.md)；本地内核 Alpha 的配置要求与风险见 [docs/CORE_0_2_ALPHA.md](docs/CORE_0_2_ALPHA.md)；0.1-C 可靠性规范见 [docs/RELIABILITY_0_1_C.md](docs/RELIABILITY_0_1_C.md)；开发计划见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+主界面定稿见 [docs/HOME_UI_FINAL.md](docs/HOME_UI_FINAL.md)；本地内核 Alpha、官方 GPLv3 内核打包、直连测试的配置要求与风险见 [docs/CORE_0_2_ALPHA.md](docs/CORE_0_2_ALPHA.md)；0.1-C 可靠性规范见 [docs/RELIABILITY_0_1_C.md](docs/RELIABILITY_0_1_C.md)；开发计划见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ## 安全
 
-- 在用户明确选择二进制和配置并点击启动后，可运行用户提供的 sing-box 本地监听；否则不会运行代理内核。
+- 在用户明确点击启动后，使用随包附带并验证的 sing-box 或用户自选可信内核创建本地监听；仅启动应用不会运行代理内核。
 - 不会修改 Windows 系统代理、自动接管流量或申请 VPN/TUN 权限。
 - 不会生成虚假的“真实测速”或“真实连接成功”通知。
 - 不修改已有的 FlClash-Custom 仓库或安装身份。
