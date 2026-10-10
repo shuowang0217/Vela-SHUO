@@ -968,7 +968,7 @@ class _NodesPage extends StatelessWidget {
           : '尚未导入订阅 · 以下是地图演示节点'),
       SizedBox(height: 18),
       Platform.isAndroid ? _AndroidPreviewTag() :
-          subscription?.nodes.isNotEmpty == true ? _RealTag() : _DemoTag()
+          subscription?.nodes.isNotEmpty == true ? _RealTag() : _DemoTag(),
       SizedBox(height: 24),
       if (subscription?.nodes.isNotEmpty == true) ...[
         if (smart != null && smart!.total > 0) ...[
