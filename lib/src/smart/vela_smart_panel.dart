@@ -65,6 +65,30 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
               value: engine.autoPickWhenIdle,
               onChanged: engine.setAutoPick,
             ),
+            const SizedBox(height: 7),
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              children: [
+                Text('自动健康检查', style:
+                    TextStyle(color: theme.muted, fontSize: 12)),
+                DropdownButton<int>(
+                  key: const ValueKey('smart_schedule_interval'),
+                  value: engine.scheduledMinutes,
+                  items: const [
+                    DropdownMenuItem(value: 0, child: Text('关闭')),
+                    DropdownMenuItem(value: 15, child: Text('每15分钟')),
+                    DropdownMenuItem(value: 30, child: Text('每30分钟')),
+                    DropdownMenuItem(value: 60, child: Text('每60分钟')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) { engine.setScheduledMinutes(value); }
+                  },
+                ),
+              ],
+            ),
+            Text('仅在软件运行且未连接时，每次检查下一批最多8个节点。',
+                style: TextStyle(color: theme.muted, fontSize: 11)),
             const SizedBox(height: 10),
             Wrap(spacing: 9, runSpacing: 9, children: [
               FilledButton.icon(
@@ -89,6 +113,14 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
                     ? null : engine.testNextBatch,
                 icon: const Icon(Icons.speed_rounded, size: 18),
                 label: const Text('测试下一批（最多8个）'),
+              ),
+              OutlinedButton.icon(
+                key: const ValueKey('smart_download_selected'),
+                onPressed: engine.canTestSelectedDownload
+                    ? engine.testSelectedDownload : null,
+                icon: const Icon(Icons.download_rounded, size: 18),
+                label: Text(engine.downloading
+                    ? '正在测试下载速度…' : '测所选节点下载速度（1 MiB）'),
               ),
               OutlinedButton.icon(
                 key: const ValueKey('smart_use_recommended'),
@@ -121,6 +153,11 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
                     style: TextStyle(color: theme.muted, fontSize: 12)),
               ]),
               const SizedBox(height: 8),
+            ],
+            if (engine.downloadStatus != null) ...[
+              Text(engine.downloadStatus!,
+                style: TextStyle(color: theme.muted, fontSize: 12)),
+              const SizedBox(height: 7),
             ],
             Text(engine.status ?? (available == 0
                 ? '请先在「设置」页面导入订阅。'
@@ -158,12 +195,22 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
                           ? FontWeight.bold : FontWeight.normal,
                     ))),
                   const SizedBox(width: 10),
-                  Text(_label(engine.resultAt(i)),
-                    style: TextStyle(
-                      color: engine.resultAt(i)?.reachable == true
-                          ? theme.accent : theme.muted,
-                      fontSize: 12,
-                    )),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(_label(engine.resultAt(i)),
+                        style: TextStyle(
+                          color: engine.resultAt(i)?.reachable == true
+                              ? theme.accent : theme.muted,
+                          fontSize: 12,
+                        )),
+                      if (engine.downloadAt(i) != null)
+                        Text(engine.downloadAt(i)?.mbps != null
+                          ? '${engine.downloadAt(i)!.mbps!.toStringAsFixed(1)} Mbps · 1 MiB'
+                          : '下载样本失败',
+                          style: TextStyle(color: theme.muted, fontSize: 10)),
+                    ],
+                  ),
                 ]),
               ),
             if (available > ranked.length)
@@ -183,8 +230,8 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
                 label: const Text('收起结果'),
               ),
             const SizedBox(height: 12),
-            Text('显示的毫秒值为单次 HTTPS 完整请求耗时，'
-              '不等于游戏 Ping、下载 Mbps 或其他网站的实际速度。',
+            Text('HTTPS 延迟与下载样本分开计量。下载测速只对所选节点'
+              '下载1 MiB 数据，结果不是持续带宽保证。自动健康检查不会下载文件。',
               style: TextStyle(color: theme.muted, fontSize: 11, height: 1.5)),
           ],
         ),
