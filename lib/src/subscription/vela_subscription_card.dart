@@ -102,7 +102,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                       value: VelaSubscriptionDownloadMode.automatic,
                       child: Text('自动（系统代理优先，失败后直连）'),
                     ),
-                    if (!Platform.isAndroid) DropdownMenuItem(
+                    DropdownMenuItem(
                       value: VelaSubscriptionDownloadMode.systemProxy,
                       child: Text('仅使用 Windows 系统代理'),
                     ),
@@ -141,7 +141,9 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               key: const ValueKey('subscription_import'),
               onPressed: busy ? null : () async {
                 final value = _url.text.trim();
-                if (value.isEmpty) return;
+                if (value.isEmpty) {
+                  return;
+                }
                 if (_offlineMode) {
                   await subscription.importFromText(value);
                 } else {
