@@ -28,6 +28,7 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   bool _handlingExit = false;
   bool _operation = false;
   bool _exitRequested = false;
+  bool _switchingNode = false;
   Completer<void>? _operationIdle;
 
   void _beginOperation() {
@@ -45,6 +46,7 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   VelaRealPhase get phase => _phase;
   String? get error => _error;
   bool get busy => _operation;
+  bool get switchingNode => _switchingNode;
   bool get connected => _phase == VelaRealPhase.connected && proxy.active &&
       core.isListening && core.remoteVerified;
   bool get hasSelection => subscription.selected != null;
@@ -54,7 +56,8 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   String get phaseText => switch (_phase) {
     VelaRealPhase.idle => '未连接',
     VelaRealPhase.connecting => '正在建立真实连接…',
-    VelaRealPhase.connected => connected ? '已连接（系统代理）' : '连接状态异常',
+    VelaRealPhase.connected => _switchingNode ? '正在切换节点…' :
+        connected ? '已连接（系统代理）' : '连接状态异常',
     VelaRealPhase.disconnecting => '正在安全断开…',
     VelaRealPhase.error => '连接未建立',
   };
@@ -133,6 +136,62 @@ class VelaConnectionCoordinator extends ChangeNotifier {
       _emit(VelaRealPhase.error, '断开时出现异常，请检查 Windows 代理设置');
       return false;
     } finally {
+      _endOperation();
+      if (!_closed) notifyListeners();
+    }
+  }
+
+  /// In-place live route selection: never restart the listening process or
+  /// modify WinINet when the new node can be verified. The old route remains
+  /// selected in the UI until Mihomo confirms both the API state and HTTPS.
+  Future<bool> switchNode(int index) async {
+    if (_closed || _exitRequested || _operation || !connected ||
+        subscription.selectedIndex == null) return false;
+    final previous = subscription.selectedIndex!;
+    if (index == previous) return true;
+    final oldName = subscription.configuredNameFor(previous);
+    final newName = subscription.configuredNameFor(index);
+    if (oldName == null || newName == null) {
+      _emit(VelaRealPhase.connected, '节点不在当前 Mihomo 配置中，请先断开后重新导入');
+      return false;
+    }
+    _beginOperation();
+    _switchingNode = true;
+    _emit(VelaRealPhase.connected);
+    try {
+      final result = await core.switchActiveNode(
+          currentName: oldName, nextName: newName);
+      switch (result) {
+        case VelaNodeSwitchResult.success:
+          if (!subscription.confirmRunningSelection(index)) {
+            // UI state must never claim a switch that was not confirmed.
+            _emit(VelaRealPhase.error, '节点状态更新失败，请安全断开后重连');
+            return false;
+          }
+          _emit(VelaRealPhase.connected);
+          return true;
+        case VelaNodeSwitchResult.restored:
+          _emit(VelaRealPhase.connected, '新节点 HTTPS 验证失败，已恢复原节点');
+          return false;
+        case VelaNodeSwitchResult.unverified:
+          // Unknown live route is not "connected". Restore the previous
+          // Windows proxy before stopping the local listener.
+          if (await proxy.disable()) {
+            await core.stop();
+            _emit(VelaRealPhase.error,
+                '切换后无法确认可用线路，已断开并恢复系统代理');
+          } else {
+            _emit(VelaRealPhase.error,
+                '切换验证失败且无法恢复 Windows 代理；内核保持运行');
+          }
+          return false;
+      }
+    } catch (_) {
+      if (await proxy.disable()) await core.stop();
+      _emit(VelaRealPhase.error, '节点切换异常，请检查 Windows 代理状态');
+      return false;
+    } finally {
+      _switchingNode = false;
       _endOperation();
       if (!_closed) notifyListeners();
     }
