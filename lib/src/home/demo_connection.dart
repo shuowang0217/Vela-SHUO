@@ -121,7 +121,9 @@ class VelaDemoController extends ChangeNotifier {
         VelaDemoNode.approximateFromName(name);
     final visible = inferred == null ? VelaPhase.idle : next;
     if (_realVisual && phase == visible && selected == (inferred ?? selected)
-        && _realLabel == name) return;
+        && _realLabel == name) {
+      return;
+    }
     _transition?.cancel();
     _generation++;
     _realVisual = true;
