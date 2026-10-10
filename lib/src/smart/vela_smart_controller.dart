@@ -111,18 +111,29 @@ class VelaSmartController extends ChangeNotifier {
   final Map<int, VelaNodeHealth> _results = {};
   Map<int, VelaNodeHealth> get results => Map.unmodifiable(_results);
   bool _scanning = false;
+  bool _cancelRequested = false;
+  bool _allNodesScan = false;
   bool _disposed = false;
   bool _autoPickWhenIdle = false;
   int _cursor = 0;
   int _finished = 0;
   int _total = 0;
+  int _successful = 0;
+  int _failed = 0;
   int _generation = 0;
   String? _status;
   DateTime? _lastSelection;
   bool get scanning => _scanning;
+  bool get cancelling => _cancelRequested && _scanning;
+  bool get allNodesScan => _allNodesScan;
   bool get autoPickWhenIdle => _autoPickWhenIdle;
   int get scanned => _finished;
   int get total => _total;
+  int get successful => _successful;
+  int get failed => _failed;
+  bool get canTestAll => !_scanning && !_disposed && count > 0 &&
+      core.hasCore && core.supported && !core.busy &&
+      !connection.busy && !subscription.loading;
   String? get status => _status;
   int get count => subscription.nodes.length;
   int get nextBatchSize => count == 0 ? 0 :
@@ -140,13 +151,16 @@ class VelaSmartController extends ChangeNotifier {
   void _onSubscription() {
     if (identical(_lastNodes, subscription.nodes)) { return; }
     ++_generation;
+    _cancelRequested = true;
     _lastNodes = subscription.nodes;
     _results.clear();
     _cursor = 0;
     _finished = 0;
     _total = 0;
+    _successful = 0;
+    _failed = 0;
     _lastSelection = null;
-    _status = null;
+    _status = _scanning ? '订阅已更新，正在停止旧的测速任务…' : null;
     _emit();
   }
 
@@ -207,54 +221,116 @@ class VelaSmartController extends ChangeNotifier {
     return ok;
   }
 
+  /// FlClash-like one-click benchmark of EVERY imported node. At most two
+  /// isolated sing-box children run concurrently, including while the
+  /// main Windows proxy is connected. No action touches that live proxy.
+  Future<void> testAllNodes() async {
+    if (!canTestAll) { return; }
+    _results.clear(); // Never mix old and fresh measurements in live progress.
+    _cursor = 0;
+    final indices = List<int>.generate(count, (i) => i);
+    await _runScan(indices, all: true);
+  }
+
+  /// The original manual 8-at-a-time tool remains available when idle.
   Future<void> testNextBatch() async {
     if (_scanning || _disposed || count == 0 || !core.hasCore ||
         !core.supported || !safeToSelect) {
       return;
     }
-    _scanning = true;
-    final run = ++_generation;
     final batch = nextBatchSize;
-    final start = _cursor;
-    _finished = 0;
-    _total = batch;
-    _status = '正在检测真实 HTTPS 代理响应时间…';
+    final indices = List<int>.generate(
+      batch, (i) => (_cursor + i) % count,
+    );
+    await _runScan(indices, all: false);
+  }
+
+  /// Stops scheduling additional nodes. Up to two in-flight HTTPS probes
+  /// finish their timeout/cleanup before scanning ends.
+  void cancelScan() {
+    if (!_scanning || _cancelRequested) { return; }
+    _cancelRequested = true;
+    _status = '正在停止：不再启动新的节点测速，等待当前任务清理…';
     _emit();
-    for (var n = 0; n < batch; n++) {
-      if (_disposed || run != _generation) { break; }
-      final index = (start + n) % count;
-      VelaLatencySample measured;
-      try {
-        measured = await _probe.measure(subscription.nodes[index]);
-      } catch (_) {
-        measured = const VelaLatencySample(ok: false);
+  }
+
+  Future<void> _runScan(List<int> indices, {required bool all}) async {
+    if (_scanning || _disposed || indices.isEmpty) { return; }
+    _scanning = true;
+    _cancelRequested = false;
+    _allNodesScan = all;
+    final run = ++_generation;
+    final nodes = subscription.nodes; // stable snapshot for this scan
+    final previousCursor = _cursor;
+    final workerCount = all ? (indices.length < 2 ? indices.length : 2) : 1;
+    var nextPosition = 0;
+    _finished = 0;
+    _total = indices.length;
+    _successful = 0;
+    _failed = 0;
+    _status = all
+        ? '正在一键检测全部 ${indices.length} 个节点（最多同时2个）…'
+        : '正在检测真实 HTTPS 代理响应时间…';
+    _emit();
+
+    Future<void> worker() async {
+      while (!_disposed && !_cancelRequested && run == _generation) {
+        if (nextPosition >= indices.length) { return; }
+        // Dart's single event loop reserves each index before the first await.
+        final index = indices[nextPosition++];
+        VelaLatencySample sample;
+        try {
+          sample = await _probe.measure(nodes[index]);
+        } catch (_) {
+          sample = const VelaLatencySample(ok: false);
+        }
+        if (_disposed || _cancelRequested || run != _generation) { return; }
+        final previous = _results[index];
+        _results[index] = previous == null
+            ? VelaNodeHealth.first(index, sample, _clock())
+            : previous.add(sample, _clock());
+        if (sample.ok && sample.milliseconds != null) {
+          _successful++;
+        } else {
+          _failed++;
+        }
+        _finished++;
+        _emit();
       }
-      if (_disposed || run != _generation) { break; }
-      final previous = _results[index];
-      _results[index] = previous == null
-          ? VelaNodeHealth.first(index, measured, _clock())
-          : previous.add(measured, _clock());
-      _finished = n + 1;
-      _emit();
     }
-    if (!_disposed && run == _generation) {
-      _cursor = (start + batch) % count;
-      _scanning = false;
-      _status = '本批次已完成 $_finished / $_total。'
-          '结果是 HTTPS 完整请求耗时，不是 ICMP Ping 或下载速度。';
-      _emit();
-      if (_autoPickWhenIdle && canRecommend) {
-        await useRecommended();
+
+    try {
+      await Future.wait(List.generate(workerCount, (_) => worker()));
+    } finally {
+      if (!_disposed) {
+        final cancelled = _cancelRequested || run != _generation;
+        if (!cancelled) {
+          if (all) {
+            _cursor = 0;
+          } else {
+            _cursor = (previousCursor + indices.length) % count;
+          }
+          _status = all
+              ? '全部测速完成：成功 $_successful，失败 $_failed，共 $_total 个。'
+              : '本批次完成：成功 $_successful，失败 $_failed，共 $_total 个。';
+        } else if (run == _generation) {
+          _status = '测速已停止：完成 $_finished / $_total，剩余节点未测。';
+        }
+        _scanning = false;
+        _cancelRequested = false;
+        _emit();
+        // Never switch an active connection, even if auto-pick is enabled.
+        if (!cancelled && _autoPickWhenIdle && canRecommend) {
+          await useRecommended();
+        }
       }
-    } else if (!_disposed) {
-      _scanning = false;
-      _emit();
     }
   }
 
   @override
   void dispose() {
     ++_generation;
+    _cancelRequested = true;
     _disposed = true;
     subscription.removeListener(_onSubscription);
     super.dispose();
