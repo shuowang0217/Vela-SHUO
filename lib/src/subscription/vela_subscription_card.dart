@@ -211,9 +211,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               '目前支持常见 Shadowsocks、VMess、VLESS、Trojan 和 Hysteria2 '
               '节点的部分 Clash/Mihomo YAML、sing-box JSON 格式。'
               '证书校验被关闭或不支持的传输参数会被跳过。'
-              Platform.isAndroid
-                  ? 'Android 预览版不会安装 VPN Service、运行 Mihomo 或改变网络设置。'
-                  : '导入与节点选择不会自动接管 Windows 系统流量。',
+              '${Platform.isAndroid ? 'Android 预览版不会安装 VPN Service、运行 Mihomo 或改变网络设置。' : '导入与节点选择不会自动接管 Windows 系统流量。'}',
               style: TextStyle(color: colors.muted, fontSize: 11, height: 1.5),
             ),
           ],
