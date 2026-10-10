@@ -391,10 +391,12 @@ class _HomePage extends StatelessWidget {
     required this.showSmart,
     this.connection,
     this.subscription,
+    this.smart,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
   final VelaSubscriptionController? subscription;
+  final VelaSmartController? smart;
   final bool desktop;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
@@ -402,14 +404,16 @@ class _HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: Listenable.merge([demo, ?connection,
-      ?subscription]),
+      ?subscription, ?smart]),
     builder: (context, _) => desktop
       ? _DesktopHome(
           demo: demo, connection: connection, subscription: subscription,
+          smart: smart,
           showNodes: showNodes, showSmart: showSmart,
         )
       : _MobileHome(
           demo: demo, connection: connection, subscription: subscription,
+          smart: smart,
           showNodes: showNodes, showSmart: showSmart,
         ),
   );
@@ -418,11 +422,12 @@ class _HomePage extends StatelessWidget {
 class _DesktopHome extends StatelessWidget {
   const _DesktopHome({
     required this.demo, required this.showNodes, required this.showSmart,
-    this.connection, this.subscription,
+    this.connection, this.subscription, this.smart,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
   final VelaSubscriptionController? subscription;
+  final VelaSmartController? smart;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
 
@@ -471,7 +476,8 @@ class _DesktopHome extends StatelessWidget {
                 Positioned(
                   left: 12, right: 12, bottom: 18,
                   child: _Stats(demo: demo, showSmart: showSmart,
-                    real: subscription?.selected != null),
+                    real: subscription?.selected != null,
+                    smart: smart, selectedIndex: subscription?.selectedIndex),
                 ),
               ]),
             ),
@@ -692,18 +698,24 @@ class _ConnectionCard extends StatelessWidget {
 
 class _Stats extends StatelessWidget {
   const _Stats({required this.demo, required this.showSmart,
-    this.real = false});
+    this.real = false, this.smart, this.selectedIndex});
   final VelaDemoController demo;
   final VoidCallback showSmart;
   final bool real;
+  final VelaSmartController? smart;
+  final int? selectedIndex;
 
   @override
   Widget build(BuildContext context) => Row(children: [
     Expanded(child: _MetricCard(
       icon: Icons.bolt_outlined,
       label: '网络延迟',
-      value: real ? '—' : (demo.isConnected ? demo.selected.latency.toString() : '—'),
-      unit: 'ms', caption: '示意数据 · 非真实测速', highlight: _mint,
+      value: real
+          ? (selectedIndex == null ? '—' :
+              (smart?.resultAt(selectedIndex!)?.lastMs?.toString() ?? '—'))
+          : (demo.isConnected ? demo.selected.latency.toString() : '—'),
+      unit: 'ms', caption: real ? '最近 HTTPS 实测' : '示意数据 · 非真实测速',
+      highlight: _mint,
     )),
     SizedBox(width: 11),
     Expanded(child: _MetricCard(
@@ -711,14 +723,17 @@ class _Stats extends StatelessWidget {
       label: '下载速度',
       value: real ? '—' : (demo.isConnected
           ? demo.selected.downloadMbps.toStringAsFixed(0) : '—'),
-      unit: 'Mbps', caption: '示意数据 · 非真实测速', highlight: _blue,
+      unit: 'Mbps', caption: real ? '吞吐测速尚未实现'
+          : '示意数据 · 非真实测速', highlight: _blue,
     )),
     SizedBox(width: 11),
     Expanded(child: _MetricCard(
       icon: Icons.auto_awesome_outlined,
       label: '智能模式',
-      value: demo.smartEnabled ? '已启用' : '已关闭',
-      unit: '', caption: '视觉展示 · 算法尚未接入',
+      value: real ? (smart?.autoPickWhenIdle == true ? '空闲优选' : '手动优选')
+          : (demo.smartEnabled ? '已启用' : '已关闭'),
+      unit: '', caption: real ? '真实评分引擎 · 空闲时切换'
+          : '视觉展示 · 算法尚未接入',
       highlight: _blue, onTap: showSmart,
     )),
     SizedBox(width: 11),
@@ -786,11 +801,12 @@ class _MetricCard extends StatelessWidget {
 class _MobileHome extends StatelessWidget {
   const _MobileHome({
     required this.demo, required this.showNodes, required this.showSmart,
-    this.connection, this.subscription,
+    this.connection, this.subscription, this.smart,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
   final VelaSubscriptionController? subscription;
+  final VelaSmartController? smart;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
 
@@ -829,23 +845,31 @@ class _MobileHome extends StatelessWidget {
       Row(children: [
         Expanded(child: _MetricCard(
           icon: Icons.bolt_outlined, label: '网络延迟',
-          value: subscription?.selected != null ? '—' : (demo.isConnected ? demo.selected.latency.toString() : '—'),
-          unit: 'ms', caption: '示意数据', highlight: _mint,
+          value: subscription?.selected != null
+              ? (subscription?.selectedIndex == null ? '—'
+                  : (smart?.resultAt(subscription!.selectedIndex!)?.lastMs?.toString() ?? '—'))
+              : (demo.isConnected ? demo.selected.latency.toString() : '—'),
+          unit: 'ms', caption: subscription?.selected != null
+              ? '最近 HTTPS 实测' : '示意数据', highlight: _mint,
         )),
         SizedBox(width: 10),
         Expanded(child: _MetricCard(
           icon: Icons.download_outlined, label: '下载速度',
           value: subscription?.selected != null ? '—' : (demo.isConnected
               ? demo.selected.downloadMbps.toStringAsFixed(0) : '—'),
-          unit: 'Mbps', caption: '示意数据', highlight: _blue,
+          unit: 'Mbps', caption: subscription?.selected != null
+              ? '吞吐测速尚未实现' : '示意数据', highlight: _blue,
         )),
       ]),
       SizedBox(height: 10),
       Row(children: [
         Expanded(child: _MetricCard(
           icon: Icons.auto_awesome_outlined, label: '智能模式',
-          value: demo.smartEnabled ? '已启用' : '已关闭',
-          unit: '', caption: '引擎尚未接入',
+          value: subscription?.selected != null
+              ? (smart?.autoPickWhenIdle == true ? '空闲优选' : '手动优选')
+              : (demo.smartEnabled ? '已启用' : '已关闭'),
+          unit: '', caption: subscription?.selected != null
+              ? '真实评分引擎' : '引擎尚未接入',
           highlight: _blue, onTap: showSmart,
         )),
         SizedBox(width: 10),
@@ -906,8 +930,7 @@ class _NodesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: Listenable.merge([demo,
-      ?subscription,
-      ?core]),
+      ?subscription, ?core, ?smart]),
     builder: (context, _) => _ScreenPadding(child: ListView(children: [
       _ScreenHeading('节点', subscription?.nodes.isNotEmpty == true
           ? '来自订阅的真实节点 · 点击选择后返回首页'
@@ -971,7 +994,7 @@ class _NodesPage extends StatelessWidget {
       ],
       SizedBox(height: 16),
       Text(subscription?.nodes.isNotEmpty == true
-          ? '真实延迟/下载测速尚未开发，不使用演示值冒充。'
+          ? 'HTTPS 响应耗时可在智能优选页实测，下载吞吐暂未实现。'
           : '请前往「设置」导入订阅后选择真实节点。',
           style: TextStyle(color: _muted)),
     ])),
