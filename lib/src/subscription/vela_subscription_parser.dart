@@ -108,7 +108,7 @@ class VelaSubscriptionParser {
         for (final entry in item.entries) entry.key.toString(): _plain(entry.value),
       };
     }
-    if (item is List) return item.map(_plain).toList();
+    if (item is List) { return item.map(_plain).toList(); }
     return item;
   }
 
@@ -125,7 +125,7 @@ class VelaSubscriptionParser {
   }
 
   static String? _name(dynamic value) {
-    if (value is! String) return null;
+    if (value is! String) { return null; }
     final v = value.trim();
     return v.isNotEmpty && v.length <= 120 ? v : null;
   }
@@ -142,8 +142,8 @@ class VelaSubscriptionParser {
 
   static Map<String, dynamic>? _tls(Map<String, dynamic> p,
       {required bool enabled}) {
-    if (!_safeTls(p)) return null;
-    if (!enabled) return <String, dynamic>{};
+    if (!_safeTls(p)) { return null; }
+    if (!enabled) { return <String, dynamic>{}; }
     final tls = <String, dynamic>{'enabled': true};
     final serverName = p['servername'] ?? p['sni'];
     if (serverName is String && serverName.isNotEmpty) {
@@ -160,7 +160,7 @@ class VelaSubscriptionParser {
     final reality = p['reality-opts'];
     if (reality != null) {
       if (reality is! Map<String, dynamic> ||
-          _secret(reality['public-key']) == null) return null;
+          _secret(reality['public-key']) == null) { return null; }
       tls['reality'] = {
         'enabled': true,
         'public_key': reality['public-key'],
@@ -172,10 +172,10 @@ class VelaSubscriptionParser {
 
   static Map<String, dynamic>? _transport(Map<String, dynamic> p) {
     final network = p['network'] ?? 'tcp';
-    if (network == 'tcp') return {};
+    if (network == 'tcp') { return {}; }
     if (network == 'ws') {
       final options = p['ws-opts'] ?? {};
-      if (options is! Map<String, dynamic>) return null;
+      if (options is! Map<String, dynamic>) { return null; }
       final transport = <String, dynamic>{
         'type': 'ws',
         'path': options['path'] is String ? options['path'] : '/',
@@ -183,14 +183,14 @@ class VelaSubscriptionParser {
       final headers = options['headers'];
       if (headers != null) {
         if (headers is! Map<String, dynamic> ||
-            headers.values.any((x) => x is! String)) return null;
+            headers.values.any((x) => x is! String)) { return null; }
         transport['headers'] = headers;
       }
       return transport;
     }
     if (network == 'grpc') {
       final options = p['grpc-opts'] ?? {};
-      if (options is! Map<String, dynamic>) return null;
+      if (options is! Map<String, dynamic>) { return null; }
       return {
         'type': 'grpc',
         'service_name': options['grpc-service-name'] is String
@@ -206,22 +206,22 @@ class VelaSubscriptionParser {
     final server = p['server'];
     final port = _port(p['port']);
     if (type is! String || !supported.contains(type) ||
-        name == null || !_validServer(server) || port == null) return null;
+        name == null || !_validServer(server) || port == null) { return null; }
     final kind = type == 'ss' ? 'shadowsocks' : type;
     final outbound = <String, dynamic>{
       'type': kind, 'tag': 'selected',
       'server': server, 'server_port': port,
     };
 
-    if (!_safeTls(p)) return null;
+    if (!_safeTls(p)) { return null; }
     if (type == 'ss') {
       if (p['plugin'] != null || p['plugin-opts'] != null ||
           _secret(p['cipher']) == null ||
-          _secret(p['password']) == null) return null;
+          _secret(p['password']) == null) { return null; }
       outbound.addAll({'method': p['cipher'], 'password': p['password']});
     } else if (type == 'vmess' || type == 'vless') {
       final id = _secret(p['uuid']);
-      if (id == null) return null;
+      if (id == null) { return null; }
       outbound['uuid'] = id;
       if (type == 'vmess') {
         outbound['security'] = p['cipher'] is String ? p['cipher'] : 'auto';
@@ -231,20 +231,20 @@ class VelaSubscriptionParser {
       }
       final hasTls = p['tls'] == true || p['reality-opts'] != null;
       final tls = _tls(p, enabled: hasTls);
-      if (tls == null) return null;
+      if (tls == null) { return null; }
       if (hasTls) outbound['tls'] = tls;
       final transport = _transport(p);
-      if (transport == null) return null;
+      if (transport == null) { return null; }
       if (transport.isNotEmpty) outbound['transport'] = transport;
     } else if (type == 'trojan' || type == 'hysteria2') {
-      if (_secret(p['password']) == null) return null;
+      if (_secret(p['password']) == null) { return null; }
       outbound['password'] = p['password'];
       final tls = _tls(p, enabled: true);
-      if (tls == null) return null;
+      if (tls == null) { return null; }
       outbound['tls'] = tls;
       if (type == 'trojan') {
         final transport = _transport(p);
-        if (transport == null) return null;
+        if (transport == null) { return null; }
         if (transport.isNotEmpty) outbound['transport'] = transport;
       } else {
         final obfs = p['obfs'];
@@ -268,18 +268,18 @@ class VelaSubscriptionParser {
     final server = p['server'];
     final port = _port(p['server_port']);
     if (type is! String || !supported.contains(type) || type == 'ss' ||
-        name == null || !_validServer(server) || port == null) return null;
+        name == null || !_validServer(server) || port == null) { return null; }
     final tls = p['tls'];
-    if (tls is Map<String, dynamic> && tls['insecure'] == true) return null;
-    if (p['detour'] != null) return null;
+    if (tls is Map<String, dynamic> && tls['insecure'] == true) { return null; }
+    if (p['detour'] != null) { return null; }
     if (type == 'shadowsocks' &&
         (_secret(p['method']) == null || _secret(p['password']) == null)) {
       return null;
     }
     if ((type == 'vmess' || type == 'vless') &&
-        _secret(p['uuid']) == null) return null;
+        _secret(p['uuid']) == null) { return null; }
     if ((type == 'trojan' || type == 'hysteria2') &&
-        _secret(p['password']) == null) return null;
+        _secret(p['password']) == null) { return null; }
     final outbound = Map<String, dynamic>.from(p)..['tag'] = 'selected';
     return VelaSubscriptionNode(
       name: name, protocol: type, server: server as String, outbound: outbound,
