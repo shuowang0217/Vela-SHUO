@@ -45,7 +45,9 @@ class VelaCoreSettingsCard extends StatelessWidget {
                   final file = await openFile(acceptedTypeGroups: [
                     const XTypeGroup(label:'sing-box.exe', extensions:['exe']),
                   ]);
-                  if (file != null) await controller.chooseBinary(file.path);
+                  if (file != null) {
+                    await controller.chooseBinary(file.path);
+                  }
                 } catch (_) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -64,7 +66,9 @@ class VelaCoreSettingsCard extends StatelessWidget {
                   final file = await openFile(acceptedTypeGroups: [
                     const XTypeGroup(label:'JSON 配置', extensions:['json']),
                   ]);
-                  if (file != null) await controller.chooseConfig(file.path);
+                  if (file != null) {
+                    await controller.chooseConfig(file.path);
+                  }
                 } catch (_) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
