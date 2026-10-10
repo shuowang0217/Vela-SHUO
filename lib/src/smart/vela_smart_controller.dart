@@ -275,11 +275,26 @@ class VelaSmartController extends ChangeNotifier {
     int? best;
     for (final entry in _results.entries) {
       final health = entry.value;
-      if (!health.reachable || health.score == null) { continue; }
-      if (best == null ||
-          health.score! < _results[best]!.score!) { best = entry.key; }
+      if (!health.reachable || health.score == null ||
+          !_eligible(entry.key)) { continue; }
+      if (best == null || _better(entry.key, best)) { best = entry.key; }
     }
     return best;
+  }
+
+  bool get _hasFullSpeeds =>
+      _downloads.values.any((s) => s.ok && s.mbps != null && s.mbps! > 0);
+
+  bool _better(int candidate, int current) {
+    if (_hasFullSpeeds) {
+      final a = _downloads[candidate]?.mbps;
+      final b = _downloads[current]?.mbps;
+      if (a != null && b == null) { return true; }
+      if (b != null && a == null) { return false; }
+      if (a != null && b != null && a != b) { return a > b; }
+    }
+    return (_results[candidate]?.score ?? double.infinity) <
+        (_results[current]?.score ?? double.infinity);
   }
 
   List<int> get sortedIndices {
@@ -289,7 +304,17 @@ class VelaSmartController extends ChangeNotifier {
       final aa = ah != null && ah.reachable && ah.score != null;
       final bb = bh != null && bh.reachable && bh.score != null;
       if (aa != bb) { return aa ? -1 : 1; }
-      if (aa && bb) { return ah.score!.compareTo(bh.score!); }
+      if (aa && bb) {
+        if (_hasFullSpeeds) {
+          final av = _downloads[a]?.mbps, bv = _downloads[b]?.mbps;
+          if (av != null && bv == null) { return -1; }
+          if (bv != null && av == null) { return 1; }
+          if (av != null && bv != null && av != bv) {
+            return bv.compareTo(av);
+          }
+        }
+        return ah.score!.compareTo(bh.score!);
+      }
       // Not-yet-measured ahead of failed; preserve stable original order.
       if (ah == null && bh != null) { return -1; }
       if (bh == null && ah != null) { return 1; }
@@ -304,9 +329,23 @@ class VelaSmartController extends ChangeNotifier {
 
   bool get canRecommend {
     final winner = recommendedIndex;
-    if (winner == null || !safeToSelect || _scanning) { return false; }
+    if (winner == null || !safeToSelect || _scanning || _manualHold) {
+      return false;
+    }
     final selected = subscription.selectedIndex;
     if (selected == winner) return false;
+    if (_hasFullSpeeds) {
+      final bestSpeed = _downloads[winner]?.mbps;
+      final currentSpeed = selected == null ? null : _downloads[selected]?.mbps;
+      if (bestSpeed == null || bestSpeed <= 0) { return false; }
+      if (_regionFirstPick && _aiMode) { return true; }
+      if (currentSpeed == null || currentSpeed <= 0) { return false; }
+      if (_lastSelection != null &&
+          _clock().difference(_lastSelection!) < _policy.cooldown) {
+        return false;
+      }
+      return bestSpeed >= currentSpeed * 1.2;
+    }
     return _policy.shouldPrefer(
       current: selected == null ? null : _results[selected],
       candidate: _results[winner],
@@ -320,7 +359,10 @@ class VelaSmartController extends ChangeNotifier {
     final ok = await subscription.selectNode(winner);
     if (ok) {
       _lastSelection = _clock();
-      _status = '已选择优选节点。请在首页手动连接；不会自动接管网络。';
+      _regionFirstPick = false;
+      _status = '已优选节点。请在首页手动连接；不会中断当前网络。';
+      _history.insert(0, '已优选：' + subscription.nodes[winner].name);
+      if (_history.length > 50) { _history.removeLast(); }
       _emit();
     }
     return ok;
