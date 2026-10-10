@@ -4,6 +4,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
+import 'package:vela_shuo/src/core/vela_core_controller.dart';
+import 'package:vela_shuo/src/core/vela_core_settings_card.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/globe.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
@@ -25,9 +27,11 @@ class VelaShuoApp extends StatelessWidget {
     super.key,
     required this.settings,
     this.diagnostics,
+    this.core,
   });
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
+  final VelaCoreController? core;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -45,7 +49,7 @@ class VelaShuoApp extends StatelessWidget {
         themeMode: settings.themeMode,
         theme: _theme(Brightness.light, palette),
         darkTheme: _theme(Brightness.dark, palette),
-        home: _Shell(settings: settings, diagnostics: diagnostics),
+        home: _Shell(settings: settings, diagnostics: diagnostics, core: core),
       );
     },
   );
@@ -72,9 +76,10 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
 }
 
 class _Shell extends StatefulWidget {
-  const _Shell({required this.settings, this.diagnostics});
+  const _Shell({required this.settings, this.diagnostics, this.core});
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
+  final VelaCoreController? core;
 
   @override
   State<_Shell> createState() => _ShellState();
@@ -109,6 +114,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    widget.core?.dispose();
     demo.dispose();
     super.dispose();
   }
@@ -120,7 +126,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     2 => _SmartPage(demo: demo),
     3 => _SettingsPage(
       demo: demo, settings: widget.settings,
-      diagnostics: widget.diagnostics, goHome: () => navigate(0),
+      diagnostics: widget.diagnostics, core: widget.core,
+      goHome: () => navigate(0),
     ),
     _ => _HomePage(
       demo: demo, desktop: desktop,
@@ -890,12 +897,13 @@ class _SmartPage extends StatelessWidget {
 
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
-    required this.demo, required this.settings, this.diagnostics,
+    required this.demo, required this.settings, this.diagnostics, this.core,
     required this.goHome,
   });
   final VelaDemoController demo;
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
+  final VelaCoreController? core;
   final VoidCallback goHome;
 
   @override
@@ -905,6 +913,10 @@ class _SettingsPage extends StatelessWidget {
       SizedBox(height: 18),
       _DemoTag(),
       SizedBox(height: 24),
+      if (core != null) ...[
+        VelaCoreSettingsCard(controller: core!),
+        SizedBox(height: 16),
+      ],
       _PalettePicker(settings: settings),
       SizedBox(height: 16),
       _GlassCard(child: Column(children: [
