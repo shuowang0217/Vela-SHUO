@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/vela_core_controller.dart';
 import 'vela_subscription_parser.dart';
+import 'vela_windows_proxy_detector.dart';
 
 /// The subscription is fetched only after the user explicitly requests it.
 /// Neither its URL (usually a bearer token) nor node credentials are logged
@@ -14,8 +15,23 @@ abstract class VelaSubscriptionFetcher {
   Future<String> download(String source);
 }
 
+enum VelaSubscriptionDownloadMode { automatic, systemProxy, direct }
+
+class _VelaSubscriptionTransportFailure implements Exception {
+  const _VelaSubscriptionTransportFailure(this.reason);
+  final String reason;
+}
+
 class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
-  const VelaHttpsSubscriptionFetcher();
+  const VelaHttpsSubscriptionFetcher({
+    this.mode = VelaSubscriptionDownloadMode.automatic,
+    this.proxyLookup,
+    this.fetchTransport,
+  });
+
+  final VelaSubscriptionDownloadMode mode;
+  final Future<String?> Function()? proxyLookup;
+  final Future<String> Function(Uri, String)? fetchTransport;
 
   static void _validateUrl(Uri uri) {
     final host = uri.host.toLowerCase();
@@ -65,38 +81,109 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
 
   @override
   Future<String> download(String source) async {
-    Uri uri;
+    late final Uri uri;
     try {
       uri = Uri.parse(source.trim());
     } catch (_) {
       throw const FormatException('订阅地址格式不正确');
     }
     _validateUrl(uri);
-    // Check DNS before fetching, disable redirects and proxy usage. This
-    // narrows SSRF risk; this is NOT a substitute for DNS pinning / sandboxing.
-    await _checkDns(uri.host);
-    final client = HttpClient();
-    client.connectionTimeout = const Duration(seconds: 8);
-    client.findProxy = (_) => 'DIRECT';
-    client.userAgent = 'Vela-SHUO/0.2';
+
+    String? proxy;
+    if (mode != VelaSubscriptionDownloadMode.direct) {
+      proxy = proxyLookup == null
+          ? await const VelaWindowsProxyDetector().detect()
+          : await proxyLookup!();
+      if (proxy != null &&
+          !RegExp(r'^PROXY (127\.0\.0\.1|\[::1\]):\d{1,5}$')
+              .hasMatch(proxy)) {
+        proxy = null;
+      }
+    }
+    if (mode == VelaSubscriptionDownloadMode.systemProxy &&
+        proxy == null) {
+      throw const FormatException(
+        '未检测到本机 Windows HTTP 系统代理；请在现有代理软件中开启系统代理',
+      );
+    }
+    // Reject known-private host DNS answers. An explicit localhost HTTP
+    // proxy may do its own DNS, so a local DNS lookup failure is tolerated.
     try {
-      final req = await client.getUrl(uri).timeout(const Duration(seconds: 10));
-      req.followRedirects = false; // Never leak bearer URL via 30x redirect.
+      await _checkDns(uri.host);
+    } on SocketException {
+      if (proxy == null) {
+        throw const FormatException('订阅域名无法解析，请检查 DNS 或使用系统代理');
+      }
+    } on TimeoutException {
+      if (proxy == null) {
+        throw const FormatException('订阅域名解析超时，请检查 DNS 或使用系统代理');
+      }
+    }
+
+    final routes = <String>[
+      if (proxy != null) proxy,
+      if (mode != VelaSubscriptionDownloadMode.systemProxy) 'DIRECT',
+    ];
+    String? lastReason;
+    for (final route in routes) {
+      try {
+        return await (fetchTransport == null
+            ? _fetchVia(uri, route)
+            : fetchTransport!(uri, route));
+      } on _VelaSubscriptionTransportFailure catch (e) {
+        lastReason = e.reason;
+      } on TimeoutException {
+        lastReason = '请求超时';
+      } on SocketException {
+        lastReason = '网络连接失败';
+      } on HandshakeException {
+        lastReason = 'HTTPS 证书验证失败';
+      }
+    }
+    final hint = proxy != null && routes.length == 2
+        ? '已尝试 Windows 本机系统代理和直连'
+        : proxy != null ? '本机系统代理请求失败' : '直连请求失败';
+    throw FormatException(hint + '：' + (lastReason ?? '网络不可达'));
+  }
+
+  Future<String> _fetchVia(Uri uri, String route) async {
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 10);
+    client.findProxy = (_) => route;
+    // Ask providers for compatible Clash YAML without rewriting signed URLs.
+    client.userAgent = 'Clash.Meta';
+    try {
+      final req = await client.getUrl(uri).timeout(
+        const Duration(seconds: 12),
+      );
+      req.followRedirects = false;
       req.headers.set(HttpHeaders.acceptHeader,
-          'application/json, application/yaml, text/yaml, text/plain');
-      final response = await req.close().timeout(const Duration(seconds: 12));
+          'application/yaml, text/yaml, application/json, text/plain');
+      final response = await req.close().timeout(
+        const Duration(seconds: 14),
+      );
+      if (response.isRedirect) {
+        throw const FormatException(
+          '订阅地址返回重定向；出于凭据安全考虑不自动跳转，请使用最终 HTTPS 订阅链接',
+        );
+      }
       if (response.statusCode != HttpStatus.ok) {
-        throw const FormatException('订阅服务器返回非成功状态（或重定向）');
+        throw FormatException('订阅服务器返回 HTTP ' +
+            response.statusCode.toString());
       }
       final parts = <int>[];
-      await for (final chunk in response.timeout(
-        const Duration(seconds: 15),
-      )) {
-        parts.addAll(chunk);
-        if (parts.length > VelaSubscriptionParser.maxBytes) {
-          throw const FormatException('订阅数据超过 2 MB 限制');
+      Future<void> receive() async {
+        await for (final chunk in response.timeout(
+          const Duration(seconds: 15),
+        )) {
+          if (parts.length + chunk.length >
+              VelaSubscriptionParser.maxBytes) {
+            throw const FormatException('订阅数据超过 2 MB 限制');
+          }
+          parts.addAll(chunk);
         }
       }
+      await receive().timeout(const Duration(seconds: 35));
       try {
         return utf8.decode(parts, allowMalformed: false);
       } catch (_) {
@@ -105,11 +192,15 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     } on FormatException {
       rethrow;
     } on TimeoutException {
-      throw const FormatException('获取订阅超时');
+      throw const _VelaSubscriptionTransportFailure('连接或读取超时');
     } on HandshakeException {
-      throw const FormatException('订阅 HTTPS 证书验证失败');
+      throw const _VelaSubscriptionTransportFailure('HTTPS 证书验证失败');
+    } on SocketException {
+      throw const _VelaSubscriptionTransportFailure('无法连接订阅服务器');
+    } on HttpException {
+      throw const _VelaSubscriptionTransportFailure('HTTP 连接异常');
     } catch (_) {
-      throw const FormatException('订阅下载失败，请检查链接与网络');
+      throw const _VelaSubscriptionTransportFailure('订阅下载失败');
     } finally {
       client.close(force: true);
     }
