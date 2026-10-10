@@ -8,6 +8,7 @@ import '../subscription/vela_subscription_controller.dart';
 import '../subscription/vela_subscription_parser.dart';
 import 'vela_node_probe.dart';
 import 'vela_download_probe.dart';
+import 'vela_smart_country.dart';
 
 class VelaNodeHealth {
   const VelaNodeHealth({
@@ -97,10 +98,12 @@ class VelaSmartController extends ChangeNotifier {
     required this.connection,
     required VelaNodeLatencyProbe probe,
     VelaNodeDownloadProbe? downloadProbe,
+    VelaFullNodeProbe? fullProbe,
     VelaSmartSwitchPolicy policy = const VelaSmartSwitchPolicy(),
     DateTime Function()? clock,
     Duration Function(int minutes)? periodicInterval,
-  }) : _probe = probe, _downloadProbe = downloadProbe, _policy = policy,
+  }) : _probe = probe, _downloadProbe = downloadProbe,
+       _fullProbe = fullProbe, _policy = policy,
        _clock = clock ?? DateTime.now,
        _periodicInterval = periodicInterval ?? _normalInterval {
     _lastNodes = subscription.nodes;
@@ -112,12 +115,61 @@ class VelaSmartController extends ChangeNotifier {
   final VelaConnectionCoordinator connection;
   final VelaNodeLatencyProbe _probe;
   final VelaNodeDownloadProbe? _downloadProbe;
+  final VelaFullNodeProbe? _fullProbe;
   final Duration Function(int minutes) _periodicInterval;
   final VelaSmartSwitchPolicy _policy;
   final DateTime Function() _clock;
   late List<VelaSubscriptionNode> _lastNodes;
   final Map<int, VelaNodeHealth> _results = {};
   final Map<int, VelaDownloadSample> _downloads = {};
+  bool _aiMode = false;
+  String _country = 'JP';
+  bool _manualHold = false;
+  bool _regionFirstPick = false;
+  DateTime? _lastScan;
+  final List<String> _history = [];
+  bool get aiMode => _aiMode;
+  String get country => _country;
+  bool get manualHold => _manualHold;
+  DateTime? get lastScan => _lastScan;
+  List<String> get history => List.unmodifiable(_history);
+  bool _eligible(int index) => !_aiMode ||
+      velaSmartCountryMatches(subscription.nodes[index].name, _country);
+
+  void setAiMode(bool value) {
+    if (_aiMode == value) { return; }
+    _aiMode = value;
+    _regionFirstPick = value;
+    _emit();
+    if (value && canTestAll) { unawaited(testAllNodes()); }
+  }
+
+  void setCountry(String value) {
+    if (!velaSmartCountries.containsKey(value) || _country == value) {
+      return;
+    }
+    _country = value;
+    _regionFirstPick = _aiMode;
+    _emit();
+    if (_aiMode && canTestAll) { unawaited(testAllNodes()); }
+  }
+
+  void manualSelection() {
+    _manualHold = true;
+    _status = '手动保持：自动换节点暂停，直到点击恢复自动优选';
+    _history.insert(0, '手动选择节点 · 自动切换暂停');
+    if (_history.length > 50) { _history.removeLast(); }
+    _emit();
+  }
+
+  void resumeAutoSelection() {
+    _manualHold = false;
+    _status = '已恢复自动优选';
+    _history.insert(0, '恢复自动优选');
+    _emit();
+    if (_autoPickWhenIdle && canTestAll) { unawaited(testAllNodes()); }
+  }
+
   Map<int, VelaNodeHealth> get results => Map.unmodifiable(_results);
   VelaDownloadSample? downloadAt(int index) => _downloads[index];
   bool _downloading = false;
@@ -144,7 +196,7 @@ class VelaSmartController extends ChangeNotifier {
   /// Checks just 8 nodes per interval and never interrupts a live session.
   /// Default off; running only while this application is open.
   void setScheduledMinutes(int minutes) {
-    if (![0, 15, 30, 60].contains(minutes) || _disposed) { return; }
+    if (![0, 10, 15, 30, 60].contains(minutes) || _disposed) { return; }
     _periodicTimer?.cancel();
     _periodicTimer = null;
     _scheduledMinutes = minutes;
@@ -153,8 +205,9 @@ class VelaSmartController extends ChangeNotifier {
       if (interval > Duration.zero) {
         _periodicTimer = Timer.periodic(interval, (_) {
           if (!_disposed && !_scanning && !_downloading &&
-              safeToSelect && count > 0 && core.hasCore) {
-            unawaited(testNextBatch());
+              safeToSelect && !_manualHold && _autoPickWhenIdle &&
+              count > 0 && core.hasCore) {
+            unawaited(testAllNodes(automatic: true));
           }
         });
       }
@@ -191,7 +244,9 @@ class VelaSmartController extends ChangeNotifier {
 
   void setAutoPick(bool enabled) {
     _autoPickWhenIdle = enabled;
+    setScheduledMinutes(enabled ? 10 : 0);
     _emit();
+    if (enabled && canTestAll) { unawaited(testAllNodes()); }
   }
 
   void _onSubscription() {
@@ -202,6 +257,8 @@ class VelaSmartController extends ChangeNotifier {
     _results.clear();
     _downloads.clear();
     _downloadStatus = null;
+    _regionFirstPick = _aiMode;
+    _lastScan = null;
     _cursor = 0;
     _finished = 0;
     _total = 0;
