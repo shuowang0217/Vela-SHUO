@@ -77,6 +77,44 @@ void main() {
     core.dispose();
   });
 
+  test('offline import previews share links without fetching or writing',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('vela_offline_');
+    addTearDown(() => dir.delete(recursive: true));
+    final fetcher = _StubFetcher('unused');
+    final core = VelaCoreController(
+      supported: false, managedProfileDirectory: dir,
+    );
+    final sub = VelaSubscriptionController(
+      core: core, fetcher: fetcher, previewOnly: true,
+    );
+    expect(await sub.importFromText(
+      'ss://YWVzLTEyOC1nY206c2VjcmV0@jp.example.test:443#Tokyo',
+    ), true);
+    expect(sub.nodes.single.name, 'Tokyo');
+    expect(fetcher.requested, isNull);
+    expect(await sub.selectNode(0), true);
+    expect(sub.selectedIndex, 0);
+    expect(core.hasCore, false);
+    expect(core.isListening, false);
+    expect(core.hasConfig, false);
+    expect(dir.listSync(), isEmpty);
+    sub.dispose();
+    core.dispose();
+  });
+
+  test('preview selection never starts a proxy or VPN',
+      () async {
+    final core = VelaCoreController(supported: false);
+    final sub = VelaSubscriptionController(core: core, previewOnly: true);
+    expect(await sub.importFromText(_simple), true);
+    expect(await sub.selectNode(0), true);
+    expect(core.isListening, false);
+    expect(core.localPort, isNull);
+    sub.dispose();
+    core.dispose();
+  });
+
   test('HTTPS fetcher rejects local/private/plaintext destination before I/O',
       () async {
     const fetcher = VelaHttpsSubscriptionFetcher();

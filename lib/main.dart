@@ -35,7 +35,7 @@ void main() {
     final settings = SettingsController(diagnostics: diagnostics);
     await settings.load();
     // Recover a previous app-owned proxy before any new core can start.
-    if (Platform.isWindows) await systemProxy.recover();
+    await systemProxy.recover();
     await core.initialize(); // Does not automatically start a proxy.
     VelaWindowExitGuard? exitGuard;
     if (Platform.isWindows) {

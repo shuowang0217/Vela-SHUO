@@ -84,7 +84,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                     setState(() => _offlineMode = true);
                   }),
             ]),
-            if (!_offlineMode) Wrap(
+            if (!_offlineMode && !Platform.isAndroid) Wrap(
               crossAxisAlignment: WrapCrossAlignment.center,
               spacing: 12,
               runSpacing: 6,

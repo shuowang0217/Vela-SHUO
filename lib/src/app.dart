@@ -863,33 +863,39 @@ class _MobileHome extends StatelessWidget {
       Row(children: [
         Expanded(child: _MetricCard(
           icon: Icons.bolt_outlined, label: '网络延迟',
-          value: subscription?.selected != null
+          value: Platform.isAndroid ? '—' :
+              subscription?.selected != null
               ? (subscription?.selectedIndex == null ? '—'
                   : (smart?.resultAt(subscription!.selectedIndex!)?.lastMs?.toString() ?? '—'))
               : (demo.isConnected ? demo.selected.latency.toString() : '—'),
-          unit: 'ms', caption: subscription?.selected != null
-              ? '最近 HTTPS 实测' : '示意数据', highlight: _mint,
+          unit: 'ms', caption: Platform.isAndroid ? '预览版无网络测速' :
+              subscription?.selected != null
+                  ? '最近 HTTPS 实测' : '示意数据', highlight: _mint,
         )),
         SizedBox(width: 10),
         Expanded(child: _MetricCard(
           icon: Icons.download_outlined, label: '下载速度',
-          value: subscription?.selected != null
+          value: Platform.isAndroid ? '—' :
+              subscription?.selected != null
               ? (subscription?.selectedIndex == null ? '—'
                   : (smart?.downloadAt(subscription!.selectedIndex!)?.mbps?.toStringAsFixed(1) ?? '—'))
               : (demo.isConnected ? demo.selected.downloadMbps.toStringAsFixed(0) : '—'),
-          unit: 'Mbps', caption: subscription?.selected != null
-              ? '按需 HTTPS 1 MiB 样本' : '示意数据', highlight: _blue,
+          unit: 'Mbps', caption: Platform.isAndroid ? '预览版无下载测速' :
+              subscription?.selected != null
+                  ? '按需 HTTPS 1 MiB 样本' : '示意数据', highlight: _blue,
         )),
       ]),
       SizedBox(height: 10),
       Row(children: [
         Expanded(child: _MetricCard(
           icon: Icons.auto_awesome_outlined, label: '智能模式',
-          value: subscription?.selected != null
+          value: Platform.isAndroid ? '未启用' :
+              subscription?.selected != null
               ? (smart?.autoPickWhenIdle == true ? '空闲优选' : '手动优选')
               : (demo.smartEnabled ? '已启用' : '已关闭'),
-          unit: '', caption: subscription?.selected != null
-              ? '真实评分引擎' : '引擎尚未接入',
+          unit: '', caption: Platform.isAndroid ? '安卓内核尚未接入' :
+              subscription?.selected != null
+                  ? '真实评分引擎' : '引擎尚未接入',
           highlight: _blue, onTap: showSmart,
         )),
         SizedBox(width: 10),
@@ -956,10 +962,13 @@ class _NodesPage extends StatelessWidget {
       _ScreenHeading('节点', subscription?.nodes.isNotEmpty == true
           ? connection?.connected == true
               ? '在线选择 Mihomo 节点 · 验证成功后返回首页'
-              : '来自订阅的真实节点 · 点击选择后返回首页'
+              : Platform.isAndroid
+                  ? 'Android 预览：仅浏览和选择节点，尚无 VPN 功能'
+                  : '来自订阅的真实节点 · 点击选择后返回首页'
           : '尚未导入订阅 · 以下是地图演示节点'),
       SizedBox(height: 18),
-      subscription?.nodes.isNotEmpty == true ? _RealTag() : _DemoTag(),
+      Platform.isAndroid ? _AndroidPreviewTag() :
+          subscription?.nodes.isNotEmpty == true ? _RealTag() : _DemoTag()
       SizedBox(height: 24),
       if (subscription?.nodes.isNotEmpty == true) ...[
         if (smart != null && smart!.total > 0) ...[
@@ -1063,6 +1072,19 @@ class _SmartPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (Platform.isAndroid) {
+      return _ScreenPadding(child: ListView(children: [
+        _ScreenHeading('智能优选', 'Android 预览版暂不支持线路测速'),
+        const SizedBox(height: 18),
+        _AndroidPreviewTag(),
+        const SizedBox(height: 20),
+        _GlassCard(child: Text(
+          'Android VpnService 和 Mihomo 原生运行层尚未接入。'
+          '本页不会进行虚假的延迟测速、速度测试或自动节点切换。',
+          style: TextStyle(color: _muted, height: 1.55),
+        )),
+      ]));
+    }
     if (smart != null && subscription?.nodes.isNotEmpty == true) {
       return _ScreenPadding(child: ListView(children: [
         _ScreenHeading('智能优选', '真实 HTTPS 测速 · 稳定优先'),
