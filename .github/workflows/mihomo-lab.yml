@@ -1,0 +1,159 @@
+name: Vela-SHUO Mihomo Lab - Windows Preview
+
+on:
+  push:
+    branches: [experiment/mihomo-core]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vela-windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.4'
+
+jobs:
+  verify:
+    name: Flutter static analysis and smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: master
+          cache: true
+      - name: Generate official Flutter platform scaffolding
+        run: flutter create --project-name vela_shuo --org com.shuowang --platforms windows .
+      - run: flutter pub get
+      - name: Dart formatting
+        run: dart format lib test
+      - name: Flutter analyzer
+        run: flutter analyze
+      - name: Widget and identity tests
+        run: flutter test --reporter expanded
+
+  windows:
+    name: Windows x64 portable EXE
+    needs: verify
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: master
+          cache: true
+      - name: Generate Windows runner
+        run: flutter create --project-name vela_shuo --org com.shuowang --platforms windows .
+      - run: flutter pub get
+      - name: Build Windows Release
+        run: flutter build windows --release
+      - name: Bundle pinned official sing-box Windows x64 core and licenses
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '1.14.3'
+          $expectedSha256 = 'd8b86ef58936dba9230ec6a57ffa4243933f3c14ef4809828b6c553440ed1518'
+          $asset = "sing-box-$version-windows-amd64.zip"
+          $url = "https://github.com/SagerNet/sing-box/releases/download/v$version/$asset"
+          $archive = Join-Path $env:RUNNER_TEMP $asset
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expectedSha256) {
+            throw "Upstream core checksum mismatch: expected $expectedSha256 got $actual"
+          }
+          $extractDir = Join-Path $env:RUNNER_TEMP 'vela-official-core'
+          Expand-Archive -Path $archive -DestinationPath $extractDir -Force
+          $binary = Get-ChildItem $extractDir -Filter 'sing-box.exe' -File -Recurse |
+            Select-Object -First 1
+          if (-not $binary) { throw 'Official release archive contains no sing-box.exe' }
+          $release = Get-ChildItem -Path 'build/windows' -Directory -Recurse |
+            Where-Object { $_.Name -eq 'Release' -and (Test-Path (Join-Path $_.FullName 'vela_shuo.exe')) } |
+            Select-Object -First 1
+          if (-not $release) { throw 'Windows Release directory missing' }
+          $coreDir = Join-Path $release.FullName 'core'
+          New-Item -ItemType Directory -Path $coreDir -Force | Out-Null
+          Copy-Item -Path $binary.FullName -Destination (Join-Path $coreDir 'sing-box.exe')
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/SagerNet/sing-box/v$version/LICENSE" -OutFile (Join-Path $coreDir 'LICENSE-sing-box.txt')
+          Invoke-WebRequest -Uri 'https://www.gnu.org/licenses/gpl-3.0.txt' -OutFile (Join-Path $coreDir 'GPL-3.0.txt')
+          Copy-Item -Path 'third_party/sing-box/NOTICE.md' -Destination (Join-Path $coreDir 'THIRD-PARTY-NOTICE.md')
+          if (!(Test-Path (Join-Path $coreDir 'GPL-3.0.txt'))) { throw 'Full GPL license missing' }
+          Write-Output "Verified and bundled unmodified official sing-box v$version (sha256:$actual)"
+      - name: Bundle verified official Mihomo stable Windows x64 (EXPERIMENT ONLY)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '1.19.32'
+          $asset = "mihomo-windows-amd64-compatible-v$version.zip"
+          $expectedSha256 = '974a4d7ad69aed27aa2e8f91d61113573c14dadb14562c63e58effabf59816f0'
+          $archive = Join-Path $env:RUNNER_TEMP $asset
+          $url = "https://github.com/MetaCubeX/mihomo/releases/download/v$version/$asset"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expectedSha256) {
+            throw "Mihomo upstream SHA256 mismatch: expected $expectedSha256 got $actual"
+          }
+          $out = Join-Path $env:RUNNER_TEMP 'vela-official-mihomo'
+          Expand-Archive -Path $archive -DestinationPath $out -Force
+          $binary = Get-ChildItem $out -File -Recurse |
+            Where-Object { $_.Name -match '^mihomo.*\.exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Get-ChildItem -Path 'build/windows' -Directory -Recurse |
+            Where-Object { $_.Name -eq 'Release' -and (Test-Path (Join-Path $_.FullName 'vela_shuo.exe')) } |
+            Select-Object -First 1
+          if (-not $release) { throw 'Expected Windows binary was not found' }
+          Rename-Item -Path (Join-Path $release.FullName 'vela_shuo.exe') -NewName 'Vela-SHUO.exe'
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path (Join-Path $release.FullName '*') -DestinationPath 'dist/Vela-SHUO-Mihomo-Lab-Windows-x64-Portable.zip' -Force
+          Get-FileHash 'dist/Vela-SHUO-Mihomo-Lab-Windows-x64-Portable.zip' -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  Vela-SHUO-Mihomo-Lab-Windows-x64-Portable.zip" } |
+            Set-Content -Path dist/SHA256-Windows.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Vela-SHUO-Mihomo-Lab-Windows-x64-Preview
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+ } |
+            Select-Object -First 1
+          if (-not $binary) { throw 'Official Mihomo archive did not contain an executable' }
+          $release = Get-ChildItem 'build/windows' -Directory -Recurse |
+            Where-Object { $_.Name -eq 'Release' -and
+              (Test-Path (Join-Path $_.FullName 'vela_shuo.exe')) } |
+            Select-Object -First 1
+          if (-not $release) { throw 'Windows Release directory missing' }
+          $coreDir = Join-Path $release.FullName 'core'
+          New-Item -ItemType Directory -Force -Path $coreDir | Out-Null
+          Copy-Item -Path $binary.FullName -Destination (Join-Path $coreDir 'mihomo.exe')
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MetaCubeX/mihomo/Meta/LICENSE" -OutFile (Join-Path $coreDir 'LICENSE-mihomo.txt')
+          Copy-Item 'third_party/mihomo/NOTICE.md' (Join-Path $coreDir 'MIHOMO-NOTICE.md')
+          Write-Output "Bundled SHA256 verified Mihomo v$version (experimental) $actual"
+      - name: Package with DLLs and data
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Get-ChildItem -Path 'build/windows' -Directory -Recurse |
+            Where-Object { $_.Name -eq 'Release' -and (Test-Path (Join-Path $_.FullName 'vela_shuo.exe')) } |
+            Select-Object -First 1
+          if (-not $release) { throw 'Expected Windows binary was not found' }
+          Rename-Item -Path (Join-Path $release.FullName 'vela_shuo.exe') -NewName 'Vela-SHUO.exe'
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path (Join-Path $release.FullName '*') -DestinationPath 'dist/Vela-SHUO-Mihomo-Lab-Windows-x64-Portable.zip' -Force
+          Get-FileHash 'dist/Vela-SHUO-Mihomo-Lab-Windows-x64-Portable.zip' -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  Vela-SHUO-Mihomo-Lab-Windows-x64-Portable.zip" } |
+            Set-Content -Path dist/SHA256-Windows.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Vela-SHUO-Windows-x64-Preview
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
