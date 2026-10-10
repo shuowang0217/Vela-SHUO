@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/globe.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
@@ -17,8 +19,13 @@ const _mint = Color(0xFF63E6B7);
 const velaBrandTagline = '一帆越洋，尽览四方。';
 
 class VelaShuoApp extends StatelessWidget {
-  const VelaShuoApp({super.key, required this.settings});
+  const VelaShuoApp({
+    super.key,
+    required this.settings,
+    this.diagnostics,
+  });
   final SettingsController settings;
+  final VelaDiagnostics? diagnostics;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -29,7 +36,7 @@ class VelaShuoApp extends StatelessWidget {
       themeMode: settings.themeMode,
       theme: _theme(Brightness.light),
       darkTheme: _theme(Brightness.dark),
-      home: _Shell(settings: settings),
+      home: _Shell(settings: settings, diagnostics: diagnostics),
     ),
   );
 }
@@ -55,16 +62,32 @@ ThemeData _theme(Brightness brightness) {
 }
 
 class _Shell extends StatefulWidget {
-  const _Shell({required this.settings});
+  const _Shell({required this.settings, this.diagnostics});
   final SettingsController settings;
+  final VelaDiagnostics? diagnostics;
 
   @override
   State<_Shell> createState() => _ShellState();
 }
 
-class _ShellState extends State<_Shell> {
+class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   final VelaDemoController demo = VelaDemoController();
   int tab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.diagnostics?.record(VelaDiagnosticEvent.appResumed);
+    } else if (state == AppLifecycleState.paused) {
+      widget.diagnostics?.record(VelaDiagnosticEvent.appPaused);
+    }
+  }
 
   static const destinations = <(IconData, IconData, String)>[
     (Icons.home_outlined, Icons.home_rounded, '首页'),
@@ -75,6 +98,7 @@ class _ShellState extends State<_Shell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     demo.dispose();
     super.dispose();
   }
@@ -85,7 +109,8 @@ class _ShellState extends State<_Shell> {
     1 => _NodesPage(demo: demo, goHome: () => navigate(0)),
     2 => _SmartPage(demo: demo),
     3 => _SettingsPage(
-      demo: demo, settings: widget.settings, goHome: () => navigate(0),
+      demo: demo, settings: widget.settings,
+      diagnostics: widget.diagnostics, goHome: () => navigate(0),
     ),
     _ => _HomePage(
       demo: demo, desktop: desktop,
@@ -855,10 +880,12 @@ class _SmartPage extends StatelessWidget {
 
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
-    required this.demo, required this.settings, required this.goHome,
+    required this.demo, required this.settings, this.diagnostics,
+    required this.goHome,
   });
   final VelaDemoController demo;
   final SettingsController settings;
+  final VelaDiagnostics? diagnostics;
   final VoidCallback goHome;
 
   @override
@@ -923,6 +950,10 @@ class _SettingsPage extends StatelessWidget {
           ]),
         ],
       )),
+      if (diagnostics != null) ...[
+        const SizedBox(height: 16),
+        _DiagnosticsCard(diagnostics: diagnostics!),
+      ],
       const SizedBox(height: 16),
       const _GlassCard(child: ListTile(
         leading: Icon(Icons.privacy_tip_outlined, color: _blue),
@@ -931,5 +962,62 @@ class _SettingsPage extends StatelessWidget {
             style: TextStyle(color: _muted)),
       )),
     ]),
+  );
+}
+
+class _DiagnosticsCard extends StatelessWidget {
+  const _DiagnosticsCard({required this.diagnostics});
+  final VelaDiagnostics diagnostics;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: diagnostics,
+    builder: (context, _) => _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('本地诊断（隐私保护）', style: TextStyle(
+            color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600,
+          )),
+          const SizedBox(height: 8),
+          const Text(
+            '仅记录时间与预定义事件代码，不记录订阅、地址、密钥、'
+            '异常原文或流量内容；不上传网络。',
+            style: TextStyle(color: _muted, height: 1.5, fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '当前会话 ${diagnostics.recentEntries.length} 条 · '
+            '${diagnostics.persistent ? '本机日志已启用' : '仅内存记录'}',
+            style: const TextStyle(color: _blue, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          Wrap(spacing: 10, runSpacing: 8, children: [
+            OutlinedButton.icon(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: diagnostics.report));
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('已复制脱敏诊断记录'),
+                ));
+              },
+              icon: const Icon(Icons.copy_rounded, size: 17),
+              label: const Text('复制诊断记录'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final result = await diagnostics.clear();
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(result ? '本地诊断记录已清除' : '清除失败，请稍后重试'),
+                ));
+              },
+              icon: const Icon(Icons.delete_outline_rounded, size: 17),
+              label: const Text('清除诊断记录'),
+            ),
+          ]),
+        ],
+      ),
+    ),
   );
 }
