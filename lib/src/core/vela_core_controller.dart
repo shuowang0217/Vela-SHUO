@@ -4,9 +4,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'local_core_config.dart';
+import '../mihomo/vela_mihomo_selector.dart';
 import 'vela_windows_job.dart';
 
 enum VelaCorePhase { idle, checking, starting, listening, stopping, failed }
+enum VelaNodeSwitchResult { success, restored, unverified }
 
 /// Run an external core without handing its stdout/stderr to application logs.
 abstract class VelaCoreHandle {
@@ -151,13 +153,17 @@ class VelaCoreController extends ChangeNotifier {
     String? bundledCorePath,
     Directory? managedProfileDirectory,
     VelaRemoteProbe? remoteProbe,
-  })  : _runner = runner ?? const VelaNativeCoreRunner(),
+    VelaMihomoSelectorApi? selectorApi,
+  })  : _selectorApi = selectorApi ?? const VelaLoopbackMihomoSelectorApi(),
+        _runner = runner ?? const VelaNativeCoreRunner(),
         _remoteProbe = remoteProbe ?? const VelaHttpsRemoteProbe(),
         supported = supported ?? Platform.isWindows,
         _bundledCorePath = bundledCorePath,
         _managedProfileDirectory = managedProfileDirectory;
 
   final VelaCoreRunner _runner;
+  final VelaMihomoSelectorApi _selectorApi;
+  bool _switching = false;
   final VelaRemoteProbe _remoteProbe;
   bool _remoteVerified = false;
   bool _probing = false;
@@ -307,7 +313,7 @@ class VelaCoreController extends ChangeNotifier {
   /// Read-only executable path for disposable node benchmarks.
   String? get benchmarkCorePath => _binary;
 
-  bool get busy => _phase == VelaCorePhase.checking ||
+  bool get busy => _switching || _phase == VelaCorePhase.checking ||
       _phase == VelaCorePhase.starting ||
       _phase == VelaCorePhase.stopping;
   bool get isListening => _phase == VelaCorePhase.listening;
@@ -404,6 +410,9 @@ class VelaCoreController extends ChangeNotifier {
       await _runner.check(binary, path);
       if (generation != _generation) return false;
       await _runner.assertPortFree(config.localPort);
+      if (config.apiPort != null) {
+        await _runner.assertPortFree(config.apiPort!);
+      }
       if (generation != _generation) return false;
       _update(VelaCorePhase.starting);
       final handle = await _runner.launch(binary, path);
@@ -475,6 +484,60 @@ class VelaCoreController extends ChangeNotifier {
     _remoteVerified = success;
     if (!_disposed) notifyListeners();
     return success;
+  }
+
+  /// Change only the authenticated Mihomo selector, leaving WinINet
+  /// and the listening mixed port untouched. A failed remote HTTPS check
+  /// rolls back the previous selector before reporting any success.
+  Future<VelaNodeSwitchResult> switchActiveNode({
+    required String currentName, required String nextName,
+  }) async {
+    final config = _config;
+    if (_disposed || config == null || !isListening || !_remoteVerified ||
+        _directTestProfile || _probing || _switching ||
+        config.apiPort == null || config.apiSecret == null ||
+        !config.selectorNames.contains(currentName) ||
+        !config.selectorNames.contains(nextName)) {
+      return VelaNodeSwitchResult.unverified;
+    }
+    if (currentName == nextName) return VelaNodeSwitchResult.success;
+    final port = config.apiPort!;
+    final secret = config.apiSecret!;
+    final generation = _generation;
+    _switching = true;
+    _probing = true;
+    if (!_disposed) notifyListeners();
+    try {
+      // Reject unexpected external changes rather than overwriting them.
+      if (await _selectorApi.active(port, secret) != currentName) {
+        _remoteVerified = false;
+        return VelaNodeSwitchResult.unverified;
+      }
+      final applied = await _selectorApi.select(port, secret, nextName);
+      if (applied &&
+          await _selectorApi.active(port, secret) == nextName &&
+          generation == _generation && isListening &&
+          await _remoteProbe.verify(config.localPort)) {
+        return VelaNodeSwitchResult.success;
+      }
+      // A timed-out request might have changed the selector anyway.
+      final restored = await _selectorApi.select(port, secret, currentName);
+      if (restored &&
+          await _selectorApi.active(port, secret) == currentName &&
+          generation == _generation && isListening &&
+          await _remoteProbe.verify(config.localPort)) {
+        return VelaNodeSwitchResult.restored;
+      }
+      _remoteVerified = false;
+      return VelaNodeSwitchResult.unverified;
+    } catch (_) {
+      _remoteVerified = false;
+      return VelaNodeSwitchResult.unverified;
+    } finally {
+      _probing = false;
+      _switching = false;
+      if (!_disposed) notifyListeners();
+    }
   }
 
   /// Stop owns only the process started by Vela-SHUO.
