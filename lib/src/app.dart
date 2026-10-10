@@ -939,13 +939,44 @@ class _NodesPage extends StatelessWidget {
       subscription?.nodes.isNotEmpty == true ? _RealTag() : _DemoTag(),
       SizedBox(height: 24),
       if (subscription?.nodes.isNotEmpty == true) ...[
+        if (smart != null) ...[
+          Wrap(spacing: 10, runSpacing: 8, children: [
+            FilledButton.icon(
+              key: const ValueKey('nodes_measure_all'),
+              onPressed: smart!.canTestAll ? smart!.testAllNodes : null,
+              icon: const Icon(Icons.speed_rounded, size: 18),
+              label: const Text('一键测速全部节点'),
+            ),
+            if (smart!.scanning)
+              OutlinedButton.icon(
+                key: const ValueKey('nodes_cancel_scan'),
+                onPressed: smart!.cancelling ? null : smart!.cancelScan,
+                icon: const Icon(Icons.stop_circle_outlined, size: 18),
+                label: Text(smart!.cancelling ? '正在停止…' : '停止测速'),
+              ),
+          ]),
+          if (smart!.scanning || smart!.total > 0) ...[
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              key: const ValueKey('nodes_scan_progress'),
+              value: smart!.total == 0 ? 0 :
+                  smart!.scanned / smart!.total,
+            ),
+            const SizedBox(height: 7),
+            Text('已测 ${smart!.scanned}/${smart!.total} · '
+                '成功 ${smart!.successful} · 失败 ${smart!.failed}',
+                style: TextStyle(color: _muted, fontSize: 12)),
+          ],
+          const SizedBox(height: 13),
+        ],
         if (core?.isListening == true)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Text('请先断开正在运行的代理再切换节点。',
+            child: Text('当前代理仍在连接；可以测速，但切换节点须先断开。',
                 style: TextStyle(color: _muted)),
           ),
-        for (var i = 0; i < subscription!.nodes.length; i++)
+        for (final i in smart?.sortedIndices ??
+            List<int>.generate(subscription!.nodes.length, (i) => i))
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: _GlassCard(
@@ -994,7 +1025,7 @@ class _NodesPage extends StatelessWidget {
       ],
       SizedBox(height: 16),
       Text(subscription?.nodes.isNotEmpty == true
-          ? 'HTTPS 响应耗时可在智能优选页实测，下载吞吐暂未实现。'
+          ? '已测节点按真实 HTTPS 耗时排序。可在此一键测全部，或前往智能优选查看详细结果。'
           : '请前往「设置」导入订阅后选择真实节点。',
           style: TextStyle(color: _muted)),
     ])),
