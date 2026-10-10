@@ -7,13 +7,15 @@ import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/globe.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
+import 'package:vela_shuo/src/theme/vela_palettes.dart';
 
-const _background = Color(0xFF06111F);
-const _panel = Color(0xFF0D1D30);
-const _line = Color(0xFF2A4863);
-const _blue = Color(0xFF80C7F8);
-const _muted = Color(0xFF97AEC4);
-const _mint = Color(0xFF63E6B7);
+Color get _background => VelaThemeRuntime.active.background;
+Color get _panel => VelaThemeRuntime.active.surface;
+Color get _line => VelaThemeRuntime.active.line;
+Color get _blue => VelaThemeRuntime.active.accent;
+Color get _muted => VelaThemeRuntime.active.muted;
+Color get _mint => VelaThemeRuntime.active.accentSoft;
+Color get _foreground => VelaThemeRuntime.active.text;
 
 /// Approved Vela-SHUO home-screen brand line. Keep this as the one source.
 const velaBrandTagline = '一帆越洋，尽览四方。';
@@ -30,23 +32,31 @@ class VelaShuoApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: settings,
-    builder: (context, _) => MaterialApp(
-      title: 'Vela-SHUO',
-      debugShowCheckedModeBanner: false,
-      themeMode: settings.themeMode,
-      theme: _theme(Brightness.light),
-      darkTheme: _theme(Brightness.dark),
-      home: _Shell(settings: settings, diagnostics: diagnostics),
-    ),
+    builder: (context, _) {
+      final palette = settings.palette;
+      final brightness = settings.themeMode == ThemeMode.system
+          ? WidgetsBinding.instance.platformDispatcher.platformBrightness
+          : (settings.themeMode == ThemeMode.light
+              ? Brightness.light : Brightness.dark);
+      VelaThemeRuntime.select(palette, brightness);
+      return MaterialApp(
+        title: 'Vela-SHUO',
+        debugShowCheckedModeBanner: false,
+        themeMode: settings.themeMode,
+        theme: _theme(Brightness.light, palette),
+        darkTheme: _theme(Brightness.dark, palette),
+        home: _Shell(settings: settings, diagnostics: diagnostics),
+      );
+    },
   );
 }
 
-ThemeData _theme(Brightness brightness) {
-  final dark = brightness == Brightness.dark;
+ThemeData _theme(Brightness brightness, VelaPalette palette) {
+  final tokens = palette.tokens(brightness);
   final scheme = ColorScheme.fromSeed(
-    seedColor: _blue,
+    seedColor: tokens.accent,
     brightness: brightness,
-    surface: dark ? _background : const Color(0xFFF1F5FA),
+    surface: tokens.background,
   );
   return ThemeData(
     useMaterial3: true,
@@ -55,7 +65,7 @@ ThemeData _theme(Brightness brightness) {
     scaffoldBackgroundColor: scheme.surface,
     cardTheme: CardThemeData(
       elevation: 0,
-      color: dark ? _panel : Colors.white,
+      color: tokens.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     ),
   );
@@ -126,10 +136,10 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       return Scaffold(
         backgroundColor: _background,
         body: DecoratedBox(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [_background, Color(0xFF0B2038), _background],
+              colors: [_background, VelaThemeRuntime.active.raised, _background],
             ),
           ),
           child: SafeArea(
@@ -137,8 +147,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
               if (desktop)
                 Container(
                   width: extended ? 190 : 90,
-                  decoration: const BoxDecoration(
-                    color: Color(0xCC06121F),
+                  decoration: BoxDecoration(
+                    color: _panel.withValues(alpha: .84),
                     border: Border(right: BorderSide(color: _line)),
                   ),
                   child: _DesktopNav(
@@ -150,8 +160,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
           ),
         ),
         bottomNavigationBar: desktop ? null : Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF0B1A2B),
+          decoration: BoxDecoration(
+            color: _panel,
             border: Border(top: BorderSide(color: _line)),
           ),
           child: NavigationBar(
@@ -188,19 +198,19 @@ class _DesktopNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(children: [
-    const SizedBox(height: 32),
-    const VelaBrandLogo(size: 68),
+    SizedBox(height: 32),
+    VelaBrandLogo(size: 68),
     if (extended) ...[
-      const SizedBox(height: 8),
-      const Text('VELA', style: TextStyle(
-        color: Colors.white, fontSize: 21,
+      SizedBox(height: 8),
+      Text('VELA', style: TextStyle(
+        color: _foreground, fontSize: 21,
         letterSpacing: 3, fontWeight: FontWeight.w700,
       )),
-      const Text('— SHUO —', style: TextStyle(
+      Text('— SHUO —', style: TextStyle(
         color: _blue, fontSize: 12, letterSpacing: 2,
       )),
      ],
-    const SizedBox(height: 46),
+    SizedBox(height: 46),
     for (var i = 0; i < _ShellState.destinations.length; i++)
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -225,7 +235,7 @@ class _DesktopNav extends StatelessWidget {
                 mainAxisAlignment: extended
                     ? MainAxisAlignment.start : MainAxisAlignment.center,
                 children: [
-                  if (extended) const SizedBox(width: 15),
+                  if (extended) SizedBox(width: 15),
                   Icon(
                     selected == i
                         ? _ShellState.destinations[i].$2
@@ -233,10 +243,10 @@ class _DesktopNav extends StatelessWidget {
                     color: selected == i ? _blue : _muted, size: 22,
                   ),
                   if (extended) ...[
-                    const SizedBox(width: 15),
+                    SizedBox(width: 15),
                     Text(_ShellState.destinations[i].$3,
                       style: TextStyle(
-                        color: selected == i ? Colors.white : _muted,
+                        color: selected == i ? _foreground : _muted,
                         fontWeight: selected == i
                             ? FontWeight.w600 : FontWeight.normal,
                       ),
@@ -248,7 +258,7 @@ class _DesktopNav extends StatelessWidget {
           ),
         ),
       ),
-    const Spacer(),
+    Spacer(),
   ]);
 }
 
@@ -259,7 +269,7 @@ class VelaBrandLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CustomPaint(
     size: Size(size, size * .75),
-    painter: const _SailLogoPainter(),
+    painter: _SailLogoPainter(),
   );
 }
 
@@ -278,15 +288,15 @@ class _SailLogoPainter extends CustomPainter {
       ..lineTo(w * .91, h * .77)
       ..lineTo(w * .59, h * .77)..close();
     canvas.drawPath(left, Paint()
-      ..shader = const LinearGradient(
+      ..shader = LinearGradient(
         colors: [Color(0xFFB7E7FF), Color(0xFF448DBF)],
       ).createShader(Offset.zero & size));
-    canvas.drawPath(right, Paint()..color = const Color(0xFF8DBCD8));
+    canvas.drawPath(right, Paint()..color = Color(0xFF8DBCD8));
     final hull = Path()
       ..moveTo(w * .1, h * .88)
       ..quadraticBezierTo(w * .52, h * 1.03, w * .94, h * .88);
     canvas.drawPath(hull, Paint()
-      ..color = const Color(0xFFB7E7FF)
+      ..color = Color(0xFFB7E7FF)
       ..strokeWidth = w * .026
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke);
@@ -359,8 +369,8 @@ class _DesktopHome extends StatelessWidget {
                   height: globeSize,
                   child: IgnorePointer(child: VelaGlobe(demo: demo)),
                 ),
-                const Positioned(top: 20, right: 12, child: _DemoTag()),
-                const Positioned(left: 22, top: 62, child: _HeroIdentity()),
+                Positioned(top: 20, right: 12, child: _DemoTag()),
+                Positioned(left: 22, top: 62, child: _HeroIdentity()),
                 Positioned(
                   left: 18,
                   top: 318,
@@ -384,14 +394,14 @@ class _HeroIdentity extends StatelessWidget {
   const _HeroIdentity();
 
   @override
-  Widget build(BuildContext context) => const Column(
+  Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     mainAxisSize: MainAxisSize.min,
     children: [
       Text('VELA', style: TextStyle(
         fontFamily: 'Segoe UI',
         fontSize: 59, height: .96, letterSpacing: 5,
-        color: Color(0xFFF2F8FF), fontWeight: FontWeight.bold,
+        color: _foreground, fontWeight: FontWeight.bold,
       )),
       SizedBox(height: 12),
       Text('— SHUO —', style: TextStyle(
@@ -401,7 +411,7 @@ class _HeroIdentity extends StatelessWidget {
       SizedBox(height: 33),
       Text(velaBrandTagline,
         style: TextStyle(
-          color: Color(0xFFB1C6DC),
+          color: _muted,
           fontSize: 17, height: 1.5,
           letterSpacing: 1.6,
           fontWeight: FontWeight.w400,
@@ -419,15 +429,15 @@ class _DemoTag extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
     decoration: BoxDecoration(
-      color: const Color(0xEA0D2337),
+      color: _panel.withValues(alpha: .94),
       border: Border.all(color: _line),
       borderRadius: BorderRadius.circular(30),
     ),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
-      const Icon(Icons.visibility_outlined, color: _blue, size: 14),
-      const SizedBox(width: 6),
+      Icon(Icons.visibility_outlined, color: _blue, size: 14),
+      SizedBox(width: 6),
       Text(compact ? 'UI 演示' : 'UI 演示 · 尚未接入代理',
-          style: const TextStyle(color: _muted, fontSize: 11)),
+          style: TextStyle(color: _muted, fontSize: 11)),
     ]),
   );
 }
@@ -447,7 +457,7 @@ class _GlassCard extends StatelessWidget {
       child: Container(
         padding: padding,
         decoration: BoxDecoration(
-          color: const Color(0xDB0B1E33),
+          color: _panel.withValues(alpha: .92),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: _line),
         ),
@@ -467,7 +477,7 @@ class _ConnectionCard extends StatelessWidget {
 
   Color get statusColor => switch (demo.phase) {
     VelaPhase.connected => _mint,
-    VelaPhase.error => const Color(0xFFFF8B8F),
+    VelaPhase.error => Color(0xFFFF8B8F),
     VelaPhase.connecting || VelaPhase.switching => _blue,
     _ => _muted,
   };
@@ -504,7 +514,7 @@ class _ConnectionCard extends StatelessWidget {
             color: statusColor, size: compact ? 20 : 24,
           ),
         ),
-        const SizedBox(width: 13),
+        SizedBox(width: 13),
         Expanded(child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -512,18 +522,18 @@ class _ConnectionCard extends StatelessWidget {
               fontSize: compact ? 22 : 27,
               color: statusColor, fontWeight: FontWeight.bold,
             )),
-            const SizedBox(height: 3),
-            const Text('Vela-SHUO · 连接状态演示',
+            SizedBox(height: 3),
+            Text('Vela-SHUO · 连接状态演示',
                 style: TextStyle(color: _muted, fontSize: 12)),
           ],
         )),
       ]),
-      const SizedBox(height: 18),
+      SizedBox(height: 18),
       Material(
         color: _blue.withValues(alpha: .10),
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
-          key: const ValueKey('open_nodes'),
+          key: ValueKey('open_nodes'),
           borderRadius: BorderRadius.circular(12),
           onTap: showNodes,
           child: Padding(
@@ -532,39 +542,39 @@ class _ConnectionCard extends StatelessWidget {
             ),
             child: Row(children: [
               Text(demo.selected.flag,
-                  style: const TextStyle(fontSize: 23)),
-              const SizedBox(width: 10),
+                  style: TextStyle(fontSize: 23)),
+              SizedBox(width: 10),
               Expanded(child: Text(
                 '${demo.selected.country} · ${demo.selected.title}',
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white, fontSize: 15,
+                style: TextStyle(
+                  color: _foreground, fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
               )),
-              const Icon(Icons.chevron_right_rounded, color: _muted),
+              Icon(Icons.chevron_right_rounded, color: _muted),
             ]),
           ),
         ),
       ),
-      const SizedBox(height: 10),
+      SizedBox(height: 10),
       Row(children: [
-        const Icon(Icons.route_outlined, size: 15, color: _muted),
-        const SizedBox(width: 6),
+        Icon(Icons.route_outlined, size: 15, color: _muted),
+        SizedBox(width: 6),
         Expanded(child: Text(
           '${demo.selected.city} · ${demo.routingMode} · 模拟节点',
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 12, color: _muted),
+          style: TextStyle(fontSize: 12, color: _muted),
         )),
         Text('${demo.selected.latency} ms',
-            style: const TextStyle(color: _mint, fontSize: 12)),
+            style: TextStyle(color: _mint, fontSize: 12)),
       ]),
-      const SizedBox(height: 15),
+      SizedBox(height: 15),
       SizedBox(
         height: compact ? 46 : 50,
         width: double.infinity,
         child: FilledButton.icon(
-          key: const ValueKey('demo_connect_button'),
+          key: ValueKey('demo_connect_button'),
           onPressed: toggle,
           icon: Icon(demo.isConnected
               ? Icons.power_settings_new_rounded : Icons.sailing_outlined),
@@ -575,11 +585,11 @@ class _ConnectionCard extends StatelessWidget {
                     ? '取消演示' : '演示连接',
           ),
           style: FilledButton.styleFrom(
-            foregroundColor: Colors.white,
+            foregroundColor: _foreground,
             backgroundColor: _blue.withValues(alpha: .23),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: Color(0xFF4F9FD3)),
+              side: BorderSide(color: Color(0xFF4F9FD3)),
             ),
           ),
         ),
@@ -601,7 +611,7 @@ class _Stats extends StatelessWidget {
       value: demo.isConnected ? demo.selected.latency.toString() : '—',
       unit: 'ms', caption: '示意数据 · 非真实测速', highlight: _mint,
     )),
-    const SizedBox(width: 11),
+    SizedBox(width: 11),
     Expanded(child: _MetricCard(
       icon: Icons.download_outlined,
       label: '下载速度',
@@ -609,7 +619,7 @@ class _Stats extends StatelessWidget {
           ? demo.selected.downloadMbps.toStringAsFixed(0) : '—',
       unit: 'Mbps', caption: '示意数据 · 非真实测速', highlight: _blue,
     )),
-    const SizedBox(width: 11),
+    SizedBox(width: 11),
     Expanded(child: _MetricCard(
       icon: Icons.auto_awesome_outlined,
       label: '智能模式',
@@ -617,8 +627,8 @@ class _Stats extends StatelessWidget {
       unit: '', caption: '视觉展示 · 算法尚未接入',
       highlight: _blue, onTap: showSmart,
     )),
-    const SizedBox(width: 11),
-    const Expanded(child: _MetricCard(
+    SizedBox(width: 11),
+    Expanded(child: _MetricCard(
       icon: Icons.schedule_outlined, label: '连接时长',
       value: '—', unit: '', caption: '真实连接后显示计时',
       highlight: _muted,
@@ -650,13 +660,13 @@ class _MetricCard extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(icon, color: highlight, size: 20),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Flexible(child: Text(label,
               overflow: TextOverflow.ellipsis, maxLines: 1,
-              style: const TextStyle(color: Color(0xFFCEDFED), fontSize: 13),
+              style: TextStyle(color: _foreground, fontSize: 13),
             )),
           ]),
-          const Spacer(),
+          Spacer(),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
@@ -665,13 +675,13 @@ class _MetricCard extends StatelessWidget {
                 color: highlight, fontSize: 26, fontWeight: FontWeight.bold,
               )),
               TextSpan(text: unit.isEmpty ? '' : ' $unit',
-                  style: const TextStyle(color: _muted, fontSize: 12)),
+                  style: TextStyle(color: _muted, fontSize: 12)),
             ])),
           ),
-          const SizedBox(height: 7),
+          SizedBox(height: 7),
           Text(caption,
             maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: _muted, fontSize: 10),
+            style: TextStyle(color: _muted, fontSize: 10),
           ),
         ]),
       ),
@@ -692,9 +702,9 @@ class _MobileHome extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
     children: [
       Row(children: [
-        const VelaBrandLogo(size: 37),
-        const SizedBox(width: 9),
-        const Expanded(child: Column(
+        VelaBrandLogo(size: 37),
+        SizedBox(width: 9),
+        Expanded(child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Vela-SHUO', style: TextStyle(
@@ -705,23 +715,23 @@ class _MobileHome extends StatelessWidget {
             ),
           ],
         )),
-        const _DemoTag(compact: true),
+        _DemoTag(compact: true),
       ]),
-      const SizedBox(height: 7),
+      SizedBox(height: 7),
       SizedBox(
         height: math.min(MediaQuery.sizeOf(context).width, 400),
         child: VelaGlobe(demo: demo),
       ),
-      const SizedBox(height: 8),
+      SizedBox(height: 8),
       _ConnectionCard(demo: demo, showNodes: showNodes, compact: true),
-      const SizedBox(height: 12),
+      SizedBox(height: 12),
       Row(children: [
         Expanded(child: _MetricCard(
           icon: Icons.bolt_outlined, label: '网络延迟',
           value: demo.isConnected ? demo.selected.latency.toString() : '—',
           unit: 'ms', caption: '示意数据', highlight: _mint,
         )),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(child: _MetricCard(
           icon: Icons.download_outlined, label: '下载速度',
           value: demo.isConnected
@@ -729,7 +739,7 @@ class _MobileHome extends StatelessWidget {
           unit: 'Mbps', caption: '示意数据', highlight: _blue,
         )),
       ]),
-      const SizedBox(height: 10),
+      SizedBox(height: 10),
       Row(children: [
         Expanded(child: _MetricCard(
           icon: Icons.auto_awesome_outlined, label: '智能模式',
@@ -737,14 +747,14 @@ class _MobileHome extends StatelessWidget {
           unit: '', caption: '引擎尚未接入',
           highlight: _blue, onTap: showSmart,
         )),
-        const SizedBox(width: 10),
-        const Expanded(child: _MetricCard(
+        SizedBox(width: 10),
+        Expanded(child: _MetricCard(
           icon: Icons.schedule_outlined, label: '连接时长',
           value: '—', unit: '', caption: '后续版本开放',
           highlight: _muted,
         )),
       ]),
-      const SizedBox(height: 20),
+      SizedBox(height: 20),
     ],
   );
 }
@@ -758,11 +768,11 @@ class _ScreenHeading extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(title, style: const TextStyle(
-        color: Colors.white, fontSize: 29, fontWeight: FontWeight.bold,
+      Text(title, style: TextStyle(
+        color: _foreground, fontSize: 29, fontWeight: FontWeight.bold,
       )),
-      const SizedBox(height: 7),
-      Text(subtitle, style: const TextStyle(color: _muted)),
+      SizedBox(height: 7),
+      Text(subtitle, style: TextStyle(color: _muted)),
     ],
   );
 }
@@ -774,7 +784,7 @@ class _ScreenPadding extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
     child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 1000),
+      constraints: BoxConstraints(maxWidth: 1000),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 27),
         child: child,
@@ -792,10 +802,10 @@ class _NodesPage extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: demo,
     builder: (context, _) => _ScreenPadding(child: ListView(children: [
-      const _ScreenHeading('节点', '选择目的地 · 预览地球转向的交互效果'),
-      const SizedBox(height: 18),
-      const _DemoTag(),
-      const SizedBox(height: 24),
+      _ScreenHeading('节点', '选择目的地 · 预览地球转向的交互效果'),
+      SizedBox(height: 18),
+      _DemoTag(),
+      SizedBox(height: 24),
       for (final node in VelaDemoNode.samples)
         Padding(
           padding: const EdgeInsets.only(bottom: 11),
@@ -806,23 +816,23 @@ class _NodesPage extends StatelessWidget {
                 horizontal: 16, vertical: 10,
               ),
               leading: Text(node.flag,
-                style: const TextStyle(fontSize: 29),
+                style: TextStyle(fontSize: 29),
               ),
               title: Text('${node.country} · ${node.title}',
-                style: const TextStyle(color: Colors.white)),
+                style: TextStyle(color: _foreground)),
               subtitle: Text(
                 '${node.city} · 演示节点 · ${node.latency} ms（示意）',
-                style: const TextStyle(color: _muted),
+                style: TextStyle(color: _muted),
               ),
               trailing: demo.selected.id == node.id
-                  ? const Icon(Icons.check_circle, color: _mint)
-                  : const Icon(Icons.chevron_right, color: _blue),
+                  ? Icon(Icons.check_circle, color: _mint)
+                  : Icon(Icons.chevron_right, color: _blue),
               onTap: () { demo.selectNode(node); goHome(); },
             ),
           ),
         ),
-      const SizedBox(height: 16),
-      const Text('订阅导入和真实节点测速将随代理内核在后续版本实现。',
+      SizedBox(height: 16),
+      Text('订阅导入和真实节点测速将随代理内核在后续版本实现。',
           style: TextStyle(color: _muted)),
     ])),
   );
@@ -836,34 +846,34 @@ class _SmartPage extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: demo,
     builder: (context, _) => _ScreenPadding(child: ListView(children: [
-      const _ScreenHeading('智能优选', '稳定优先 · 让每一次连接更从容'),
-      const SizedBox(height: 18),
-      const _DemoTag(),
-      const SizedBox(height: 24),
+      _ScreenHeading('智能优选', '稳定优先 · 让每一次连接更从容'),
+      SizedBox(height: 18),
+      _DemoTag(),
+      SizedBox(height: 24),
       _GlassCard(child: Column(children: [
         SwitchListTile(
-          secondary: const Icon(Icons.auto_awesome, color: _blue),
-          title: const Text('智能优选（界面演示）'),
-          subtitle: const Text('暂不执行测速或自动切换'),
+          secondary: Icon(Icons.auto_awesome, color: _blue),
+          title: Text('智能优选（界面演示）'),
+          subtitle: Text('暂不执行测速或自动切换'),
           value: demo.smartEnabled,
           onChanged: demo.setSmart,
         ),
-        const Divider(color: _line, height: 1),
+        Divider(color: _line, height: 1),
         SwitchListTile(
-          secondary: const Icon(Icons.shield_outlined, color: _blue),
-          title: const Text('活跃连接保护（界面演示）'),
-          subtitle: const Text('真实保护功能将在内核接入后实现'),
+          secondary: Icon(Icons.shield_outlined, color: _blue),
+          title: Text('活跃连接保护（界面演示）'),
+          subtitle: Text('真实保护功能将在内核接入后实现'),
           value: demo.protectConnections,
           onChanged: demo.setProtection,
         ),
       ])),
-      const SizedBox(height: 17),
-      const _GlassCard(child: Column(
+      SizedBox(height: 17),
+      _GlassCard(child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('SHUO Smart Engine',
               style: TextStyle(
-                color: Colors.white, fontSize: 19,
+                color: _foreground, fontSize: 19,
                 fontWeight: FontWeight.bold,
               )),
           SizedBox(height: 12),
@@ -891,15 +901,15 @@ class _SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _ScreenPadding(
     child: ListView(children: [
-      const _ScreenHeading('设置', '为 Vela-SHUO 定义你的使用方式'),
-      const SizedBox(height: 18),
-      const _DemoTag(),
-      const SizedBox(height: 24),
+      _ScreenHeading('设置', '为 Vela-SHUO 定义你的使用方式'),
+      SizedBox(height: 18),
+      _DemoTag(),
+      SizedBox(height: 24),
       _GlassCard(child: Column(children: [
         ListTile(
-          leading: const Icon(Icons.palette_outlined, color: _blue),
-          title: const Text('外观主题'),
-          subtitle: const Text('设置自动保存'),
+          leading: Icon(Icons.palette_outlined, color: _blue),
+          title: Text('外观主题'),
+          subtitle: Text('设置自动保存'),
           trailing: DropdownButton<ThemeMode>(
             value: settings.themeMode,
             dropdownColor: _panel,
@@ -916,46 +926,46 @@ class _SettingsPage extends StatelessWidget {
             },
           ),
         ),
-        const Divider(height: 1, color: _line),
-        const ListTile(
+        Divider(height: 1, color: _line),
+        ListTile(
           leading: Icon(Icons.info_outline, color: _blue),
           title: Text('Vela-SHUO v0.1.0'),
           subtitle: Text('原创首页 UI 预览 · 无真实代理连接'),
         ),
       ])),
-      const SizedBox(height: 16),
+      SizedBox(height: 16),
       _GlassCard(child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('视觉状态预览',
+          Text('视觉状态预览',
               style: TextStyle(fontSize: 18,
                   fontWeight: FontWeight.w600)),
-          const SizedBox(height: 7),
-          const Text('以下操作只改变演示状态，不会连接网络。',
+          SizedBox(height: 7),
+          Text('以下操作只改变演示状态，不会连接网络。',
               style: TextStyle(color: _muted)),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Wrap(spacing: 9, runSpacing: 9, children: [
             OutlinedButton(
               onPressed: () { demo.disconnect(); goHome(); },
-              child: const Text('未连接'),
+              child: Text('未连接'),
             ),
             OutlinedButton(
               onPressed: () { demo.connect(); goHome(); },
-              child: const Text('演示连接'),
+              child: Text('演示连接'),
             ),
             OutlinedButton(
               onPressed: () { demo.simulateError(); goHome(); },
-              child: const Text('连接异常'),
+              child: Text('连接异常'),
             ),
           ]),
         ],
       )),
       if (diagnostics != null) ...[
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         _DiagnosticsCard(diagnostics: diagnostics!),
       ],
-      const SizedBox(height: 16),
-      const _GlassCard(child: ListTile(
+      SizedBox(height: 16),
+      _GlassCard(child: ListTile(
         leading: Icon(Icons.privacy_tip_outlined, color: _blue),
         title: Text('隐私与安全'),
         subtitle: Text('当前原型不申请 VPN 权限，不上传遥测数据。',
@@ -976,33 +986,33 @@ class _DiagnosticsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('本地诊断（隐私保护）', style: TextStyle(
-            color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600,
+          Text('本地诊断（隐私保护）', style: TextStyle(
+            color: _foreground, fontSize: 17, fontWeight: FontWeight.w600,
           )),
-          const SizedBox(height: 8),
-          const Text(
+          SizedBox(height: 8),
+          Text(
             '仅记录时间与预定义事件代码，不记录订阅、地址、密钥、'
             '异常原文或流量内容；不上传网络。',
             style: TextStyle(color: _muted, height: 1.5, fontSize: 12),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Text(
             '当前会话 ${diagnostics.recentEntries.length} 条 · '
             '${diagnostics.persistent ? '本机日志已启用' : '仅内存记录'}',
-            style: const TextStyle(color: _blue, fontSize: 12),
+            style: TextStyle(color: _blue, fontSize: 12),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Wrap(spacing: 10, runSpacing: 8, children: [
             OutlinedButton.icon(
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: diagnostics.report));
                 if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                   content: Text('已复制脱敏诊断记录'),
                 ));
               },
-              icon: const Icon(Icons.copy_rounded, size: 17),
-              label: const Text('复制诊断记录'),
+              icon: Icon(Icons.copy_rounded, size: 17),
+              label: Text('复制诊断记录'),
             ),
             OutlinedButton.icon(
               onPressed: () async {
@@ -1012,8 +1022,8 @@ class _DiagnosticsCard extends StatelessWidget {
                   content: Text(result ? '本地诊断记录已清除' : '清除失败，请稍后重试'),
                 ));
               },
-              icon: const Icon(Icons.delete_outline_rounded, size: 17),
-              label: const Text('清除诊断记录'),
+              icon: Icon(Icons.delete_outline_rounded, size: 17),
+              label: Text('清除诊断记录'),
             ),
           ]),
         ],
