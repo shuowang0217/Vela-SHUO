@@ -48,7 +48,8 @@ unknown://something-private
       'aid':'0', 'scy':'auto', 'net':'ws', 'host':'host.example.test',
       'path':'/ws', 'tls':'tls', 'sni':'edge.example.test',
     };
-    final link = 'vmess://' + base64Url.encode(utf8.encode(jsonEncode(vmess)));
+    final encoded = base64Url.encode(utf8.encode(jsonEncode(vmess)));
+    final link = 'vmess://$encoded';
     final result = VelaSubscriptionParser.parse(link);
     expect(result.nodes.single.protocol, 'vmess');
     expect(result.nodes.single.outbound['alter_id'], 0);
