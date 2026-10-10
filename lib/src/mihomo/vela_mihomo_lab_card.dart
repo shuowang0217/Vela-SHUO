@@ -76,7 +76,7 @@ class VelaMihomoLabCard extends StatelessWidget {
                 FilledButton.icon(
                   key: const ValueKey('mihomo_lab_start'),
                   onPressed: canLaunch ? () {
-                    lab.start(subscription.nodes, selected);
+                    lab.start(subscription.nodes, selected!);
                   } : null,
                   icon: const Icon(Icons.play_arrow_rounded),
                   label: const Text('启动实验内核并验证 HTTPS'),
