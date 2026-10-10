@@ -1230,3 +1230,153 @@ class _PaletteOption extends StatelessWidget {
     ),
   );
 }
+
+class _RealTag extends StatelessWidget {
+  const _RealTag({this.compact = false});
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.symmetric(
+      horizontal: compact ? 8 : 13, vertical: compact ? 5 : 8,
+    ),
+    decoration: BoxDecoration(
+      color: _mint.withValues(alpha: .11),
+      border: Border.all(color: _mint.withValues(alpha: .36)),
+      borderRadius: BorderRadius.circular(30),
+    ),
+    child: Text('真实代理模式 · Windows 系统代理',
+      style: TextStyle(color: _foreground, fontSize: compact ? 9 : 11),
+    ),
+  );
+}
+
+class _RealConnectionCard extends StatelessWidget {
+  const _RealConnectionCard({
+    required this.connection, required this.showNodes,
+    this.compact = false,
+  });
+  final VelaConnectionCoordinator connection;
+  final VoidCallback showNodes;
+  final bool compact;
+
+  Future<void> toggle(BuildContext context) async {
+    if (connection.busy) return;
+    if (connection.connected || connection.proxy.active) {
+      await connection.disconnect();
+      return;
+    }
+    if (!connection.available) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先在设置中导入订阅并选择真实节点')),
+      );
+      return;
+    }
+    // One-click after clear, explicit user consent to changing WinINet.
+    final consent = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('允许接管 Windows 系统代理？'),
+        content: const Text(
+          'Vela-SHUO 将先验证选中的节点，验证成功后才把本机 HTTP 系统代理'
+          '设置为 127.0.0.1:20808。\n\n'
+          '软件会保存当前代理设置并在断开时恢复；'
+          '如果你正在使用其他代理软件，其设置可能暂时被替换。'
+          '目前仅接管遵循 Windows 代理设置的应用，并非 VPN/TUN 全局代理。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('允许并连接'),
+          ),
+        ],
+      ),
+    );
+    if (consent == true) await connection.connect();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = connection.connected ? _mint :
+        connection.phase == VelaRealPhase.error
+            ? const Color(0xFFE78986) : _blue;
+    final estimated = VelaDemoNode.approximateFromName(connection.nodeName);
+    return _GlassCard(
+      padding: EdgeInsets.all(compact ? 16 : 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.language_rounded, color: color,
+                size: compact ? 32 : 42),
+            const SizedBox(width: 13),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(connection.phaseText, style: TextStyle(
+                  color: color, fontWeight: FontWeight.bold,
+                  fontSize: compact ? 21 : 26,
+                )),
+                Text('sing-box · 真实线路与系统代理',
+                    style: TextStyle(color: _muted, fontSize: 12)),
+              ],
+            )),
+          ]),
+          const SizedBox(height: 13),
+          Material(
+            color: _blue.withValues(alpha: .1),
+            borderRadius: BorderRadius.circular(12),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              dense: true,
+              onTap: connection.busy || connection.core.isListening
+                  ? null : showNodes,
+              leading: Icon(Icons.route_outlined, color: _blue),
+              title: Text(connection.nodeName, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: _foreground)),
+              trailing: Icon(Icons.chevron_right, color: _muted),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(estimated == null
+              ? '节点地理位置未知，地球保持原视角'
+              : '地球航线位置由节点名称估算 · 非 IP 定位',
+            style: TextStyle(fontSize: 11, color: _muted),
+          ),
+          if (connection.error != null) Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(connection.error!, maxLines: 3,
+              style: const TextStyle(color: Color(0xFFE78986), fontSize: 11)),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: compact ? 44 : 48,
+            child: FilledButton.icon(
+              key: const ValueKey('real_connect_button'),
+              onPressed: connection.busy ? null : () => toggle(context),
+              icon: Icon(connection.connected || connection.proxy.active
+                  ? Icons.power_settings_new_rounded : Icons.sailing_outlined),
+              label: Text(connection.busy ? '请稍候…' :
+                  connection.connected || connection.proxy.active
+                      ? '安全断开并恢复代理' : '连接所选真实节点'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _blue.withValues(alpha: .26),
+                foregroundColor: _foreground,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: _blue),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
