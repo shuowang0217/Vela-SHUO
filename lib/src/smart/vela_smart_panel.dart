@@ -4,8 +4,8 @@ import '../subscription/vela_subscription_controller.dart';
 import '../theme/vela_palettes.dart';
 import 'vela_smart_controller.dart';
 
-/// Real test results only: never displays the demo node "latency" or Mbps.
-class VelaSmartPanel extends StatelessWidget {
+/// Full subscription benchmark view. No demo delays or fake bandwidth.
+class VelaSmartPanel extends StatefulWidget {
   const VelaSmartPanel({
     super.key,
     required this.engine,
@@ -16,14 +16,24 @@ class VelaSmartPanel extends StatelessWidget {
   final VelaSubscriptionController subscription;
 
   @override
+  State<VelaSmartPanel> createState() => _VelaSmartPanelState();
+}
+
+class _VelaSmartPanelState extends State<VelaSmartPanel> {
+  int _shown = 40;
+
+  @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: Listenable.merge([engine, subscription]),
+    animation: Listenable.merge([widget.engine, widget.subscription]),
     builder: (context, _) {
+      final engine = widget.engine;
+      final subscription = widget.subscription;
       final theme = VelaThemeRuntime.active;
       final selected = subscription.selectedIndex;
       final preferred = engine.recommendedIndex;
       final available = engine.count;
-      final ranked = engine.sortedIndices.take(16).toList();
+      final ranked = engine.sortedIndices.take(_shown).toList();
+
       return Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
@@ -34,13 +44,13 @@ class VelaSmartPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('SHUO Smart Engine · v0.3 Alpha',
+            Text('SHUO Smart Engine · 全节点测速',
               style: TextStyle(color: theme.text,
                 fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 7),
             Text(
-              '对每个节点独立启动临时代理，通过真实 HTTPS 请求计时；'
-              '不使用虚构延迟，不会改变现有 Windows 系统代理。',
+              '一键检测整份订阅。独立临时代理发送真实 HTTPS 请求，'
+              '每次最多同时检测两个节点，不更改当前 Windows 系统代理。',
               style: TextStyle(fontSize: 12, height: 1.5,
                 color: theme.muted),
             ),
@@ -50,7 +60,7 @@ class VelaSmartPanel extends StatelessWidget {
               key: const ValueKey('smart_auto_pick'),
               title: Text('空闲时自动选择优选节点',
                   style: TextStyle(color: theme.text)),
-              subtitle: Text('仅在未连接时更新节点选择；绝不自动建立或切断连接',
+              subtitle: Text('仅断开状态下更换所选节点，不自动建立或中断连接',
                   style: TextStyle(fontSize: 11, color: theme.muted)),
               value: engine.autoPickWhenIdle,
               onChanged: engine.setAutoPick,
@@ -58,6 +68,19 @@ class VelaSmartPanel extends StatelessWidget {
             const SizedBox(height: 10),
             Wrap(spacing: 9, runSpacing: 9, children: [
               FilledButton.icon(
+                key: const ValueKey('smart_measure_all'),
+                onPressed: engine.canTestAll ? engine.testAllNodes : null,
+                icon: const Icon(Icons.travel_explore_rounded, size: 18),
+                label: const Text('一键测速全部节点'),
+              ),
+              if (engine.scanning)
+                OutlinedButton.icon(
+                  key: const ValueKey('smart_cancel_scan'),
+                  onPressed: engine.cancelling ? null : engine.cancelScan,
+                  icon: const Icon(Icons.stop_circle_outlined, size: 18),
+                  label: Text(engine.cancelling ? '正在停止…' : '停止测速'),
+                ),
+              OutlinedButton.icon(
                 key: const ValueKey('smart_measure_batch'),
                 onPressed: engine.scanning || !engine.core.hasCore ||
                     engine.connection.busy ||
@@ -65,9 +88,7 @@ class VelaSmartPanel extends StatelessWidget {
                     engine.core.isListening || available == 0
                     ? null : engine.testNextBatch,
                 icon: const Icon(Icons.speed_rounded, size: 18),
-                label: Text(engine.scanning
-                    ? '测速中 ${engine.scanned}/${engine.total}'
-                    : '测试下一批（最多8个）'),
+                label: const Text('测试下一批（最多8个）'),
               ),
               OutlinedButton.icon(
                 key: const ValueKey('smart_use_recommended'),
@@ -77,20 +98,43 @@ class VelaSmartPanel extends StatelessWidget {
                 label: const Text('选择推荐节点'),
               ),
             ]),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
+            if (engine.scanning || engine.total > 0) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(5),
+                child: LinearProgressIndicator(
+                  key: const ValueKey('smart_scan_progress'),
+                  value: engine.total == 0
+                      ? 0 : engine.scanned / engine.total,
+                  minHeight: 7,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Wrap(spacing: 12, runSpacing: 4, children: [
+                Text('进度 ${engine.scanned} / ${engine.total}',
+                    style: TextStyle(color: theme.text, fontSize: 12)),
+                Text('成功 ${engine.successful}',
+                    style: TextStyle(color: theme.accent, fontSize: 12)),
+                Text('失败 ${engine.failed}',
+                    style: TextStyle(color: theme.muted, fontSize: 12)),
+                Text('剩余 ${engine.total - engine.scanned}',
+                    style: TextStyle(color: theme.muted, fontSize: 12)),
+              ]),
+              const SizedBox(height: 8),
+            ],
             Text(engine.status ?? (available == 0
                 ? '请先在「设置」页面导入订阅。'
-                : '尚未测速 · 可用节点 $available 个'),
+                : '尚未测速 · 总计 $available 个节点'),
               style: TextStyle(color: theme.muted, fontSize: 12)),
             const SizedBox(height: 8),
-            Text('启用冷却：3 分钟 · 需要至少改善 20% 且 50ms 才建议换节点。'
-              '失败节点降权，当前连接始终受到保护。',
+            Text('可在保持连接时测速，但不切换当前线路。'
+              '改选仍需满足3分钟冷却、改善至少20%且50ms的门槛。',
               style: TextStyle(color: theme.muted, fontSize: 11)),
             const SizedBox(height: 15),
             Divider(color: theme.line),
             const SizedBox(height: 9),
             Row(children: [
-              Expanded(child: Text('节点',
+              Expanded(child: Text('全部节点（按实测结果排序）',
                 style: TextStyle(color: theme.muted, fontSize: 12))),
               Text('HTTPS 耗时 / 结果',
                 style: TextStyle(color: theme.muted, fontSize: 12)),
@@ -98,7 +142,7 @@ class VelaSmartPanel extends StatelessWidget {
             const SizedBox(height: 7),
             for (final i in ranked)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.symmetric(vertical: 5),
                 child: Row(children: [
                   if (preferred == i)
                     Padding(
@@ -123,12 +167,24 @@ class VelaSmartPanel extends StatelessWidget {
                 ]),
               ),
             if (available > ranked.length)
-              Text('仅显示前 ${ranked.length} 个，'
-                '继续测速可更新排序。总节点数 $available。',
-                style: TextStyle(color: theme.muted, fontSize: 11)),
+              TextButton.icon(
+                key: const ValueKey('smart_show_more'),
+                onPressed: () => setState(() {
+                  _shown = _shown + 40 < available ? _shown + 40 : available;
+                }),
+                icon: const Icon(Icons.expand_more_rounded, size: 18),
+                label: Text('显示更多（剩余 ${available - ranked.length} 个）'),
+              ),
+            if (_shown > 40)
+              TextButton.icon(
+                key: const ValueKey('smart_collapse_results'),
+                onPressed: () => setState(() { _shown = 40; }),
+                icon: const Icon(Icons.expand_less_rounded, size: 18),
+                label: const Text('收起结果'),
+              ),
             const SizedBox(height: 12),
-            Text('延迟为经过代理的单次 HTTPS 完整响应耗时，'
-              '不代表游戏 Ping、下载 Mbps 或所有网站的实际速度。',
+            Text('显示的毫秒值为单次 HTTPS 完整请求耗时，'
+              '不等于游戏 Ping、下载 Mbps 或其他网站的实际速度。',
               style: TextStyle(color: theme.muted, fontSize: 11, height: 1.5)),
           ],
         ),
@@ -137,7 +193,7 @@ class VelaSmartPanel extends StatelessWidget {
   );
 
   static String _label(VelaNodeHealth? health) {
-    if (health == null) return '未测试';
+    if (health == null) { return '未测试'; }
     if (!health.reachable) {
       return '失败 ×${health.consecutiveFailures}';
     }
