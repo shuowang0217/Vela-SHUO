@@ -41,8 +41,8 @@ class VelaDemoNode {
     _ => title.split('-').first.toUpperCase(),
   };
 
-  /// This is an approximate visual country locator inferred from a node
-  /// NAME, not the node's geolocation/IP. Unknown locations stay at home.
+  /// Approximate map orientation is inferred from the display name only.
+  /// It is NOT the node's verified network geolocation.
   static VelaDemoNode? approximateFromName(String name) {
     final text = name.toLowerCase();
     const rules = <(String, List<String>)>[
@@ -53,8 +53,16 @@ class VelaDemoNode {
       ('de', ['德国', '法兰克福', '🇩🇪', 'germany', 'frankfurt', 'de']),
     ];
     for (final (id, markers) in rules) {
-      if (markers.any((m) {
-        if (m.length <= 2 && RegExp(r'^[a-z]+
+      if (markers.any((marker) => text.contains(marker))) {
+        for (final node in samples) {
+          if (node.id == id) return node;
+        }
+      }
+    }
+    return null;
+  }
+
+  static const samples = [
     VelaDemoNode(
       id: 'jp', country: '日本', city: '东京', title: 'Tokyo-01',
       flag: '🇯🇵', longitude: 139.7, latitude: 35.7,
