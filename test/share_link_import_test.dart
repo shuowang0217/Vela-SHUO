@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_parser.dart';
+import 'package:vela_shuo/src/mihomo/vela_mihomo_config.dart';
 
 void main() {
   test('base64 universal subscription decodes SS and VLESS share links', () {
@@ -22,9 +23,10 @@ unknown://something-private
     final transport = imported.nodes[1].outbound['transport'] as Map;
     expect(transport['path'], '/connect');
     expect((transport['headers'] as Map)['Host'], 'edge.example.test');
-    final config = jsonDecode(
-        VelaSubscriptionParser.buildConfig(imported.nodes[0])) as Map;
-    expect(config['inbounds'][0]['listen'], '127.0.0.1');
+    final config = jsonDecode(const VelaMihomoConfigBuilder().build(
+      imported.nodes, selectedIndex: 0, secret: 'a' * 64,
+      proxyPort: 20808, apiPort: null).configText) as Map;
+    expect(config['bind-address'], '127.0.0.1');
   });
 
   test('legacy full-base64 SS and SIP002 userinfo formats both work', () {
