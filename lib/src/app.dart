@@ -198,7 +198,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
 
   Widget page(bool desktop) => switch (tab) {
     1 => _NodesPage(demo: demo, subscription: subscription,
-      core: widget.core, smart: smart, goHome: () => navigate(0)),
+      core: widget.core, connection: connection,
+      smart: smart, goHome: () => navigate(0)),
     2 => _SmartPage(demo: demo, smart: smart, subscription: subscription),
     3 => _SettingsPage(
       demo: demo, settings: widget.settings,
@@ -932,20 +933,23 @@ class _ScreenPadding extends StatelessWidget {
 
 class _NodesPage extends StatelessWidget {
   const _NodesPage({required this.demo, required this.goHome,
-    this.subscription, this.core, this.smart});
+    this.subscription, this.core, this.connection, this.smart});
   final VelaDemoController demo;
   final VelaSubscriptionController? subscription;
   final VelaCoreController? core;
+  final VelaConnectionCoordinator? connection;
   final VelaSmartController? smart;
   final VoidCallback goHome;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: Listenable.merge([demo,
-      ?subscription, ?core, ?smart]),
+      ?subscription, ?core, ?connection, ?smart]),
     builder: (context, _) => _ScreenPadding(child: ListView(children: [
       _ScreenHeading('节点', subscription?.nodes.isNotEmpty == true
-          ? '来自订阅的真实节点 · 点击选择后返回首页'
+          ? connection?.connected == true
+              ? '在线选择 Mihomo 节点 · 验证成功后返回首页'
+              : '来自订阅的真实节点 · 点击选择后返回首页'
           : '尚未导入订阅 · 以下是地图演示节点'),
       SizedBox(height: 18),
       subscription?.nodes.isNotEmpty == true ? _RealTag() : _DemoTag(),
@@ -958,10 +962,17 @@ class _NodesPage extends StatelessWidget {
               style: TextStyle(color: _muted, fontSize: 12)),
           const SizedBox(height: 12),
         ],
-        if (core?.isListening == true)
+        if (connection?.connected == true)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Text('当前代理仍在连接；可以测速，但切换节点须先断开。',
+            child: Text('在线切换使用 Mihomo Selector；新连接使用新节点，'
+                '既有 TCP/UDP 连接不保证无中断。',
+                style: TextStyle(color: _muted)),
+          )
+        else if (core?.isListening == true)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text('当前本地代理仍在运行，请先停止手动代理。',
                 style: TextStyle(color: _muted)),
           ),
         for (final i in smart?.sortedIndices ??
@@ -985,10 +996,20 @@ class _NodesPage extends StatelessWidget {
                 trailing: subscription!.selectedIndex == i
                     ? Icon(Icons.check_circle, color: _mint)
                     : Icon(Icons.chevron_right, color: _blue),
-                onTap: core?.isListening == true ? null : () async {
-                  if (await subscription!.selectNode(i)) {
+                onTap: connection?.busy == true ||
+                    (core?.isListening == true &&
+                        connection?.connected != true) ? null : () async {
+                  final ok = connection?.connected == true
+                      ? await connection!.switchNode(i)
+                      : await subscription!.selectNode(i);
+                  if (ok) {
                     smart?.manualSelection();
                     goHome();
+                  } else if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(connection?.error ??
+                          subscription!.error ?? '节点操作失败'),
+                    ));
                   }
                 },
               ),
@@ -1458,8 +1479,7 @@ class _RealConnectionCard extends StatelessWidget {
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               dense: true,
-              onTap: connection.busy || connection.core.isListening
-                  ? null : showNodes,
+              onTap: connection.busy ? null : showNodes,
               leading: Icon(Icons.route_outlined, color: _blue),
               title: Text(connection.nodeName, maxLines: 1,
                   overflow: TextOverflow.ellipsis,
