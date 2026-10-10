@@ -145,9 +145,10 @@ void main() {
       await invalid.writeAsString(_config.replaceFirst('127.0.0.1', '0.0.0.0'));
       expect(await controller.chooseConfig(invalid.path), isFalse);
       expect(controller.phase, VelaCorePhase.failed);
-      expect(controller.localPort, 20808);
-      expect(await controller.start(), isTrue);
-      await controller.stop();
+      expect(controller.localPort, isNull);
+      expect(controller.hasConfig, isFalse);
+      expect(await controller.start(), isFalse);
+      expect(runner.launches, 0);
     } finally {
       controller.dispose();
       await folder.delete(recursive: true);
