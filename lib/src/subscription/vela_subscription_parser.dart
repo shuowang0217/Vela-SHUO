@@ -187,11 +187,10 @@ class VelaSubscriptionParser {
         counts[label] = (counts[label] ?? 0) + 1;
       }
       final types = counts.entries.map((e) =>
-          e.key + ' ' + e.value.toString()).join('、');
+          '${e.key} ${e.value}').join('、');
       throw FormatException(
-        '识别到 ' + lines.length.toString() +
-        ' 条分享链接，但没有可导入节点。协议统计：' +
-        types + '。请优先复制服务商提供的 Clash/Mihomo 专用订阅；'
+        '识别到 ${lines.length} 条分享链接，但没有可导入节点。'
+        '协议统计：$types。请优先复制服务商提供的 Clash/Mihomo 专用订阅；'
         '也可能是传输参数或 TLS 安全要求不兼容。',
       );
     }
