@@ -944,35 +944,12 @@ class _NodesPage extends StatelessWidget {
       subscription?.nodes.isNotEmpty == true ? _RealTag() : _DemoTag(),
       SizedBox(height: 24),
       if (subscription?.nodes.isNotEmpty == true) ...[
-        if (smart != null) ...[
-          Wrap(spacing: 10, runSpacing: 8, children: [
-            FilledButton.icon(
-              key: const ValueKey('nodes_measure_all'),
-              onPressed: smart!.canTestAll ? smart!.testAllNodes : null,
-              icon: const Icon(Icons.speed_rounded, size: 18),
-              label: const Text('一键测速全部节点'),
-            ),
-            if (smart!.scanning)
-              OutlinedButton.icon(
-                key: const ValueKey('nodes_cancel_scan'),
-                onPressed: smart!.cancelling ? null : smart!.cancelScan,
-                icon: const Icon(Icons.stop_circle_outlined, size: 18),
-                label: Text(smart!.cancelling ? '正在停止…' : '停止测速'),
-              ),
-          ]),
-          if (smart!.scanning || smart!.total > 0) ...[
-            const SizedBox(height: 8),
-            LinearProgressIndicator(
-              key: const ValueKey('nodes_scan_progress'),
-              value: smart!.total == 0 ? 0 :
-                  smart!.scanned / smart!.total,
-            ),
-            const SizedBox(height: 7),
-            Text('已测 ${smart!.scanned}/${smart!.total} · '
-                '成功 ${smart!.successful} · 失败 ${smart!.failed}',
-                style: TextStyle(color: _muted, fontSize: 12)),
-          ],
-          const SizedBox(height: 13),
+        if (smart != null && smart!.total > 0) ...[
+          Text('最近测速：成功 ' + smart!.successful.toString() +
+              ' · 失败 ' + smart!.failed.toString() +
+              ' · 查看「智能优选」完整排行榜',
+              style: TextStyle(color: _muted, fontSize: 12)),
+          const SizedBox(height: 12),
         ],
         if (core?.isListening == true)
           Padding(
@@ -991,8 +968,11 @@ class _NodesPage extends StatelessWidget {
                 title: Text(subscription!.nodes[i].name,
                     style: TextStyle(color: _foreground)),
                 subtitle: Text(
-                    smart?.resultAt(i)?.reachable == true
-                      ? '${subscription!.nodes[i].protocol} · ${smart!.resultAt(i)!.lastMs} ms HTTPS'
+                    smart?.downloadAt(i)?.megabytesPerSecond != null
+                      ? subscription!.nodes[i].protocol + ' · ' +
+                          smart!.downloadAt(i)!.megabytesPerSecond!.toStringAsFixed(2) +
+                          ' MB/s · ' +
+                          (smart!.resultAt(i)?.lastMs?.toString() ?? '—') + ' ms'
                       : subscription!.nodes[i].protocol,
                     style: TextStyle(color: _muted)),
                 trailing: subscription!.selectedIndex == i
@@ -1033,7 +1013,7 @@ class _NodesPage extends StatelessWidget {
       ],
       SizedBox(height: 16),
       Text(subscription?.nodes.isNotEmpty == true
-          ? '已测节点按真实 HTTPS 耗时排序。可在此一键测全部，或前往智能优选查看详细结果。'
+          ? '前往「智能优选」点击唯一的测速按钮，即可同时测全部节点的延迟与下载速度。'
           : '请前往「设置」导入订阅后选择真实节点。',
           style: TextStyle(color: _muted)),
     ])),
