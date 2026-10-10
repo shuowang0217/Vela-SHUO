@@ -1,57 +1,78 @@
 import 'dart:convert';
 
-/// Deliberately narrow first real-core input: one local mixed/HTTP inbound.
-/// No remote URLs or arbitrary system/TUN listeners are accepted in v0.2-a.
+/// Accept only loopback-only, no-TUN Mihomo JSON.
+/// JSON is YAML-compatible; native Mihomo -t is the final validation.
 class VelaLocalCoreConfig {
   const VelaLocalCoreConfig({required this.localPort, required this.inboundType});
-
   final int localPort;
   final String inboundType;
-
   static const maxBytes = 2 * 1024 * 1024;
 
-  /// Parse in memory, never echo or log the JSON (which can contain secrets).
   static VelaLocalCoreConfig parse(String source) {
     if (utf8.encode(source).length > maxBytes) {
       throw const FormatException('配置文件超过 2 MB 限制');
     }
-    dynamic data;
+    late final dynamic data;
     try {
       data = jsonDecode(source);
     } on FormatException {
-      throw const FormatException('配置不是有效 JSON');
+      throw const FormatException('Mihomo 配置不是有效 JSON');
     }
     if (data is! Map<String, dynamic>) {
       throw const FormatException('配置根节点必须是 JSON 对象');
     }
-    final inbounds = data['inbounds'];
-    final outbounds = data['outbounds'];
-    if (inbounds is! List || inbounds.length != 1 ||
-        outbounds is! List || outbounds.isEmpty) {
-      throw const FormatException('此预览版要求恰好一个本地入站及至少一个出站');
+    const allowed = {'mixed-port', 'allow-lan', 'bind-address', 'mode',
+      'log-level', 'ipv6', 'external-controller', 'secret', 'proxies',
+      'proxy-groups', 'rules'};
+    if (data.keys.any((key) => !allowed.contains(key))) {
+      throw const FormatException('配置包含不支持的网络监听或 TUN 字段');
     }
-    final inbound = inbounds.single;
-    if (inbound is! Map<String, dynamic>) {
-      throw const FormatException('入站配置格式不正确');
+    final port = data['mixed-port'];
+    if (port is! int || port < 1024 || port > 65535 ||
+        data['bind-address'] != '127.0.0.1' ||
+        data['allow-lan'] != false || data['ipv6'] != false ||
+        data['mode'] != 'rule') {
+      throw const FormatException('仅支持本机 127.0.0.1 mixed 代理与规则模式');
     }
-    final type = inbound['type'];
-    final listen = inbound['listen'];
-    final port = inbound['listen_port'];
-    if (type != 'mixed' && type != 'http') {
-      throw const FormatException('仅支持 HTTP 或 mixed 本地入站；TUN 尚未开放');
-    }
-    if (listen != '127.0.0.1') {
-      throw const FormatException('为保护隐私，入站地址必须为 127.0.0.1');
-    }
-    if (port is! int || port < 1024 || port > 65535) {
-      throw const FormatException('端口必须在 1024–65535 之间');
-    }
-    for (final item in outbounds) {
-      if (item is! Map<String, dynamic> || item['type'] is! String) {
-        throw const FormatException('出站配置格式不正确');
+    final controller = data['external-controller'];
+    if (controller != null) {
+      final match = controller is String
+          ? RegExp(r'^127\.0\.0\.1:(\d+)$').firstMatch(controller)
+          : null;
+      final apiPort = int.tryParse(match?.group(1) ?? '');
+      final secret = data['secret'];
+      if (apiPort == null || apiPort < 1024 || apiPort > 65535 ||
+          apiPort == port || secret is! String || secret.length < 32) {
+        throw const FormatException('本机控制接口必须绑定 loopback 且启用密钥');
       }
+    } else if (data.containsKey('secret')) {
+      throw const FormatException('未启用控制接口时不能配置 API 密钥');
     }
-    // A JSON shape check is not a substitute for sing-box check.
-    return VelaLocalCoreConfig(localPort: port, inboundType: type as String);
+    final proxies = data['proxies'];
+    final groups = data['proxy-groups'];
+    final rules = data['rules'];
+    if (proxies is! List || proxies.length > 500 ||
+        groups is! List || rules is! List || rules.length != 1) {
+      throw const FormatException('Mihomo 节点或规则字段不合法');
+    }
+    if (rules.single == 'MATCH,DIRECT') {
+      if (proxies.isNotEmpty || groups.isNotEmpty) {
+        throw const FormatException('直连配置不能包含代理节点');
+      }
+    } else if (rules.single == 'MATCH,VELA_SELECT') {
+      if (proxies.isEmpty || groups.length != 1 ||
+          groups.single is! Map ||
+          groups.single['name'] != 'VELA_SELECT' ||
+          groups.single['type'] != 'select' ||
+          groups.single['proxies'] is! List ||
+          (groups.single['proxies'] as List).isEmpty ||
+          proxies.any((item) => item is! Map ||
+              item['name'] is! String || item['type'] is! String)) {
+        throw const FormatException('Mihomo 策略组或节点字段不合法');
+      }
+    } else {
+      throw const FormatException('仅支持直连或 VELA_SELECT 策略');
+    }
+    return VelaLocalCoreConfig(localPort: port, inboundType: 'mixed');
   }
 }

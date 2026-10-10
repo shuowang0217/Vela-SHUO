@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import '../core/vela_core_controller.dart';
+import '../mihomo/vela_mihomo_config.dart';
 import '../subscription/vela_subscription_parser.dart';
 import 'vela_download_probe.dart';
 
@@ -36,7 +37,7 @@ abstract class VelaFullNodeProbe {
   Future<VelaFullNodeSample> measureBoth(VelaSubscriptionNode node);
 }
 
-/// Each measurement uses a separate sing-box process, disposable config and
+/// Each measurement uses a separate Mihomo process, disposable config and
 /// random loopback port. The active Windows system proxy is never modified.
 /// Both latency and sample-download measurements use the same cleanup path.
 class VelaIsolatedNodeProbe
@@ -121,7 +122,10 @@ class VelaIsolatedNodeProbe
           .timeout(const Duration(seconds: 3));
       final config = File('${dir.path}${Platform.pathSeparator}profile.json');
       await config.writeAsString(
-        VelaSubscriptionParser.buildConfig(node, port: port),
+        const VelaMihomoConfigBuilder().build([node],
+          selectedIndex: 0, secret: 'a' * 64,
+          proxyPort: port, apiPort: null,
+        ).configText,
         flush: true,
       );
       await _runner.check(coreBinary, config.path)

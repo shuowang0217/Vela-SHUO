@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
 import '../core/vela_core_controller.dart';
+import '../mihomo/vela_mihomo_config.dart';
 import 'vela_subscription_parser.dart';
 import 'vela_windows_proxy_detector.dart';
 
@@ -288,10 +290,22 @@ class VelaSubscriptionController extends ChangeNotifier {
   Future<bool> selectNode(int index) async {
     if (loading || core.busy || core.isListening ||
         index < 0 || index >= nodes.length) { return false; }
-    final node = nodes[index];
-    final ok = await core.useRemoteSubscriptionProfile(
-      VelaSubscriptionParser.buildConfig(node),
-    );
+    // Whitelisted conversion: subscriptions cannot supply listeners or TUN.
+    late final String config;
+    try {
+      final random = Random.secure();
+      final secret = List.generate(32, (_) =>
+          random.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
+      config = const VelaMihomoConfigBuilder().build(nodes,
+        selectedIndex: index, secret: secret,
+        proxyPort: 20808, apiPort: null,
+      ).configText;
+    } on FormatException {
+      _error = '所选节点不兼容 Mihomo，请换一个节点';
+      _notify();
+      return false;
+    }
+    final ok = await core.useRemoteSubscriptionProfile(config);
     if (ok) {
       _selected = index;
       _error = null;

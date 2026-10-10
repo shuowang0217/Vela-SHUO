@@ -32,11 +32,15 @@ class VelaMihomoConfigBuilder {
 
   VelaMihomoConfiguration build(List<VelaSubscriptionNode> nodes, {
     required int selectedIndex, required String secret,
+    int proxyPort = VelaMihomoConfiguration.proxyPort,
+    int? apiPort = VelaMihomoConfiguration.apiPort,
   }) {
     if (nodes.isEmpty || nodes.length > 500 ||
         selectedIndex < 0 || selectedIndex >= nodes.length ||
         secret.length < 32 || secret.length > 256 ||
-        !RegExp(r'^[0-9a-fA-F]+$').hasMatch(secret)) {
+        !RegExp(r'^[0-9a-fA-F]+$').hasMatch(secret) ||
+        proxyPort < 1024 || proxyPort > 65535 ||
+        (apiPort != null && (apiPort < 1024 || apiPort > 65535 || apiPort == proxyPort))) {
       throw const FormatException('Mihomo 实验配置参数不合法');
     }
     final entries = <VelaMihomoEntry>[];
@@ -65,14 +69,14 @@ class VelaMihomoConfigBuilder {
       ...entries.where((e) => e.index != selectedIndex).map((e) => e.name)];
     // JSON is a YAML subset and safely escapes arbitrary node labels.
     return VelaMihomoConfiguration(jsonEncode(<String, dynamic>{
-      'mixed-port': VelaMihomoConfiguration.proxyPort,
+      'mixed-port': proxyPort,
       'allow-lan': false,
       'bind-address': '127.0.0.1',
       'mode': 'rule',
       'log-level': 'warning',
       'ipv6': false,
-      'external-controller': '127.0.0.1:20819',
-      'secret': secret,
+      if (apiPort != null) 'external-controller': '127.0.0.1:$apiPort',
+      if (apiPort != null) 'secret': secret,
       'proxies': entries.map((e) => e.proxy).toList(),
       'proxy-groups': [{
         'name': VelaMihomoConfiguration.group,

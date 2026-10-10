@@ -67,10 +67,12 @@ class VelaNativeCoreRunner implements VelaCoreRunner {
   const VelaNativeCoreRunner();
 
   static Future<Process> _spawn(
-    String binary, String command, String config,
+    String binary, bool check, String config,
   ) async {
-    final process = await Process.start(binary, [command, '-c', config],
-        runInShell: false, workingDirectory: File(config).parent.path);
+    final directory = File(config).parent.path;
+    final process = await Process.start(binary,
+        [if (check) '-t', '-d', directory, '-f', config],
+        runInShell: false, workingDirectory: directory);
     // Drain outputs, never persist untrusted core logs or proxy credentials.
     unawaited(process.stdout.drain<void>());
     unawaited(process.stderr.drain<void>());
@@ -79,7 +81,7 @@ class VelaNativeCoreRunner implements VelaCoreRunner {
 
   @override
   Future<void> check(String binary, String config) async {
-    final process = await _spawn(binary, 'check', config);
+    final process = await _spawn(binary, true, config);
     try {
       final code = await process.exitCode.timeout(const Duration(seconds:12));
       if (code != 0) {
@@ -100,7 +102,7 @@ class VelaNativeCoreRunner implements VelaCoreRunner {
 
   @override
   Future<VelaCoreHandle> launch(String binary, String config) async =>
-      _NativeHandle(await _spawn(binary, 'run', config));
+      _NativeHandle(await _spawn(binary, false, config));
 
   @override
   Future<bool> awaitLocalListener(int port) async {
@@ -152,7 +154,7 @@ class VelaCoreController extends ChangeNotifier {
       _binary == _defaultCorePath;
   String get _defaultCorePath => _bundledCorePath ??
       '${File(Platform.resolvedExecutable).parent.path}'
-      '${Platform.pathSeparator}core${Platform.pathSeparator}sing-box.exe';
+      '${Platform.pathSeparator}core${Platform.pathSeparator}mihomo.exe';
 
   Directory? get _profileFolder {
     if (_managedProfileDirectory != null) return _managedProfileDirectory;
@@ -247,13 +249,15 @@ class VelaCoreController extends ChangeNotifier {
       // file with the same name from a previous release.
       const source = '''
 {
-  "log": {"level": "warn"},
-  "inbounds": [{
-    "type": "mixed", "tag": "vela-local",
-    "listen": "127.0.0.1", "listen_port": 20808
-  }],
-  "outbounds": [{"type": "direct", "tag": "direct"}],
-  "route": {"final": "direct"}
+  "mixed-port": 20808,
+  "bind-address": "127.0.0.1",
+  "allow-lan": false,
+  "mode": "rule",
+  "log-level": "warning",
+  "ipv6": false,
+  "proxies": [],
+  "proxy-groups": [],
+  "rules": ["MATCH,DIRECT"]
 }
 ''';
       await file.writeAsString(source, flush: true);
@@ -341,9 +345,9 @@ class VelaCoreController extends ChangeNotifier {
     if (busy || isListening) return false;
     try {
       final file = File(path);
-      if (file.uri.pathSegments.last.toLowerCase() != 'sing-box.exe' ||
+      if (file.uri.pathSegments.last.toLowerCase() != 'mihomo.exe' ||
           !await file.exists()) {
-        _update(VelaCorePhase.failed, '请选择可信来源的 sing-box.exe');
+        _update(VelaCorePhase.failed, '请选择可信来源的 mihomo.exe');
         return false;
       }
       _binary = file.absolute.path;
