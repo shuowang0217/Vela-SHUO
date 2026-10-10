@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_core_settings_card.dart';
+import 'package:vela_shuo/src/subscription/vela_subscription_card.dart';
+import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/globe.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
@@ -87,11 +89,15 @@ class _Shell extends StatefulWidget {
 
 class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   final VelaDemoController demo = VelaDemoController();
+  VelaSubscriptionController? subscription;
   int tab = 0;
 
   @override
   void initState() {
     super.initState();
+    if (widget.core != null) {
+      subscription = VelaSubscriptionController(core: widget.core!);
+    }
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -114,6 +120,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    subscription?.dispose();
     widget.core?.dispose();
     demo.dispose();
     super.dispose();
@@ -127,6 +134,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     3 => _SettingsPage(
       demo: demo, settings: widget.settings,
       diagnostics: widget.diagnostics, core: widget.core,
+      subscription: subscription,
       goHome: () => navigate(0),
     ),
     _ => _HomePage(
@@ -898,12 +906,13 @@ class _SmartPage extends StatelessWidget {
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.demo, required this.settings, this.diagnostics, this.core,
-    required this.goHome,
+    this.subscription, required this.goHome,
   });
   final VelaDemoController demo;
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
+  final VelaSubscriptionController? subscription;
   final VoidCallback goHome;
 
   @override
@@ -914,6 +923,10 @@ class _SettingsPage extends StatelessWidget {
       _DemoTag(),
       SizedBox(height: 24),
       if (core != null) ...[
+        if (subscription != null) ...[
+          VelaSubscriptionCard(controller: subscription!, core: core!),
+          SizedBox(height: 16),
+        ],
         VelaCoreSettingsCard(controller: core!),
         SizedBox(height: 16),
       ],
