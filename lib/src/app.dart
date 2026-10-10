@@ -905,6 +905,8 @@ class _SettingsPage extends StatelessWidget {
       SizedBox(height: 18),
       _DemoTag(),
       SizedBox(height: 24),
+      _PalettePicker(settings: settings),
+      SizedBox(height: 16),
       _GlassCard(child: Column(children: [
         ListTile(
           leading: Icon(Icons.palette_outlined, color: _blue),
@@ -1027,6 +1029,113 @@ class _DiagnosticsCard extends StatelessWidget {
             ),
           ]),
         ],
+      ),
+    ),
+  );
+}
+
+class _PalettePicker extends StatelessWidget {
+  const _PalettePicker({required this.settings});
+  final SettingsController settings;
+
+  @override
+  Widget build(BuildContext context) => _GlassCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Icon(Icons.palette_outlined, color: _blue, size: 22),
+          SizedBox(width: 10),
+          Text('主题配色', style: TextStyle(
+            fontSize: 18, fontWeight: FontWeight.w600,
+            color: _foreground,
+          )),
+          Spacer(),
+          Text('8 套', style: TextStyle(color: _muted, fontSize: 12)),
+        ]),
+        SizedBox(height: 7),
+        Text('Color Hunt · Popular / All time 前 8 套配色',
+          style: TextStyle(fontSize: 12, color: _muted),
+        ),
+        SizedBox(height: 18),
+        LayoutBuilder(builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 680 ? 4 : 2;
+          final spacing = 12.0;
+          final width = (constraints.maxWidth - spacing * (columns - 1))
+              / columns;
+          return Wrap(
+            spacing: spacing,
+            runSpacing: 12,
+            children: [
+              for (final palette in VelaPalette.all)
+                SizedBox(
+                  width: width,
+                  child: _PaletteOption(
+                    palette: palette,
+                    selected: settings.paletteId == palette.id,
+                    onTap: () => settings.setPalette(palette.id),
+                  ),
+                ),
+            ],
+          );
+        }),
+      ],
+    ),
+  );
+}
+
+class _PaletteOption extends StatelessWidget {
+  const _PaletteOption({
+    required this.palette,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final VelaPalette palette;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: selected
+        ? _blue.withValues(alpha: .14) : _panel.withValues(alpha: .50),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+      side: BorderSide(
+        color: selected ? _blue : _line,
+        width: selected ? 2 : 1,
+      ),
+    ),
+    child: InkWell(
+      key: ValueKey('palette_${palette.id}'),
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.all(7),
+        child: Column(children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Stack(children: [
+              Column(children: [
+                for (final swatch in palette.swatches)
+                  Container(height: 20, color: swatch),
+              ]),
+              if (selected)
+                Positioned(
+                  top: 5, right: 6,
+                  child: Icon(Icons.check_circle, color: _foreground, size: 18,
+                    shadows: [Shadow(color: Colors.black, blurRadius: 6)]),
+                ),
+            ]),
+          ),
+          SizedBox(height: 8),
+          Text(palette.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12, fontWeight:
+                  selected ? FontWeight.w700 : FontWeight.w500,
+              color: selected ? _blue : _foreground,
+            )),
+        ]),
       ),
     ),
   );
