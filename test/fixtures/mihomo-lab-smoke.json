@@ -1,0 +1,32 @@
+{
+  "mixed-port": 20818,
+  "allow-lan": false,
+  "bind-address": "127.0.0.1",
+  "mode": "rule",
+  "log-level": "warning",
+  "external-controller": "127.0.0.1:20819",
+  "secret": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+  "ipv6": false,
+  "proxies": [
+    {
+      "type": "ss",
+      "name": "Example-SS",
+      "server": "example.invalid",
+      "port": 443,
+      "cipher": "aes-128-gcm",
+      "password": "fixture-only-non-real-secret"
+    }
+  ],
+  "proxy-groups": [
+    {
+      "name": "VELA_SELECT",
+      "type": "select",
+      "proxies": [
+        "Example-SS"
+      ]
+    }
+  ],
+  "rules": [
+    "MATCH,VELA_SELECT"
+  ]
+}
