@@ -1,5 +1,6 @@
 // ignore_for_file: prefer_interpolation_to_compose_strings
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 
@@ -128,7 +129,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     if (widget.core != null) {
-      subscription = VelaSubscriptionController(core: widget.core!);
+      subscription = VelaSubscriptionController(
+          core: widget.core!, previewOnly: Platform.isAndroid);
       if (widget.systemProxy != null) {
         connection = VelaConnectionCoordinator(
           core: widget.core!, subscription: subscription!,
@@ -414,7 +416,7 @@ class _HomePage extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: Listenable.merge([demo, ?connection,
       ?subscription, ?smart]),
-    builder: (context, _) => desktop
+    builder: (context, _) => desktop && !Platform.isAndroid
       ? _DesktopHome(
           demo: demo, connection: connection, subscription: subscription,
           smart: smart,
@@ -839,7 +841,8 @@ class _MobileHome extends StatelessWidget {
             ),
           ],
         )),
-        subscription?.selected != null ? _RealTag(compact: true)
+        Platform.isAndroid ? _AndroidPreviewTag()
+            : subscription?.selected != null ? _RealTag(compact: true)
             : _DemoTag(compact: true),
       ]),
       SizedBox(height: 7),
@@ -848,10 +851,14 @@ class _MobileHome extends StatelessWidget {
         child: VelaGlobe(demo: demo),
       ),
       SizedBox(height: 8),
-      subscription?.selected != null && connection != null
-          ? _RealConnectionCard(connection: connection!,
-              showNodes: showNodes, compact: true)
-          : _ConnectionCard(demo: demo, showNodes: showNodes, compact: true),
+      Platform.isAndroid
+          ? _AndroidPreviewCard(
+              selectedName: subscription?.selected?.name,
+              showNodes: showNodes)
+          : subscription?.selected != null && connection != null
+              ? _RealConnectionCard(connection: connection!,
+                  showNodes: showNodes, compact: true)
+              : _ConnectionCard(demo: demo, showNodes: showNodes, compact: true),
       SizedBox(height: 12),
       Row(children: [
         Expanded(child: _MetricCard(
@@ -1130,16 +1137,19 @@ class _SettingsPage extends StatelessWidget {
     child: ListView(children: [
       _ScreenHeading('设置', '为 Vela-SHUO 定义你的使用方式'),
       SizedBox(height: 18),
-      subscription?.selected != null ? _RealTag() : _DemoTag(),
+      Platform.isAndroid ? _AndroidPreviewTag() :
+          subscription?.selected != null ? _RealTag() : _DemoTag(),
       SizedBox(height: 24),
       if (core != null) ...[
         if (subscription != null) ...[
           VelaSubscriptionCard(controller: subscription!, core: core!),
           SizedBox(height: 16),
         ],
-        VelaCoreSettingsCard(controller: core!,
-          connection: connection),
-        SizedBox(height: 16),
+        if (!Platform.isAndroid) ...[
+          VelaCoreSettingsCard(controller: core!,
+            connection: connection),
+          SizedBox(height: 16),
+        ],
       ],
       _PalettePicker(settings: settings),
       SizedBox(height: 16),
@@ -1167,8 +1177,11 @@ class _SettingsPage extends StatelessWidget {
         Divider(height: 1, color: _line),
         ListTile(
           leading: Icon(Icons.info_outline, color: _blue),
-          title: Text('Vela-SHUO · Windows Beta'),
-          subtitle: Text('真实系统代理连接测试 · 尚非 TUN/VPN 全局代理'),
+          title: Text(Platform.isAndroid ? 'Vela-SHUO · Android Preview'
+              : 'Vela-SHUO · Windows Beta'),
+          subtitle: Text(Platform.isAndroid
+              ? '支持节点解析与界面浏览 · 不提供 VPN 或系统代理'
+              : '真实系统代理连接测试 · 尚非 TUN/VPN 全局代理'),
         ),
       ])),
       SizedBox(height: 16),
@@ -1374,6 +1387,58 @@ class _PaletteOption extends StatelessWidget {
         ]),
       ),
     ),
+  );
+}
+
+class _AndroidPreviewTag extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(16),
+      color: _blue.withValues(alpha: .13),
+      border: Border.all(color: _blue.withValues(alpha: .35)),
+    ),
+    child: const Text('Android 预览 · 无 VPN', style: TextStyle(fontSize: 10)),
+  );
+}
+
+class _AndroidPreviewCard extends StatelessWidget {
+  const _AndroidPreviewCard({required this.selectedName,
+      required this.showNodes});
+  final String? selectedName;
+  final VoidCallback showNodes;
+
+  @override
+  Widget build(BuildContext context) => _GlassCard(
+    padding: const EdgeInsets.all(17),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.android_rounded, color: _blue, size: 30),
+        const SizedBox(width: 12),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Android 预览版 · 未连接',
+                style: TextStyle(color: _foreground,
+                    fontSize: 18, fontWeight: FontWeight.w700)),
+            Text('尚未接入 Android VpnService 和 Mihomo 运行层',
+                style: TextStyle(color: _muted, fontSize: 11)),
+          ],
+        )),
+      ]),
+      const SizedBox(height: 12),
+      Text(selectedName == null
+          ? '可在设置页导入订阅、浏览协议和节点；不会改变设备网络。'
+          : '当前预览选择：$selectedName（尚不能代理设备流量）',
+          style: TextStyle(color: _muted, fontSize: 12)),
+      const SizedBox(height: 12),
+      SizedBox(width: double.infinity, child: OutlinedButton.icon(
+        onPressed: showNodes,
+        icon: const Icon(Icons.route_outlined),
+        label: const Text('浏览订阅节点'),
+      )),
+    ]),
   );
 }
 

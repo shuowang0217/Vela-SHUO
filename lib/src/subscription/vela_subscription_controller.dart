@@ -220,9 +220,12 @@ class VelaSubscriptionController extends ChangeNotifier {
   VelaSubscriptionController({
     VelaSubscriptionFetcher? fetcher,
     required this.core,
+    this.previewOnly = false,
   }) : _fetcher = fetcher ?? const VelaHttpsSubscriptionFetcher();
 
   final VelaSubscriptionFetcher _fetcher;
+  /// Read-only node browsing; never starts a system proxy or VPN.
+  final bool previewOnly;
   final VelaCoreController core;
   VelaSubscriptionPhase _phase = VelaSubscriptionPhase.idle;
   VelaSubscriptionResult? _result;
@@ -271,6 +274,36 @@ class VelaSubscriptionController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  /// Offline share links/Clash YAML preview. No subscription URL or
+  /// credentials are written to settings or diagnostics.
+  Future<bool> importFromText(String text) async {
+    if (loading || core.busy || core.isListening || _disposed) return false;
+    _phase = VelaSubscriptionPhase.loading;
+    _error = null;
+    _result = null;
+    _preparedProfile = null;
+    _selected = null;
+    final generation = ++_generation;
+    _notify();
+    try {
+      final parsed = VelaSubscriptionParser.parse(text);
+      if (generation != _generation || _disposed) return false;
+      _result = parsed;
+      _phase = VelaSubscriptionPhase.ready;
+      _notify();
+      return true;
+    } on FormatException catch (e) {
+      if (generation != _generation || _disposed) return false;
+      _error = e.message;
+    } catch (_) {
+      if (generation != _generation || _disposed) return false;
+      _error = '导入内容无效，请检查节点格式';
+    }
+    _phase = VelaSubscriptionPhase.failed;
+    _notify();
+    return false;
+  }
+
   Future<bool> importFromUrl(String url) async {
     if (loading || core.busy || core.isListening) { return false; }
     _phase = VelaSubscriptionPhase.loading;
@@ -282,7 +315,8 @@ class VelaSubscriptionController extends ChangeNotifier {
     _notify();
     try {
       final activeFetcher = _fetcher is VelaHttpsSubscriptionFetcher
-          ? VelaHttpsSubscriptionFetcher(mode: _downloadMode)
+          ? VelaHttpsSubscriptionFetcher(mode:
+              previewOnly ? VelaSubscriptionDownloadMode.direct : _downloadMode)
           : _fetcher;
       final raw = await activeFetcher.download(url);
       final parsed = VelaSubscriptionParser.parse(raw);
@@ -322,7 +356,10 @@ class VelaSubscriptionController extends ChangeNotifier {
       _notify();
       return false;
     }
-    final ok = await core.useRemoteSubscriptionProfile(prepared.configText);
+    // Android preview selects only in UI memory. No core executable,
+    // local listener, WinINet change or VPN service is started.
+    final ok = previewOnly ||
+        await core.useRemoteSubscriptionProfile(prepared.configText);
     if (ok) {
       _selected = index;
       _preparedProfile = prepared;

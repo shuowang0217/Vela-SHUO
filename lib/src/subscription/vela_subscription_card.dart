@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../core/vela_core_controller.dart';
@@ -22,6 +24,7 @@ class VelaSubscriptionCard extends StatefulWidget {
 class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
   final TextEditingController _url = TextEditingController();
   bool _showUrl = false;
+  bool _offlineMode = false;
 
   @override
   void dispose() {
@@ -52,7 +55,8 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               Icon(Icons.link_rounded, color: colors.accent),
               const SizedBox(width: 10),
               Expanded(child: Text(
-                '订阅导入与节点管理 · Beta',
+                Platform.isAndroid ? '订阅浏览 · Android 预览版' :
+                    '订阅导入与节点管理 · Beta',
                 style: TextStyle(
                   color: colors.text, fontWeight: FontWeight.w600, fontSize: 17,
                 ),
@@ -60,13 +64,27 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
             ]),
             const SizedBox(height: 8),
             Text(
-              '在这里粘贴自己的 HTTPS 订阅链接，不需要发到聊天里。'
-              '只在点击导入时请求一次，不保存链接或上传账号信息。'
-              '建议先使用「自动」，订阅内容优先请求 Clash/Mihomo 格式。',
+              Platform.isAndroid
+                ? '支持直接导入 HTTPS 订阅或粘贴节点分享链接。'
+                  '内容仅在本次应用会话中解析，不会建立 VPN 连接。'
+                : '在这里粘贴自己的 HTTPS 订阅链接或分享链接，'
+                  '无需发到聊天里。不会保存访问密钥。',
               style: TextStyle(color: colors.muted, fontSize: 12, height: 1.55),
             ),
             const SizedBox(height: 12),
-            Wrap(
+            Wrap(spacing: 8, children: [
+              ChoiceChip(label: const Text('HTTPS 订阅'),
+                  selected: !_offlineMode, onSelected: busy ? null : (_) {
+                    _url.clear();
+                    setState(() => _offlineMode = false);
+                  }),
+              ChoiceChip(label: const Text('粘贴节点 / YAML'),
+                  selected: _offlineMode, onSelected: busy ? null : (_) {
+                    _url.clear();
+                    setState(() => _offlineMode = true);
+                  }),
+            ]),
+            if (!_offlineMode) Wrap(
               crossAxisAlignment: WrapCrossAlignment.center,
               spacing: 12,
               runSpacing: 6,
@@ -84,7 +102,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                       value: VelaSubscriptionDownloadMode.automatic,
                       child: Text('自动（系统代理优先，失败后直连）'),
                     ),
-                    DropdownMenuItem(
+                    if (!Platform.isAndroid) DropdownMenuItem(
                       value: VelaSubscriptionDownloadMode.systemProxy,
                       child: Text('仅使用 Windows 系统代理'),
                     ),
@@ -100,11 +118,14 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               key: const ValueKey('subscription_url_input'),
               controller: _url,
               enabled: !busy,
-              obscureText: !_showUrl,
+              obscureText: !_showUrl && !_offlineMode,
+              maxLines: _offlineMode ? 4 : 1,
               enableSuggestions: false,
               autocorrect: false,
               decoration: InputDecoration(
-                labelText: 'HTTPS 订阅链接（包含访问密钥，请妥善保管）',
+                labelText: _offlineMode
+                    ? '分享链接 / Clash YAML（可能包含密钥）'
+                    : 'HTTPS 订阅链接（可能包含访问密钥）',
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   tooltip: _showUrl ? '隐藏地址' : '显示地址',
@@ -121,12 +142,17 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               onPressed: busy ? null : () async {
                 final value = _url.text.trim();
                 if (value.isEmpty) return;
-                await subscription.importFromUrl(value);
+                if (_offlineMode) {
+                  await subscription.importFromText(value);
+                } else {
+                  await subscription.importFromUrl(value);
+                }
                 // Do not retain subscription access tokens in text input.
                 if (mounted) _url.clear();
               },
               icon: const Icon(Icons.download_rounded, size: 19),
-              label: Text(subscription.loading ? '正在导入…' : '导入订阅'),
+              label: Text(subscription.loading ? '正在导入…' :
+                  _offlineMode ? '解析节点' : '导入订阅'),
             ),
             if (subscription.error != null) Padding(
               padding: const EdgeInsets.only(top: 10),
@@ -173,8 +199,10 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               ),
               const SizedBox(height: 9),
               if (subscription.selected != null) Text(
-                '已选择：${subscription.selected!.name} · '
-                '现在可以点击下方「启动本地代理」',
+                Platform.isAndroid
+                    ? '已选：${subscription.selected!.name} · 仅预览，不提供 VPN'
+                    : '已选择：${subscription.selected!.name} · '
+                      '现在可以点击下方「启动本地代理」',
                 style: TextStyle(color: colors.accent, fontSize: 12),
               ),
             ],
@@ -183,7 +211,9 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               '目前支持常见 Shadowsocks、VMess、VLESS、Trojan 和 Hysteria2 '
               '节点的部分 Clash/Mihomo YAML、sing-box JSON 格式。'
               '证书校验被关闭或不支持的传输参数会被跳过。'
-              '导入与节点选择不会自动接管 Windows 系统流量。',
+              Platform.isAndroid
+                  ? 'Android 预览版不会安装 VPN Service、运行 Mihomo 或改变网络设置。'
+                  : '导入与节点选择不会自动接管 Windows 系统流量。',
               style: TextStyle(color: colors.muted, fontSize: 11, height: 1.5),
             ),
           ],
