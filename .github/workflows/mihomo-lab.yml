@@ -114,7 +114,7 @@ jobs:
           $coreDir = Join-Path $release.FullName 'core'
           New-Item -ItemType Directory -Force -Path $coreDir | Out-Null
           Copy-Item -Path $binary.FullName -Destination (Join-Path $coreDir 'mihomo.exe')
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MetaCubeX/mihomo/Meta/LICENSE" -OutFile (Join-Path $coreDir 'LICENSE-mihomo.txt')
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MetaCubeX/mihomo/main/LICENSE" -OutFile (Join-Path $coreDir 'LICENSE-mihomo.txt')
           Copy-Item 'third_party/mihomo/NOTICE.md' (Join-Path $coreDir 'MIHOMO-NOTICE.md')
           & (Join-Path $coreDir 'mihomo.exe') -t -d $env:RUNNER_TEMP -f 'test/fixtures/mihomo-lab-smoke.json'
           if ($LASTEXITCODE -ne 0) { throw 'Official Mihomo rejected the minimal Vela selector test configuration' }
