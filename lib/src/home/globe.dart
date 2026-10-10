@@ -7,8 +7,9 @@ import 'package:flutter/services.dart';
 
 import 'demo_connection.dart';
 import 'flight_route.dart';
+import '../theme/vela_palettes.dart';
 
-const _cyan = Color(0xFF83CCF8);
+Color get _cyan => VelaThemeRuntime.active.accent;
 const _sea = Color(0xFF071C31);
 const _startLongitude = 116.4;
 const _startLatitude = 39.9;
@@ -226,6 +227,7 @@ class _VelaGlobeState extends State<VelaGlobe>
                   // One animation value drives BOTH the boat and the trail.
                   sailProgress: Curves.easeInOutCubic.transform(_sail.value),
                   cloudProgress: _clouds.value,
+                  accent: VelaThemeRuntime.active.accent,
                 ),
                 child: const SizedBox.expand(),
               );
@@ -246,6 +248,7 @@ class _GlobePainter extends CustomPainter {
     required this.sailProgress,
     required this.homebound,
     required this.cloudProgress,
+    required this.accent,
     required this.longitude,
     required this.latitude,
     required this.node,
@@ -257,6 +260,7 @@ class _GlobePainter extends CustomPainter {
   final double sailProgress;
   final bool homebound;
   final double cloudProgress;
+  final Color accent;
   final double longitude;
   final double latitude;
   final VelaDemoNode node;
@@ -607,7 +611,7 @@ class _GlobePainter extends CustomPainter {
     final isError = phase == VelaPhase.error;
     final glow = isError
         ? const Color(0xFFFF8992)
-        : const Color(0xFF4CB5FF);
+        : accent;
     // Separate subdued full arc and bright travelled progress.
     canvas.drawPath(
       flight.path(),
@@ -632,7 +636,7 @@ class _GlobePainter extends CustomPainter {
       Paint()
         ..color = isError
             ? const Color(0xFFFFB3B5)
-            : const Color(0xFFBFE9FF)
+            : Color.lerp(accent, Colors.white, .54)!
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
         ..strokeWidth = math.max(1.8, p.radius * .007),
@@ -652,7 +656,7 @@ class _GlobePainter extends CustomPainter {
   ) {
     final china = p.project(_startLongitude, _startLatitude);
     if (china != null) {
-      _mark(canvas, china, p.radius * .012, const Color(0xFF8FD9FF));
+      _mark(canvas, china, p.radius * .012, accent);
       _label(canvas, 'BEIJING',
           china.translate(-p.radius * .085, -p.radius * .09), side);
     }
@@ -671,7 +675,7 @@ class _GlobePainter extends CustomPainter {
     }
     final target = p.project(node.longitude, node.latitude);
     if (target != null) {
-      _mark(canvas, target, p.radius * .014, const Color(0xFFBAEAFF));
+      _mark(canvas, target, p.radius * .014, accent);
       _label(canvas, node.mapLabel,
           target.translate(p.radius * .035, p.radius * .034), side);
     }
@@ -717,8 +721,8 @@ class _GlobePainter extends CustomPainter {
         ..color = _cyan.withValues(alpha: .26)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, size * .8),
     );
-    canvas.drawPath(left, Paint()..color = const Color(0xFFC7EFFF));
-    canvas.drawPath(right, Paint()..color = const Color(0xFF6FB8E9));
+    canvas.drawPath(left, Paint()..color = Color.lerp(accent, Colors.white, .58)!);
+    canvas.drawPath(right, Paint()..color = accent);
     final hull = Path()
       ..moveTo(location.dx - size * .83, location.dy + size * .67)
       ..quadraticBezierTo(
@@ -787,6 +791,7 @@ class _GlobePainter extends CustomPainter {
       old.homebound != homebound ||
       old.sailProgress != sailProgress ||
       old.cloudProgress != cloudProgress ||
+      old.accent != accent ||
       old.textures != textures ||
       old.node != node ||
       old.coastlines != coastlines;
