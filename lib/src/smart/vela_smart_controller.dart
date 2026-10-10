@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../core/vela_connection_coordinator.dart';
@@ -5,6 +7,7 @@ import '../core/vela_core_controller.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../subscription/vela_subscription_parser.dart';
 import 'vela_node_probe.dart';
+import 'vela_download_probe.dart';
 
 class VelaNodeHealth {
   const VelaNodeHealth({
@@ -93,10 +96,13 @@ class VelaSmartController extends ChangeNotifier {
     required this.core,
     required this.connection,
     required VelaNodeLatencyProbe probe,
+    VelaNodeDownloadProbe? downloadProbe,
     VelaSmartSwitchPolicy policy = const VelaSmartSwitchPolicy(),
     DateTime Function()? clock,
-  }) : _probe = probe, _policy = policy,
-       _clock = clock ?? DateTime.now {
+    Duration Function(int minutes)? periodicInterval,
+  }) : _probe = probe, _downloadProbe = downloadProbe, _policy = policy,
+       _clock = clock ?? DateTime.now,
+       _periodicInterval = periodicInterval ?? _normalInterval {
     _lastNodes = subscription.nodes;
     subscription.addListener(_onSubscription);
   }
@@ -105,16 +111,56 @@ class VelaSmartController extends ChangeNotifier {
   final VelaCoreController core;
   final VelaConnectionCoordinator connection;
   final VelaNodeLatencyProbe _probe;
+  final VelaNodeDownloadProbe? _downloadProbe;
+  final Duration Function(int minutes) _periodicInterval;
   final VelaSmartSwitchPolicy _policy;
   final DateTime Function() _clock;
   late List<VelaSubscriptionNode> _lastNodes;
   final Map<int, VelaNodeHealth> _results = {};
+  final Map<int, VelaDownloadSample> _downloads = {};
   Map<int, VelaNodeHealth> get results => Map.unmodifiable(_results);
+  VelaDownloadSample? downloadAt(int index) => _downloads[index];
+  bool _downloading = false;
+  int? _downloadIndex;
+  String? _downloadStatus;
+  bool get downloading => _downloading;
+  int? get downloadIndex => _downloadIndex;
+  String? get downloadStatus => _downloadStatus;
+  bool get canTestSelectedDownload => !_disposed && !_scanning &&
+      !_downloading && _downloadProbe != null &&
+      subscription.selectedIndex != null &&
+      !subscription.loading && core.hasCore && core.supported &&
+      !core.busy && !connection.busy;
   bool _scanning = false;
   bool _cancelRequested = false;
   bool _allNodesScan = false;
   bool _disposed = false;
   bool _autoPickWhenIdle = false;
+  Timer? _periodicTimer;
+  int _scheduledMinutes = 0;
+  int get scheduledMinutes => _scheduledMinutes;
+  static Duration _normalInterval(int minutes) => Duration(minutes: minutes);
+
+  /// Checks just 8 nodes per interval and never interrupts a live session.
+  /// Default off; running only while this application is open.
+  void setScheduledMinutes(int minutes) {
+    if (![0, 15, 30, 60].contains(minutes) || _disposed) { return; }
+    _periodicTimer?.cancel();
+    _periodicTimer = null;
+    _scheduledMinutes = minutes;
+    if (minutes > 0) {
+      final interval = _periodicInterval(minutes);
+      if (interval > Duration.zero) {
+        _periodicTimer = Timer.periodic(interval, (_) {
+          if (!_disposed && !_scanning && !_downloading &&
+              safeToSelect && count > 0 && core.hasCore) {
+            unawaited(testNextBatch());
+          }
+        });
+      }
+    }
+    _emit();
+  }
   int _cursor = 0;
   int _finished = 0;
   int _total = 0;
@@ -133,7 +179,7 @@ class VelaSmartController extends ChangeNotifier {
   int get failed => _failed;
   bool get canTestAll => !_scanning && !_disposed && count > 0 &&
       core.hasCore && core.supported && !core.busy &&
-      !connection.busy && !subscription.loading;
+      !_downloading && !connection.busy && !subscription.loading;
   String? get status => _status;
   int get count => subscription.nodes.length;
   int get nextBatchSize => count == 0 ? 0 :
@@ -154,6 +200,8 @@ class VelaSmartController extends ChangeNotifier {
     _cancelRequested = true;
     _lastNodes = subscription.nodes;
     _results.clear();
+    _downloads.clear();
+    _downloadStatus = null;
     _cursor = 0;
     _finished = 0;
     _total = 0;
@@ -221,6 +269,38 @@ class VelaSmartController extends ChangeNotifier {
     return ok;
   }
 
+  /// Optional 1 MiB sample test of only the explicitly selected node.
+  /// Neither the full subscription nor periodic tasks download file payloads.
+  Future<bool> testSelectedDownload() async {
+    if (!canTestSelectedDownload) { return false; }
+    final index = subscription.selectedIndex!;
+    final node = subscription.nodes[index];
+    final generation = _generation;
+    _downloading = true;
+    _downloadIndex = index;
+    _downloadStatus = '正在通过所选节点下载 1 MiB HTTPS 测试数据…';
+    _emit();
+    try {
+      final result = await _downloadProbe!.measureDownload(node);
+      if (_disposed || generation != _generation) { return false; }
+      _downloads[index] = result;
+      _downloadStatus = result.ok && result.mbps != null
+          ? '样本下载成功：${result.mbps!.toStringAsFixed(1)} Mbps（仅1 MiB）'
+          : '样本下载失败或超时，未生成速度数值';
+      return result.ok;
+    } catch (_) {
+      if (!_disposed && generation == _generation) {
+        _downloads[index] = const VelaDownloadSample(ok: false);
+        _downloadStatus = '下载速度测试失败';
+      }
+      return false;
+    } finally {
+      _downloading = false;
+      _downloadIndex = null;
+      _emit();
+    }
+  }
+
   /// FlClash-like one-click benchmark of EVERY imported node. At most two
   /// isolated sing-box children run concurrently, including while the
   /// main Windows proxy is connected. No action touches that live proxy.
@@ -255,7 +335,9 @@ class VelaSmartController extends ChangeNotifier {
   }
 
   Future<void> _runScan(List<int> indices, {required bool all}) async {
-    if (_scanning || _disposed || indices.isEmpty) { return; }
+    if (_scanning || _downloading || _disposed || indices.isEmpty) {
+      return;
+    }
     _scanning = true;
     _cancelRequested = false;
     _allNodesScan = all;
@@ -332,6 +414,7 @@ class VelaSmartController extends ChangeNotifier {
     ++_generation;
     _cancelRequested = true;
     _disposed = true;
+    _periodicTimer?.cancel();
     subscription.removeListener(_onSubscription);
     super.dispose();
   }
