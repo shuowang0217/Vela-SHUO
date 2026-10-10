@@ -136,6 +136,9 @@ class VelaCoreController extends ChangeNotifier {
   /// The original JSON is read-only and never copied into preferences/logs.
   Future<bool> chooseConfig(String path) async {
     if (busy || isListening) return false;
+    // Never silently fall back to a previous profile after a failed import.
+    _config = null;
+    _configPath = null;
     try {
       final file = File(path);
       final length = await file.length();
