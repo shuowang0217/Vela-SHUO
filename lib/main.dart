@@ -29,6 +29,7 @@ void main() {
     diagnostics.record(VelaDiagnosticEvent.appStarted);
     final settings = SettingsController(diagnostics: diagnostics);
     await settings.load();
+    await core.initialize(); // Prepares loopback DIRECT demo; does not start a proxy.
     runApp(VelaShuoApp(settings: settings, diagnostics: diagnostics, core: core));
   }, (error, stack) {
     diagnostics.record(VelaDiagnosticEvent.uncaughtError);
