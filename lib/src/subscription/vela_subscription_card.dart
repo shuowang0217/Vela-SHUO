@@ -215,8 +215,8 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
             ],
             const SizedBox(height: 12),
             Text('重启恢复为可选功能：必须主动点击保存。'
-                '只加密保存已下载/解析的节点内容及当前选择，不保存订阅 URL；'
-                '默认不记录节点账号。',
+                '存档包含节点账号与密钥，会使用系统安全存储加密保存；'
+                '不会保存输入的订阅 URL。',
                 style: TextStyle(color: colors.muted, fontSize: 11)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [
