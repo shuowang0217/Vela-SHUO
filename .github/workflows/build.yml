@@ -55,6 +55,8 @@ jobs:
       - run: flutter pub get
       - name: Build Windows Release
         run: flutter build windows --release
+      - name: Windows Job Object lifetime smoke test
+        run: flutter test test/windows_job_object_test.dart
       - name: Bundle verified official Mihomo Windows x64 core
         shell: pwsh
         run: |
