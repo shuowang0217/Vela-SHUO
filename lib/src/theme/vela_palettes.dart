@@ -158,3 +158,17 @@ class VelaThemeTokens {
   final Color muted;
   final bool dark;
 }
+
+/// The dashboard's legacy private color constants now resolve to this
+/// palette at runtime. The app chooses the palette before rebuilding the
+/// dashboard; the historical layout and globe assets remain unchanged.
+class VelaThemeRuntime {
+  VelaThemeRuntime._();
+
+  static VelaThemeTokens active =
+      VelaPalette.byId(VelaPalette.defaultId).tokens(Brightness.dark);
+
+  static void select(VelaPalette palette, Brightness brightness) {
+    active = palette.tokens(brightness);
+  }
+}
