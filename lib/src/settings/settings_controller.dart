@@ -101,8 +101,8 @@ class SettingsController extends ChangeNotifier {
         // Storage may be unreadable; the application remains usable.
       }
     }
-    final paletteStore = _store;
-    if (paletteStore is VelaPalettePreferenceStore) {
+    if (_store is VelaPalettePreferenceStore) {
+      final paletteStore = _store as VelaPalettePreferenceStore;
       try {
         final saved = await paletteStore.readPalette().timeout(ioTimeout);
         if (saved != null && !VelaPalette.containsId(saved)) {
@@ -132,9 +132,10 @@ class SettingsController extends ChangeNotifier {
         ? ThemeMode.dark : ThemeMode.light;
     notifyListeners();
     // Save mode and palette in the same serialized queue.
+    final selectedMode = _themeMode.name;
     _writes = _writes.then((_) async {
       try {
-        await _store.writeTheme(_themeMode.name).timeout(ioTimeout);
+        await _store.writeTheme(selectedMode).timeout(ioTimeout);
         if (_store case final VelaPalettePreferenceStore store) {
           await store.writePalette(paletteId).timeout(ioTimeout);
         }
