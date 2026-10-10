@@ -3,9 +3,8 @@ import 'dart:io';
 
 import '../core/vela_core_controller.dart';
 import '../subscription/vela_subscription_parser.dart';
+import 'vela_download_probe.dart';
 
-/// Actual elapsed time of an HTTPS 204 request through a temporary,
-/// node-specific sing-box listener. NOT ICMP ping or download bandwidth.
 class VelaLatencySample {
   const VelaLatencySample({required this.ok, this.elapsed});
   final bool ok;
@@ -17,34 +16,60 @@ abstract class VelaNodeLatencyProbe {
   Future<VelaLatencySample> measure(VelaSubscriptionNode node);
 }
 
-/// Each candidate uses a separate temporary core and loopback port. The
-/// active user's proxy core, profile, registry and network routes are not
-/// modified. Secrets in temporary profiles are deleted in finally.
-class VelaIsolatedNodeProbe implements VelaNodeLatencyProbe {
+abstract class VelaNodeDownloadProbe {
+  Future<VelaDownloadSample> measureDownload(VelaSubscriptionNode node);
+}
+
+/// Each measurement uses a separate sing-box process, disposable config and
+/// random loopback port. The active Windows system proxy is never modified.
+/// Both latency and sample-download measurements use the same cleanup path.
+class VelaIsolatedNodeProbe
+    implements VelaNodeLatencyProbe, VelaNodeDownloadProbe {
   VelaIsolatedNodeProbe({
     required this.coreBinary,
     VelaCoreRunner? runner,
     VelaRemoteProbe? httpsProbe,
+    VelaDownloadTransport? downloadTransport,
     Directory? tempRoot,
   }) : _runner = runner ?? const VelaNativeCoreRunner(),
        _https = httpsProbe ?? const VelaHttpsRemoteProbe(),
+       _download = downloadTransport ?? const VelaHttpsDownloadTransport(),
        _tempRoot = tempRoot;
 
   final String coreBinary;
   final VelaCoreRunner _runner;
   final VelaRemoteProbe _https;
+  final VelaDownloadTransport _download;
   final Directory? _tempRoot;
 
   @override
-  Future<VelaLatencySample> measure(VelaSubscriptionNode node) async {
+  Future<VelaLatencySample> measure(VelaSubscriptionNode node) =>
+      _withCore<VelaLatencySample>(node, (port) async {
+        final watch = Stopwatch()..start();
+        final verified = await _https.verify(port)
+            .timeout(const Duration(seconds: 21));
+        watch.stop();
+        return verified
+            ? VelaLatencySample(ok: true, elapsed: watch.elapsed)
+            : const VelaLatencySample(ok: false);
+      }, const VelaLatencySample(ok: false));
+
+  @override
+  Future<VelaDownloadSample> measureDownload(VelaSubscriptionNode node) =>
+      _withCore<VelaDownloadSample>(node, (port) =>
+        _download.sample(port).timeout(const Duration(seconds: 27)),
+        const VelaDownloadSample(ok: false));
+
+  Future<T> _withCore<T>(VelaSubscriptionNode node,
+      Future<T> Function(int port) sample, T failed) async {
     Directory? dir;
     VelaCoreHandle? handle;
     try {
-      final portSocket = await ServerSocket.bind(
+      final socket = await ServerSocket.bind(
         InternetAddress.loopbackIPv4, 0, shared: false,
       ).timeout(const Duration(seconds: 3));
-      final port = portSocket.port;
-      await portSocket.close();
+      final port = socket.port;
+      await socket.close();
       dir = await (_tempRoot == null
           ? Directory.systemTemp.createTemp('vela-benchmark-')
           : _tempRoot.createTemp('vela-benchmark-'))
@@ -62,16 +87,10 @@ class VelaIsolatedNodeProbe implements VelaNodeLatencyProbe {
           .timeout(const Duration(seconds: 4));
       final ready = await _runner.awaitLocalListener(port)
           .timeout(const Duration(seconds: 10));
-      if (!ready) return const VelaLatencySample(ok: false);
-      final watch = Stopwatch()..start();
-      final verified = await _https.verify(port)
-          .timeout(const Duration(seconds: 21));
-      watch.stop();
-      if (!verified) return const VelaLatencySample(ok: false);
-      return VelaLatencySample(ok: true, elapsed: watch.elapsed);
+      if (!ready) { return failed; }
+      return await sample(port);
     } catch (_) {
-      // Never log exceptions from untrusted configs or endpoints.
-      return const VelaLatencySample(ok: false);
+      return failed;
     } finally {
       handle?.kill();
       if (handle != null) {
@@ -85,7 +104,7 @@ class VelaIsolatedNodeProbe implements VelaNodeLatencyProbe {
         try {
           await dir.delete(recursive: true);
         } catch (_) {
-          // Cleanup can fail after OS kills the benchmark process.
+          // An abnormal OS kill can leave a temporary config.
         }
       }
     }
