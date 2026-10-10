@@ -103,27 +103,7 @@ jobs:
           $out = Join-Path $env:RUNNER_TEMP 'vela-official-mihomo'
           Expand-Archive -Path $archive -DestinationPath $out -Force
           $binary = Get-ChildItem $out -File -Recurse |
-            Where-Object { $_.Name -match '^mihomo.*\.exe
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $release = Get-ChildItem -Path 'build/windows' -Directory -Recurse |
-            Where-Object { $_.Name -eq 'Release' -and (Test-Path (Join-Path $_.FullName 'vela_shuo.exe')) } |
-            Select-Object -First 1
-          if (-not $release) { throw 'Expected Windows binary was not found' }
-          Rename-Item -Path (Join-Path $release.FullName 'vela_shuo.exe') -NewName 'Vela-SHUO.exe'
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Compress-Archive -Path (Join-Path $release.FullName '*') -DestinationPath 'dist/Vela-SHUO-Mihomo-Lab-Windows-x64-Portable.zip' -Force
-          Get-FileHash 'dist/Vela-SHUO-Mihomo-Lab-Windows-x64-Portable.zip' -Algorithm SHA256 |
-            ForEach-Object { "$($_.Hash.ToLower())  Vela-SHUO-Mihomo-Lab-Windows-x64-Portable.zip" } |
-            Set-Content -Path dist/SHA256-Windows.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Vela-SHUO-Mihomo-Lab-Windows-x64-Preview
-          path: dist/*
-          if-no-files-found: error
-          retention-days: 14
- } |
+            Where-Object { $_.Name -match '^mihomo.*\.exe$' } |
             Select-Object -First 1
           if (-not $binary) { throw 'Official Mihomo archive did not contain an executable' }
           $release = Get-ChildItem 'build/windows' -Directory -Recurse |
@@ -153,7 +133,7 @@ jobs:
             Set-Content -Path dist/SHA256-Windows.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Vela-SHUO-Windows-x64-Preview
+          name: Vela-SHUO-Mihomo-Lab-Windows-x64-Preview
           path: dist/*
           if-no-files-found: error
           retention-days: 14
