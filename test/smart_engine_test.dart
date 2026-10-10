@@ -105,6 +105,44 @@ Future<(Directory, VelaCoreController, VelaSubscriptionController,
   return (folder, core, sub, proxy, link);
 }
 
+
+class _LimitedProbe implements VelaNodeLatencyProbe {
+  int active = 0;
+  int maximum = 0;
+  final List<int> visited = [];
+
+  @override
+  Future<VelaLatencySample> measure(VelaSubscriptionNode node) async {
+    final index = int.parse(node.name.substring(5));
+    visited.add(index);
+    active++;
+    if (active > maximum) { maximum = active; }
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 3));
+      if (index % 7 == 0) {
+        return const VelaLatencySample(ok: false);
+      }
+      return VelaLatencySample(ok: true,
+          elapsed: Duration(milliseconds: 300 - index));
+    } finally {
+      active--;
+    }
+  }
+}
+
+class _GatedProbe implements VelaNodeLatencyProbe {
+  final Completer<void> gate = Completer<void>();
+  int started = 0;
+
+  @override
+  Future<VelaLatencySample> measure(VelaSubscriptionNode node) async {
+    started++;
+    await gate.future;
+    return const VelaLatencySample(
+        ok: true, elapsed: Duration(milliseconds: 150));
+  }
+}
+
 void main() {
   test('batched HTTPS tests measure 8 then remaining 1, rank by actual times',
       () async {
@@ -228,4 +266,116 @@ void main() {
       await folder.delete(recursive: true);
     }
   });
+  test('one click measures all 23 nodes exactly once, max concurrency two',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 23);
+    final probe = _LimitedProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link, probe: probe,
+    );
+    try {
+      expect(smart.canTestAll, true);
+      await smart.testAllNodes();
+      expect(smart.allNodesScan, true);
+      expect(smart.scanned, 23);
+      expect(smart.total, 23);
+      expect(smart.successful, 19); // 0,7,14,21 failed
+      expect(smart.failed, 4);
+      expect(probe.visited.toSet().length, 23);
+      expect(probe.visited.toSet(),
+          List<int>.generate(23, (i) => i).toSet());
+      expect(probe.maximum, lessThanOrEqualTo(2));
+      expect(probe.maximum, greaterThan(1));
+      expect(smart.resultAt(21)?.reachable, false);
+      expect(smart.resultAt(22)?.lastMs, 278);
+      expect(smart.recommendedIndex, 22);
+      expect(smart.sortedIndices.first, 22);
+      expect(proxy.active, false);
+      expect(core.isListening, false);
+      expect(sub.selectedIndex, 0);
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+  test('stop full scan cancels queued tasks and leaves partial results',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 17);
+    final probe = _GatedProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link, probe: probe,
+    );
+    try {
+      final pending = smart.testAllNodes();
+      expect(smart.scanning, true);
+      expect(probe.started, 2);
+      expect(smart.canTestAll, false);
+      smart.cancelScan();
+      expect(smart.cancelling, true);
+      probe.gate.complete();
+      await pending;
+      expect(smart.scanning, false);
+      expect(probe.started, 2);
+      expect(smart.scanned, 0);
+      expect(smart.total, 17);
+      expect(smart.status, contains('停止'));
+      expect(proxy.active, false);
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+  test('one click can benchmark while connected without changing selection',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 9);
+    final probe = _LimitedProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link, probe: probe,
+    );
+    try {
+      expect(await link.connect(), true);
+      smart.setAutoPick(true);
+      expect(smart.canTestAll, true);
+      expect(smart.safeToSelect, false);
+      await smart.testAllNodes();
+      expect(smart.scanned, 9);
+      expect(smart.canRecommend, false);
+      expect(sub.selectedIndex, 0);
+      expect(link.connected, true);
+      expect(proxy.active, true);
+      expect(core.isListening, true);
+      expect(await link.disconnect(), true);
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+  test('empty subscription or repeated full-scan click is harmless',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 4);
+    final probe = _GatedProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link, probe: probe,
+    );
+    try {
+      final first = smart.testAllNodes();
+      await smart.testAllNodes();
+      expect(probe.started, 2);
+      smart.cancelScan();
+      probe.gate.complete();
+      await first;
+      expect(probe.started, 2);
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
 }
