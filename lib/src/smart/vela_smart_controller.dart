@@ -126,7 +126,7 @@ class VelaSmartController extends ChangeNotifier {
   String? get status => _status;
   int get count => subscription.nodes.length;
   int get nextBatchSize => count == 0 ? 0 :
-      (count < 8 ? count : 8);
+      (count - _cursor < 8 ? count - _cursor : 8);
 
   void _emit() {
     if (!_disposed) notifyListeners();
@@ -209,7 +209,9 @@ class VelaSmartController extends ChangeNotifier {
 
   Future<void> testNextBatch() async {
     if (_scanning || _disposed || count == 0 || !core.hasCore ||
-        !core.supported) return;
+        !core.supported || !safeToSelect) {
+      return;
+    }
     _scanning = true;
     final run = ++_generation;
     final batch = nextBatchSize;
