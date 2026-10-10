@@ -115,7 +115,7 @@ Future<(Directory, VelaCoreController, VelaSubscriptionController,
     VelaSystemProxyManager, VelaConnectionCoordinator)>
     setup({int count = 9}) async {
   final folder = await Directory.systemTemp.createTemp('vela-smart-');
-  final executable = File('${folder.path}/sing-box.exe');
+  final executable = File('${folder.path}/mihomo.exe');
   await executable.writeAsString('fake');
   final core = VelaCoreController(
     supported: true, managedProfileDirectory: folder,
