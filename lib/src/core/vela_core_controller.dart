@@ -281,6 +281,9 @@ class VelaCoreController extends ChangeNotifier {
   String? get error => _error;
   bool get hasConfig => _config != null;
   bool get hasCore => _binary != null;
+  /// Read-only executable path for disposable node benchmarks.
+  String? get benchmarkCorePath => _binary;
+
   bool get busy => _phase == VelaCorePhase.checking ||
       _phase == VelaCorePhase.starting ||
       _phase == VelaCorePhase.stopping;
