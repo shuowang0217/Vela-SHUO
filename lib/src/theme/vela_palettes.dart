@@ -96,8 +96,6 @@ class VelaPalette {
     final base = swatches[darkBaseIndex];
     final light = swatches.reduce((a, b) =>
         a.computeLuminance() > b.computeLuminance() ? a : b);
-    final deep = swatches.reduce((a, b) =>
-        a.computeLuminance() < b.computeLuminance() ? a : b);
     final target = swatches[accentIndex];
     final surface = dark
         ? Color.lerp(base, const Color(0xFF080E17), .35)!
@@ -115,18 +113,19 @@ class VelaPalette {
         ? (target.computeLuminance() < .3
             ? Color.lerp(target, Colors.white, .55)!
             : target)
-        : (target.computeLuminance() > .38
-            ? Color.lerp(target, deep, .57)!
+        : (target.computeLuminance() > .27
+            ? Color.lerp(target, Colors.black, .43)!
             : target);
     return VelaThemeTokens(
       background: background,
       surface: surface,
-      raised: Color.lerp(surface, dark ? Colors.white : deep,
+      raised: Color.lerp(surface, dark ? Colors.white : Colors.black,
           dark ? .055 : .045)!,
       line: Color.lerp(background, dark ? Colors.white : deep,
           dark ? .24 : .17)!,
       accent: accent,
-      accentSoft: swatches[2],
+      accentSoft: Color.lerp(accent, dark ? Colors.white : Colors.black,
+          dark ? .16 : .08)!,
       text: content,
       muted: muted,
       dark: dark,
