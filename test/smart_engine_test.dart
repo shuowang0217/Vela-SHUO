@@ -6,6 +6,7 @@ import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/smart/vela_node_probe.dart';
+import 'package:vela_shuo/src/smart/vela_download_probe.dart';
 import 'package:vela_shuo/src/smart/vela_smart_controller.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_parser.dart';
@@ -36,6 +37,19 @@ class _Probe implements VelaNodeLatencyProbe {
     if (fails.contains(i)) return const VelaLatencySample(ok: false);
     return VelaLatencySample(ok: true,
         elapsed: Duration(milliseconds: 200 - 15 * i));
+  }
+}
+
+class _SpeedProbe implements VelaNodeDownloadProbe {
+  final List<String> tested = [];
+  bool succeeds = true;
+  @override
+  Future<VelaDownloadSample> measureDownload(VelaSubscriptionNode node) async {
+    tested.add(node.name);
+    return succeeds
+        ? const VelaDownloadSample(ok: true, mbps: 65.4,
+            bytes: VelaHttpsDownloadTransport.sampleBytes)
+        : const VelaDownloadSample(ok: false);
   }
 }
 
@@ -371,6 +385,92 @@ void main() {
       probe.gate.complete();
       await first;
       expect(probe.started, 2);
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+  test('selected-node download sample stores measured Mbps separately',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 3);
+    final speed = _SpeedProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link,
+      probe: _Probe(), downloadProbe: speed,
+    );
+    try {
+      expect(smart.canTestSelectedDownload, true);
+      expect(await smart.testSelectedDownload(), true);
+      expect(speed.tested, ['Node-0']);
+      expect(smart.downloadAt(0)?.mbps, 65.4);
+      expect(proxy.active, false);
+      expect(core.isListening, false);
+
+      expect(await sub.selectNode(1), true);
+      speed.succeeds = false;
+      expect(await smart.testSelectedDownload(), false);
+      expect(speed.tested, ['Node-0', 'Node-1']);
+      expect(smart.downloadAt(1)?.mbps, null);
+      expect(smart.downloadAt(0)?.mbps, 65.4);
+      expect(smart.downloadStatus, contains('失败'));
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+  test('download probe can run while proxy connected without changing it',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 2);
+    final speed = _SpeedProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link,
+      probe: _Probe(), downloadProbe: speed,
+    );
+    try {
+      expect(await link.connect(), true);
+      expect(await smart.testSelectedDownload(), true);
+      expect(link.connected, true);
+      expect(proxy.active, true);
+      expect(core.isListening, true);
+      expect(sub.selectedIndex, 0);
+      expect(await link.disconnect(), true);
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+  test('periodic health checks default off and skip connected sessions',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 3);
+    final probe = _Probe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link, probe: probe,
+      periodicInterval: (_) => const Duration(milliseconds: 25),
+    );
+    try {
+      expect(smart.scheduledMinutes, 0);
+      smart.setScheduledMinutes(7); // Unsupported value must be ignored.
+      expect(smart.scheduledMinutes, 0);
+      smart.setScheduledMinutes(15);
+      await Future<void>.delayed(const Duration(milliseconds: 110));
+      expect(probe.measured, isNotEmpty);
+      while (smart.scanning) {
+        await Future<void>.delayed(const Duration(milliseconds: 2));
+      }
+      expect(await link.connect(), true);
+      final checked = probe.measured.length;
+      await Future<void>.delayed(const Duration(milliseconds: 90));
+      expect(probe.measured.length, checked);
+      expect(link.connected, true);
+      smart.setScheduledMinutes(0);
+      expect(smart.scheduledMinutes, 0);
+      expect(await link.disconnect(), true);
     } finally {
       smart.dispose(); link.dispose(); sub.dispose();
       core.dispose(); proxy.dispose();
