@@ -54,7 +54,10 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
       final s = widget.subscription;
       final theme = VelaThemeRuntime.active;
       final selected = s.selectedIndex;
-      final rank = e.sortedIndices.take(_shown).toList();
+      final candidates = e.sortedIndices.where((i) =>
+          !e.aiMode || velaSmartCountryMatches(s.nodes[i].name, e.country))
+          .toList();
+      final rank = candidates.take(_shown).toList();
       final speed = selected == null
           ? null : e.downloadAt(selected)?.megabytesPerSecond;
       final last = e.lastScan;
@@ -202,7 +205,7 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
                           ? theme.accent : theme.muted)),
               ]),
             ),
-            if (e.count > rank.length)
+            if (candidates.length > rank.length)
               TextButton.icon(
                 key: const ValueKey('smart_show_more'),
                 onPressed: () => setState(() {
@@ -210,7 +213,7 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
                 }),
                 icon: const Icon(Icons.expand_more, size: 17),
                 label: Text('显示更多（剩余 ' +
-                    (e.count - rank.length).toString() + ' 个）'),
+                    (candidates.length - rank.length).toString() + ' 个）'),
               ),
             if (_shown > 40) TextButton(
               key: const ValueKey('smart_collapse_results'),
