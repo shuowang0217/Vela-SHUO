@@ -215,8 +215,7 @@ class VelaSmartController extends ChangeNotifier {
       if (interval > Duration.zero) {
         _periodicTimer = Timer.periodic(interval, (_) {
           if (!_disposed && !_scanning && !_downloading &&
-              safeToSelect && !_manualHold && _autoPickWhenIdle &&
-              count > 0 && core.hasCore) {
+              safeToSelect && count > 0 && core.hasCore) {
             unawaited(testAllNodes(automatic: true));
           }
         });
