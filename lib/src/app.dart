@@ -9,6 +9,9 @@ import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
+import 'package:vela_shuo/src/smart/vela_node_probe.dart';
+import 'package:vela_shuo/src/smart/vela_smart_controller.dart';
+import 'package:vela_shuo/src/smart/vela_smart_panel.dart';
 import 'package:vela_shuo/src/core/vela_core_settings_card.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_card.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
@@ -100,6 +103,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   final VelaDemoController demo = VelaDemoController();
   VelaSubscriptionController? subscription;
   VelaConnectionCoordinator? connection;
+  VelaSmartController? smart;
   int tab = 0;
 
   void syncRealGlobe() {
@@ -127,6 +131,13 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         );
         subscription!.addListener(syncRealGlobe);
         connection!.addListener(syncRealGlobe);
+        smart = VelaSmartController(
+          subscription: subscription!, core: widget.core!,
+          connection: connection!,
+          probe: VelaIsolatedNodeProbe(
+            coreBinary: widget.core!.benchmarkCorePath ?? '',
+          ),
+        );
       }
     }
     WidgetsBinding.instance.addObserver(this);
@@ -157,6 +168,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     subscription?.removeListener(syncRealGlobe);
     connection?.removeListener(syncRealGlobe);
+    smart?.dispose();
     // Restore WinINet BEFORE terminating its local endpoint. Never kill
     // the core synchronously while the system proxy still points at it.
     final link = connection;
@@ -178,8 +190,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
 
   Widget page(bool desktop) => switch (tab) {
     1 => _NodesPage(demo: demo, subscription: subscription,
-      core: widget.core, goHome: () => navigate(0)),
-    2 => _SmartPage(demo: demo),
+      core: widget.core, smart: smart, goHome: () => navigate(0)),
+    2 => _SmartPage(demo: demo, smart: smart, subscription: subscription),
     3 => _SettingsPage(
       demo: demo, settings: widget.settings,
       diagnostics: widget.diagnostics, core: widget.core,
@@ -188,7 +200,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     ),
     _ => _HomePage(
       demo: demo, desktop: desktop,
-      connection: connection, subscription: subscription,
+      connection: connection, subscription: subscription, smart: smart,
       showNodes: () => navigate(1), showSmart: () => navigate(2),
     ),
   };
@@ -884,10 +896,11 @@ class _ScreenPadding extends StatelessWidget {
 
 class _NodesPage extends StatelessWidget {
   const _NodesPage({required this.demo, required this.goHome,
-    this.subscription, this.core});
+    this.subscription, this.core, this.smart});
   final VelaDemoController demo;
   final VelaSubscriptionController? subscription;
   final VelaCoreController? core;
+  final VelaSmartController? smart;
   final VoidCallback goHome;
 
   @override
@@ -918,7 +931,10 @@ class _NodesPage extends StatelessWidget {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                 title: Text(subscription!.nodes[i].name,
                     style: TextStyle(color: _foreground)),
-                subtitle: Text(subscription!.nodes[i].protocol,
+                subtitle: Text(
+                    smart?.resultAt(i)?.reachable == true
+                      ? '${subscription!.nodes[i].protocol} · ${smart!.resultAt(i)!.lastMs} ms HTTPS'
+                      : subscription!.nodes[i].protocol,
                     style: TextStyle(color: _muted)),
                 trailing: subscription!.selectedIndex == i
                     ? Icon(Icons.check_circle, color: _mint)
@@ -963,11 +979,23 @@ class _NodesPage extends StatelessWidget {
 }
 
 class _SmartPage extends StatelessWidget {
-  const _SmartPage({required this.demo});
+  const _SmartPage({required this.demo, this.smart, this.subscription});
   final VelaDemoController demo;
+  final VelaSmartController? smart;
+  final VelaSubscriptionController? subscription;
 
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
+  Widget build(BuildContext context) {
+    if (smart != null && subscription?.nodes.isNotEmpty == true) {
+      return _ScreenPadding(child: ListView(children: [
+        _ScreenHeading('智能优选', '真实 HTTPS 测速 · 稳定优先'),
+        SizedBox(height: 18),
+        _RealTag(),
+        SizedBox(height: 22),
+        VelaSmartPanel(engine: smart!, subscription: subscription!),
+      ]));
+    }
+    return AnimatedBuilder(
     animation: demo,
     builder: (context, _) => _ScreenPadding(child: ListView(children: [
       _ScreenHeading('智能优选', '稳定优先 · 让每一次连接更从容'),
@@ -1010,6 +1038,7 @@ class _SmartPage extends StatelessWidget {
       )),
     ])),
   );
+  }
 }
 
 class _SettingsPage extends StatelessWidget {
