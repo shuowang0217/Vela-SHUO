@@ -20,11 +20,28 @@ abstract class VelaNodeDownloadProbe {
   Future<VelaDownloadSample> measureDownload(VelaSubscriptionNode node);
 }
 
+/// One temporary core for both measurements, avoiding two process starts
+/// and two independent configurations for the same node.
+class VelaFullNodeSample {
+  const VelaFullNodeSample({required this.latency, required this.download});
+  final VelaLatencySample latency;
+  final VelaDownloadSample download;
+  bool get valid => latency.ok && download.ok &&
+      download.mbps != null && download.mbps! > 0;
+  double? get megabytesPerSecond => download.mbps == null
+      ? null : download.mbps! / 8;
+}
+
+abstract class VelaFullNodeProbe {
+  Future<VelaFullNodeSample> measureBoth(VelaSubscriptionNode node);
+}
+
 /// Each measurement uses a separate sing-box process, disposable config and
 /// random loopback port. The active Windows system proxy is never modified.
 /// Both latency and sample-download measurements use the same cleanup path.
 class VelaIsolatedNodeProbe
-    implements VelaNodeLatencyProbe, VelaNodeDownloadProbe {
+    implements VelaNodeLatencyProbe, VelaNodeDownloadProbe,
+        VelaFullNodeProbe {
   VelaIsolatedNodeProbe({
     required this.coreBinary,
     VelaCoreRunner? runner,
@@ -59,6 +76,34 @@ class VelaIsolatedNodeProbe
       _withCore<VelaDownloadSample>(node, (port) =>
         _download.sample(port).timeout(const Duration(seconds: 27)),
         const VelaDownloadSample(ok: false));
+
+  @override
+  Future<VelaFullNodeSample> measureBoth(VelaSubscriptionNode node) =>
+      _withCore<VelaFullNodeSample>(node, (port) async {
+        final watch = Stopwatch()..start();
+        var good = false;
+        try {
+          good = await _https.verify(port)
+              .timeout(const Duration(seconds: 21));
+        } catch (_) {
+          // Download may still be reachable when the 204 endpoint is blocked.
+        }
+        watch.stop();
+        final latency = good
+            ? VelaLatencySample(ok: true, elapsed: watch.elapsed)
+            : const VelaLatencySample(ok: false);
+        VelaDownloadSample download;
+        try {
+          download = await _download.sample(port)
+              .timeout(const Duration(seconds: 27));
+        } catch (_) {
+          download = const VelaDownloadSample(ok: false);
+        }
+        return VelaFullNodeSample(latency: latency, download: download);
+      }, const VelaFullNodeSample(
+        latency: VelaLatencySample(ok: false),
+        download: VelaDownloadSample(ok: false),
+      ));
 
   Future<T> _withCore<T>(VelaSubscriptionNode node,
       Future<T> Function(int port) sample, T failed) async {
