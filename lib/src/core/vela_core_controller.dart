@@ -403,8 +403,11 @@ class VelaCoreController extends ChangeNotifier {
       }
       final source = await file.readAsString();
       final current = VelaLocalCoreConfig.parse(source);
-      if (current.localPort != config.localPort) {
-        throw const FormatException('配置端口已改变，请重新导入');
+      if (current.localPort != config.localPort ||
+          current.apiPort != config.apiPort ||
+          current.apiSecret != config.apiSecret ||
+          !listEquals(current.selectorNames, config.selectorNames)) {
+        throw const FormatException('运行配置或控制密钥已改变，请重新导入');
       }
       if (generation != _generation) return false;
       await _runner.check(binary, path);
@@ -531,6 +534,17 @@ class VelaCoreController extends ChangeNotifier {
       _remoteVerified = false;
       return VelaNodeSwitchResult.unverified;
     } catch (_) {
+      // If probing itself throws after PUT, restore the previous route.
+      try {
+        if (await _selectorApi.select(port, secret, currentName) &&
+            await _selectorApi.active(port, secret) == currentName &&
+            generation == _generation && isListening &&
+            await _remoteProbe.verify(config.localPort)) {
+          return VelaNodeSwitchResult.restored;
+        }
+      } catch (_) {
+        // Unverified rollback must never be reported as connected.
+      }
       _remoteVerified = false;
       return VelaNodeSwitchResult.unverified;
     } finally {
