@@ -36,6 +36,16 @@ class _Runner implements VelaCoreRunner {
     return handle;
   }
 }
+class _GatedProbe implements VelaRemoteProbe {
+  final Completer<void> entered = Completer<void>();
+  final Completer<bool> answer = Completer<bool>();
+  @override
+  Future<bool> verify(int localPort) {
+    if (!entered.isCompleted) entered.complete();
+    return answer.future;
+  }
+}
+
 class _Probe implements VelaRemoteProbe {
   _Probe(this.answer);
   bool answer;
@@ -55,6 +65,7 @@ proxies:
 ''';
 }
 class _Backend implements VelaWindowsProxyBackend {
+  bool blockRestore = false;
   VelaProxySnapshot state = const VelaProxySnapshot(
       enabled: 1, server: '127.0.0.1:7890');
   @override
@@ -63,6 +74,9 @@ class _Backend implements VelaWindowsProxyBackend {
   Future<bool> hasPac() async => false;
   @override
   Future<void> write(VelaProxySnapshot next) async {
+    if (blockRestore && next.server == '127.0.0.1:7890') {
+      throw StateError('simulated Windows registry write failure');
+    }
     state = next;
   }
   @override
@@ -71,14 +85,14 @@ class _Backend implements VelaWindowsProxyBackend {
 
 Future<(VelaConnectionCoordinator, Directory, _Runner, _Probe, _Backend,
     VelaSubscriptionController, VelaCoreController, VelaSystemProxyManager)>
-    _setup() async {
+    _setup({VelaRemoteProbe? remoteProbe}) async {
   final dir = await Directory.systemTemp.createTemp('vela_real_conn_');
   final exe = File(dir.path + '/mihomo.exe');
   await exe.writeAsString('dummy');
   final runner = _Runner();
   final probe = _Probe(true);
   final core = VelaCoreController(
-    supported: true, runner: runner, remoteProbe: probe,
+    supported: true, runner: runner, remoteProbe: remoteProbe ?? probe,
     managedProfileDirectory: dir,
   );
   await core.chooseBinary(exe.path);
@@ -145,4 +159,76 @@ void main() {
       await dir.delete(recursive: true);
     }
   });
+  test('window-close shutdown restores proxy before ending Mihomo', () async {
+    final (connection, dir, runner, probe, backend, sub, core, proxy) =
+        await _setup();
+    try {
+      expect(await connection.connect(), isTrue);
+      expect(await connection.shutdown(), isTrue);
+      expect(proxy.active, isFalse);
+      expect(core.isListening, isFalse);
+      expect(backend.state.server, '127.0.0.1:7890');
+      expect(await connection.connect(), isFalse);
+      expect(runner.handles.single.complete.isCompleted, isTrue);
+    } finally {
+      connection.dispose();
+      sub.dispose();
+      core.dispose();
+      proxy.dispose();
+      await dir.delete(recursive: true);
+    }
+  });
+
+  test('close request waits for an in-flight connect to finish safely',
+      () async {
+    final gated = _GatedProbe();
+    final (connection, dir, runner, probe, backend, sub, core, proxy) =
+        await _setup(remoteProbe: gated);
+    try {
+      final connecting = connection.connect();
+      await gated.entered.future;
+      final closing = connection.shutdown();
+      var finished = false;
+      closing.then((_) { finished = true; });
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      expect(finished, false);
+      gated.answer.complete(true);
+      expect(await connecting, true);
+      expect(await closing, true);
+      expect(proxy.active, false);
+      expect(core.isListening, false);
+      expect(backend.state.server, '127.0.0.1:7890');
+    } finally {
+      connection.dispose();
+      sub.dispose();
+      core.dispose();
+      proxy.dispose();
+      await dir.delete(recursive: true);
+    }
+  });
+
+  test('failed Windows proxy restoration blocks shutdown and supports retry',
+      () async {
+    final (connection, dir, runner, probe, backend, sub, core, proxy) =
+        await _setup();
+    try {
+      expect(await connection.connect(), true);
+      backend.blockRestore = true;
+      expect(await connection.shutdown(), false);
+      expect(core.isListening, true);
+      expect(proxy.active, true);
+      expect(backend.state.server, '127.0.0.1:20808');
+      backend.blockRestore = false;
+      expect(await connection.shutdown(), true);
+      expect(core.isListening, false);
+      expect(backend.state.server, '127.0.0.1:7890');
+    } finally {
+      connection.dispose();
+      sub.dispose();
+      core.dispose();
+      proxy.dispose();
+      await dir.delete(recursive: true);
+    }
+  });
+
 }
