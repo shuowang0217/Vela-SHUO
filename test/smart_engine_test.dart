@@ -143,14 +143,14 @@ void main() {
 
   test('automatic idle choice never starts core or changes system proxy',
       () async {
-    final (folder, core, sub, proxy, link) = await setup(count: 3);
+    final (folder, core, sub, proxy, link) = await setup(count: 5);
     final smart = VelaSmartController(
       core: core, subscription: sub, connection: link, probe: _Probe(),
     );
     try {
       smart.setAutoPick(true);
       await smart.testNextBatch();
-      expect(sub.selectedIndex, 2);
+      expect(sub.selectedIndex, 4); // 200ms → 140ms: >50ms and >20%
       expect(proxy.active, isFalse);
       expect(core.isListening, isFalse);
     } finally {
