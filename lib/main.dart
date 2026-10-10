@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:vela_shuo/src/app.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
+import 'package:vela_shuo/src/core/vela_window_exit_guard.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 
@@ -34,8 +37,16 @@ void main() {
     // Recover a previous app-owned proxy before any new core can start.
     await systemProxy.recover();
     await core.initialize(); // Does not automatically start a proxy.
+    VelaWindowExitGuard? exitGuard;
+    if (Platform.isWindows) {
+      await windowManager.ensureInitialized();
+      exitGuard = VelaWindowExitGuard(core: core, proxy: systemProxy);
+      // Native window close will wait for proxy recovery + core termination.
+      await windowManager.setPreventClose(true);
+      windowManager.addListener(exitGuard);
+    }
     runApp(VelaShuoApp(settings: settings, diagnostics: diagnostics,
-      core: core, systemProxy: systemProxy));
+      core: core, systemProxy: systemProxy, windowExitGuard: exitGuard));
   }, (error, stack) {
     diagnostics.record(VelaDiagnosticEvent.uncaughtError);
   });

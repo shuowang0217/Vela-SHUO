@@ -2,7 +2,7 @@ name: Vela-SHUO CI - Windows EXE only
 
 on:
   push:
-    branches: [main, feature/mihomo-primary]
+    branches: [main, feature/mihomo-primary, release/exit-safety]
   pull_request:
   workflow_dispatch:
 

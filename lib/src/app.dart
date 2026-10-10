@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
+import 'package:vela_shuo/src/core/vela_window_exit_guard.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
 import 'package:vela_shuo/src/smart/vela_node_probe.dart';
 import 'package:vela_shuo/src/smart/vela_smart_controller.dart';
@@ -38,11 +39,13 @@ class VelaShuoApp extends StatelessWidget {
     this.diagnostics,
     this.core,
     this.systemProxy,
+    this.windowExitGuard,
   });
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
   final VelaSystemProxyManager? systemProxy;
+  final VelaWindowExitGuard? windowExitGuard;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -61,7 +64,8 @@ class VelaShuoApp extends StatelessWidget {
         theme: _theme(Brightness.light, palette),
         darkTheme: _theme(Brightness.dark, palette),
         home: _Shell(settings: settings, diagnostics: diagnostics,
-          core: core, systemProxy: systemProxy),
+          core: core, systemProxy: systemProxy,
+          windowExitGuard: windowExitGuard),
       );
     },
   );
@@ -89,11 +93,12 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
 
 class _Shell extends StatefulWidget {
   const _Shell({required this.settings, this.diagnostics,
-    this.core, this.systemProxy});
+    this.core, this.systemProxy, this.windowExitGuard});
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
   final VelaSystemProxyManager? systemProxy;
+  final VelaWindowExitGuard? windowExitGuard;
 
   @override
   State<_Shell> createState() => _ShellState();
@@ -131,6 +136,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         );
         subscription!.addListener(syncRealGlobe);
         connection!.addListener(syncRealGlobe);
+        widget.windowExitGuard?.shutdownConnection = connection!.shutdown;
         final benchmark = VelaIsolatedNodeProbe(
           coreBinary: widget.core!.benchmarkCorePath ?? '',
         );
@@ -152,7 +158,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       widget.diagnostics?.record(VelaDiagnosticEvent.appPaused);
     } else if (state == AppLifecycleState.detached) {
       if (connection != null) {
-        connection!.shutdown();
+        unawaited(connection!.shutdown());
       }
     }
   }
@@ -170,6 +176,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     subscription?.removeListener(syncRealGlobe);
     connection?.removeListener(syncRealGlobe);
     smart?.dispose();
+    widget.windowExitGuard?.shutdownConnection = null;
     // Restore WinINet BEFORE terminating its local endpoint. Never kill
     // the core synchronously while the system proxy still points at it.
     final link = connection;
