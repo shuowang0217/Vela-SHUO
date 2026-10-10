@@ -8,6 +8,7 @@ import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/smart/vela_node_probe.dart';
 import 'package:vela_shuo/src/smart/vela_download_probe.dart';
 import 'package:vela_shuo/src/smart/vela_smart_controller.dart';
+import 'package:vela_shuo/src/smart/vela_smart_country.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_parser.dart';
 
@@ -50,6 +51,23 @@ class _SpeedProbe implements VelaNodeDownloadProbe {
         ? const VelaDownloadSample(ok: true, mbps: 65.4,
             bytes: VelaHttpsDownloadTransport.sampleBytes)
         : const VelaDownloadSample(ok: false);
+  }
+}
+
+class _BothProbe implements VelaFullNodeProbe {
+  final List<String> names = [];
+  @override
+  Future<VelaFullNodeSample> measureBoth(VelaSubscriptionNode node) async {
+    final number = int.parse(node.name.substring(5));
+    names.add(node.name);
+    final speed = [20.0, 88.0, 45.0, 64.0, 34.0][number];
+    final delay = [35, 150, 42, 65, 30][number];
+    return VelaFullNodeSample(
+      latency: VelaLatencySample(
+          ok: true, elapsed: Duration(milliseconds: delay)),
+      download: VelaDownloadSample(ok: true, mbps: speed,
+          bytes: VelaHttpsDownloadTransport.sampleBytes),
+    );
   }
 }
 
@@ -476,6 +494,68 @@ void main() {
       core.dispose(); proxy.dispose();
       await folder.delete(recursive: true);
     }
+  });
+
+  test('single action measures download and latency for every node, speed-first',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 5);
+    final both = _BothProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link, probe: _Probe(),
+      fullProbe: both, downloadProbe: _SpeedProbe(),
+    );
+    try {
+      expect(await smart.testAllNodes(), isNull);
+      expect(both.names.length, 5);
+      expect(smart.scanned, 5);
+      expect(smart.successful, 5);
+      expect(smart.resultAt(1)!.lastMs, 150);
+      expect(smart.downloadAt(1)!.megabytesPerSecond, 11);
+      expect(smart.sortedIndices.first, 1); // Speed wins over latency.
+      expect(smart.recommendedIndex, 1);
+      expect(smart.canRecommend, true); // 88 vs 20 Mbps: >20%.
+      expect(await smart.useRecommended(), true);
+      expect(sub.selectedIndex, 1);
+      expect(smart.manualHold, false); // Own AI choice isn't manual.
+      expect(proxy.active, false);
+      expect(core.isListening, false);
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+  test('manual node switching pauses smart selection until explicit resume',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 5);
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link,
+      probe: _Probe(), fullProbe: _BothProbe(),
+    );
+    try {
+      await smart.testAllNodes();
+      expect(await sub.selectNode(3), true);
+      expect(smart.manualHold, true);
+      expect(smart.canRecommend, false);
+      smart.resumeAutoSelection();
+      expect(smart.manualHold, false);
+      expect(smart.canRecommend, true);
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+  test('AI country name matcher never matches incidental "us" in Russia',
+      () {
+    expect(velaSmartCountryMatches('🇯🇵 Tokyo-01', 'JP'), true);
+    expect(velaSmartCountryMatches('Hong Kong 02', 'HK'), true);
+    expect(velaSmartCountryMatches('US-California', 'US'), true);
+    expect(velaSmartCountryMatches('Russia-01', 'US'), false);
+    expect(velaSmartCountryMatches('日本 东京', 'JP'), true);
+    expect(velaSmartCountryMatches('Germany Frankfurt', 'DE'), true);
   });
 
 }
