@@ -146,7 +146,9 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   /// selected in the UI until Mihomo confirms both the API state and HTTPS.
   Future<bool> switchNode(int index) async {
     if (_closed || _exitRequested || _operation || !connected ||
-        subscription.selectedIndex == null) return false;
+        subscription.selectedIndex == null) {
+      return false;
+    }
     final previous = subscription.selectedIndex!;
     if (index == previous) return true;
     final oldName = subscription.configuredNameFor(previous);
