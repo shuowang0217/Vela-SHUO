@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/core/local_core_config.dart';
+import 'package:vela_shuo/src/mihomo/vela_mihomo_config.dart';
+import 'package:vela_shuo/src/subscription/vela_subscription_parser.dart';
 
 const _valid = '''
 {"mixed-port":20808,"bind-address":"127.0.0.1","allow-lan":false,
@@ -8,6 +10,30 @@ const _valid = '''
 ''';
 
 void main() {
+  test('auth-only loopback Mihomo selector metadata is validated', () {
+    const node = VelaSubscriptionNode(
+      name: 'JP', protocol: 'shadowsocks', server: 'jp.example.test',
+      outbound: {'type': 'shadowsocks', 'server': 'jp.example.test',
+        'server_port': 443, 'method': 'aes-128-gcm',
+        'password': 'fixture-only'},
+    );
+    final source = const VelaMihomoConfigBuilder().build(
+      [node], selectedIndex: 0, secret: 'a' * 64,
+      proxyPort: 20808, apiPort: 20819,
+    ).configText;
+    final parsed = VelaLocalCoreConfig.parse(source);
+    expect(parsed.localPort, 20808);
+    expect(parsed.apiPort, 20819);
+    expect(parsed.apiSecret, 'a' * 64);
+    expect(parsed.selectorNames, ['JP']);
+    expect(() => VelaLocalCoreConfig.parse(source.replaceFirst(
+      '127.0.0.1:20819', '0.0.0.0:20819',
+    )), throwsFormatException);
+    expect(() => VelaLocalCoreConfig.parse(source.replaceFirst(
+      '"a' + 'a' * 63 + '"', '"short"',
+    )), throwsFormatException);
+  });
+
   test('strict loopback mixed profile is accepted', () {
     final config = VelaLocalCoreConfig.parse(_valid);
     expect(config.localPort, 20808);
