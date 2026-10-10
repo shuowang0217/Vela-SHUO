@@ -408,7 +408,13 @@ class VelaSmartController extends ChangeNotifier {
     _results.clear();
     _downloads.clear();
     _cursor = 0;
-    final indices = List<int>.generate(count, (i) => i);
+    final indices = List<int>.generate(count, (i) => i)
+        .where(_eligible).toList();
+    if (indices.isEmpty) {
+      _status = '所选国家没有匹配的节点，保持当前连接';
+      _emit();
+      return;
+    }
     await _runScan(indices, all: true, automatic: automatic);
   }
 
