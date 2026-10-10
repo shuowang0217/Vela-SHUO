@@ -135,8 +135,58 @@ class VelaCoreController extends ChangeNotifier {
     if (await File(_defaultCorePath).exists()) {
       _binary = File(_defaultCorePath).absolute.path;
     }
+    await _purgeOldRemoteProfile();
     await useLocalDirectProfile();
     if (!_disposed) notifyListeners();
+  }
+
+  /// The previous run's generated secret-bearing file is never trusted on
+  /// startup. Remove it before any user-provided subscription is imported.
+  Future<void> _purgeOldRemoteProfile() async {
+    final folder = _profileFolder;
+    if (folder == null) return;
+    try {
+      final old = File(
+        '${folder.path}${Platform.pathSeparator}subscription-active.json',
+      );
+      if (await old.exists()) await old.delete();
+    } catch (_) {
+      // A failure is reported only if a later import needs this directory.
+    }
+  }
+
+  /// Build a single-node local proxy profile from a supported subscription.
+  /// This method intentionally refuses to alter profiles while connected.
+  Future<bool> useRemoteSubscriptionProfile(String source) async {
+    if (!supported || busy || isListening) return false;
+    final folder = _profileFolder;
+    if (folder == null) {
+      _update(VelaCorePhase.failed, '没有可用的配置目录');
+      return false;
+    }
+    try {
+      final validated = VelaLocalCoreConfig.parse(source);
+      await folder.create(recursive: true);
+      final staged = File(
+        '${folder.path}${Platform.pathSeparator}subscription-stage.json',
+      );
+      final target = File(
+        '${folder.path}${Platform.pathSeparator}subscription-active.json',
+      );
+      // Credentials are written only to the local user profile, never to
+      // diagnostics, preferences or the application installation folder.
+      await staged.writeAsString(source, flush: true);
+      if (await target.exists()) await target.delete();
+      await staged.rename(target.path);
+      _configPath = target.path;
+      _config = validated;
+      _directTestProfile = false;
+      _update(VelaCorePhase.idle);
+      return true;
+    } catch (_) {
+      _update(VelaCorePhase.failed, '无法保存节点配置');
+      return false;
+    }
   }
 
   /// This profile is only for verifying the bundled binary/loopback port.
