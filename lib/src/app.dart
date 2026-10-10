@@ -874,45 +874,80 @@ class _ScreenPadding extends StatelessWidget {
 }
 
 class _NodesPage extends StatelessWidget {
-  const _NodesPage({required this.demo, required this.goHome});
+  const _NodesPage({required this.demo, required this.goHome,
+    this.subscription, this.core});
   final VelaDemoController demo;
+  final VelaSubscriptionController? subscription;
+  final VelaCoreController? core;
   final VoidCallback goHome;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: demo,
+    animation: Listenable.merge([demo,
+      if (subscription != null) subscription!,
+      if (core != null) core!]),
     builder: (context, _) => _ScreenPadding(child: ListView(children: [
-      _ScreenHeading('节点', '选择目的地 · 预览地球转向的交互效果'),
+      _ScreenHeading('节点', subscription?.nodes.isNotEmpty == true
+          ? '来自订阅的真实节点 · 点击选择后返回首页'
+          : '尚未导入订阅 · 以下是地图演示节点'),
       SizedBox(height: 18),
-      _DemoTag(),
+      subscription?.nodes.isNotEmpty == true ? _RealTag() : _DemoTag(),
       SizedBox(height: 24),
-      for (final node in VelaDemoNode.samples)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 11),
-          child: _GlassCard(
-            padding: EdgeInsets.zero,
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 10,
+      if (subscription?.nodes.isNotEmpty == true) ...[
+        if (core?.isListening == true)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text('请先断开正在运行的代理再切换节点。',
+                style: TextStyle(color: _muted)),
+          ),
+        for (var i = 0; i < subscription!.nodes.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _GlassCard(
+              padding: EdgeInsets.zero,
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                title: Text(subscription!.nodes[i].name,
+                    style: TextStyle(color: _foreground)),
+                subtitle: Text(subscription!.nodes[i].protocol,
+                    style: TextStyle(color: _muted)),
+                trailing: subscription!.selectedIndex == i
+                    ? Icon(Icons.check_circle, color: _mint)
+                    : Icon(Icons.chevron_right, color: _blue),
+                onTap: core?.isListening == true ? null : () async {
+                  if (await subscription!.selectNode(i)) goHome();
+                },
               ),
-              leading: Text(node.flag,
-                style: TextStyle(fontSize: 29),
-              ),
-              title: Text('${node.country} · ${node.title}',
-                style: TextStyle(color: _foreground)),
-              subtitle: Text(
-                '${node.city} · 演示节点 · ${node.latency} ms（示意）',
-                style: TextStyle(color: _muted),
-              ),
-              trailing: demo.selected.id == node.id
-                  ? Icon(Icons.check_circle, color: _mint)
-                  : Icon(Icons.chevron_right, color: _blue),
-              onTap: () { demo.selectNode(node); goHome(); },
             ),
           ),
-        ),
+      ] else ...[
+        for (final node in VelaDemoNode.samples)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 11),
+            child: _GlassCard(
+              padding: EdgeInsets.zero,
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 10,
+                ),
+                leading: Text(node.flag, style: TextStyle(fontSize: 29)),
+                title: Text(node.country + ' · ' + node.title,
+                    style: TextStyle(color: _foreground)),
+                subtitle: Text(node.city + ' · 演示节点 · ' +
+                    node.latency.toString() + ' ms（示意）',
+                    style: TextStyle(color: _muted)),
+                trailing: demo.selected.id == node.id
+                    ? Icon(Icons.check_circle, color: _mint)
+                    : Icon(Icons.chevron_right, color: _blue),
+                onTap: () { demo.selectNode(node); goHome(); },
+              ),
+            ),
+          ),
+      ],
       SizedBox(height: 16),
-      Text('订阅导入和真实节点测速将随代理内核在后续版本实现。',
+      Text(subscription?.nodes.isNotEmpty == true
+          ? '真实延迟/下载测速尚未开发，不使用演示值冒充。'
+          : '请前往「设置」导入订阅后选择真实节点。',
           style: TextStyle(color: _muted)),
     ])),
   );
@@ -971,13 +1006,14 @@ class _SmartPage extends StatelessWidget {
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.demo, required this.settings, this.diagnostics, this.core,
-    this.subscription, required this.goHome,
+    this.subscription, this.connection, required this.goHome,
   });
   final VelaDemoController demo;
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
   final VelaSubscriptionController? subscription;
+  final VelaConnectionCoordinator? connection;
   final VoidCallback goHome;
 
   @override
@@ -985,14 +1021,15 @@ class _SettingsPage extends StatelessWidget {
     child: ListView(children: [
       _ScreenHeading('设置', '为 Vela-SHUO 定义你的使用方式'),
       SizedBox(height: 18),
-      _DemoTag(),
+      subscription?.selected != null ? _RealTag() : _DemoTag(),
       SizedBox(height: 24),
       if (core != null) ...[
         if (subscription != null) ...[
           VelaSubscriptionCard(controller: subscription!, core: core!),
           SizedBox(height: 16),
         ],
-        VelaCoreSettingsCard(controller: core!),
+        VelaCoreSettingsCard(controller: core!,
+          connection: connection),
         SizedBox(height: 16),
       ],
       _PalettePicker(settings: settings),
@@ -1021,8 +1058,8 @@ class _SettingsPage extends StatelessWidget {
         Divider(height: 1, color: _line),
         ListTile(
           leading: Icon(Icons.info_outline, color: _blue),
-          title: Text('Vela-SHUO v0.1.0'),
-          subtitle: Text('原创首页 UI 预览 · 无真实代理连接'),
+          title: Text('Vela-SHUO · Windows Beta'),
+          subtitle: Text('真实系统代理连接测试 · 尚非 TUN/VPN 全局代理'),
         ),
       ])),
       SizedBox(height: 16),
