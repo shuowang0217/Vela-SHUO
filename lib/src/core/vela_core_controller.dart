@@ -20,6 +20,38 @@ abstract class VelaCoreRunner {
   Future<bool> awaitLocalListener(int port);
 }
 
+/// Real HTTPS request through the local HTTP proxy. A listening TCP socket
+/// by itself is not evidence that an external node can reach the Internet.
+abstract class VelaRemoteProbe {
+  Future<bool> verify(int localPort);
+}
+
+class VelaHttpsRemoteProbe implements VelaRemoteProbe {
+  const VelaHttpsRemoteProbe();
+
+  @override
+  Future<bool> verify(int port) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 7)
+      ..findProxy = (_) => 'PROXY 127.0.0.1:$port';
+    try {
+      final request = await client.getUrl(
+        Uri.parse('https://cp.cloudflare.com/generate_204'),
+      ).timeout(const Duration(seconds: 9));
+      request.followRedirects = false;
+      final response = await request.close().timeout(
+        const Duration(seconds: 9),
+      );
+      await response.drain<void>();
+      return response.statusCode == 204;
+    } catch (_) {
+      return false; // No error text or credentials enter logs.
+    } finally {
+      client.close(force: true);
+    }
+  }
+}
+
 class _NativeHandle implements VelaCoreHandle {
   _NativeHandle(this.process);
   final Process process;
@@ -97,12 +129,19 @@ class VelaCoreController extends ChangeNotifier {
     bool? supported,
     String? bundledCorePath,
     Directory? managedProfileDirectory,
+    VelaRemoteProbe? remoteProbe,
   })  : _runner = runner ?? const VelaNativeCoreRunner(),
+        _remoteProbe = remoteProbe ?? const VelaHttpsRemoteProbe(),
         supported = supported ?? Platform.isWindows,
         _bundledCorePath = bundledCorePath,
         _managedProfileDirectory = managedProfileDirectory;
 
   final VelaCoreRunner _runner;
+  final VelaRemoteProbe _remoteProbe;
+  bool _remoteVerified = false;
+  bool _probing = false;
+  bool get remoteVerified => _remoteVerified;
+  bool get probing => _probing;
   final bool supported;
   final String? _bundledCorePath;
   final Directory? _managedProfileDirectory;
@@ -259,6 +298,7 @@ class VelaCoreController extends ChangeNotifier {
   };
 
   void _update(VelaCorePhase phase, [String? message]) {
+    if (phase != VelaCorePhase.listening) _remoteVerified = false;
     _phase = phase;
     _error = message;
     if (!_disposed) notifyListeners();
@@ -388,12 +428,36 @@ class VelaCoreController extends ChangeNotifier {
     return false;
   }
 
+  /// Verify that an external HTTPS endpoint is reached THROUGH the chosen
+  /// proxy with normal certificate validation, not through direct fallback.
+  Future<bool> verifyRemote() async {
+    if (!isListening || _directTestProfile || _probing || _disposed) {
+      return false;
+    }
+    final run = _generation;
+    _probing = true;
+    _remoteVerified = false;
+    if (!_disposed) notifyListeners();
+    bool success;
+    try {
+      success = await _remoteProbe.verify(_config!.localPort);
+    } catch (_) {
+      success = false;
+    }
+    if (_disposed || run != _generation || !isListening) return false;
+    _probing = false;
+    _remoteVerified = success;
+    if (!_disposed) notifyListeners();
+    return success;
+  }
+
   /// Stop owns only the process started by Vela-SHUO.
   /// It does not touch the user's existing system/network proxy settings.
   Future<void> stop() async {
     ++_generation;
     final handle = _process;
     _process = null;
+    _probing = false;
     if (handle == null) {
       _update(VelaCorePhase.idle);
       return;
