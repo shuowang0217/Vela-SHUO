@@ -66,7 +66,9 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   }
 
   Future<bool> connect() async {
-    if (_closed || _exitRequested || _operation || connected || proxy.active) return false;
+    if (_closed || _exitRequested || _operation || connected || proxy.active) {
+      return false;
+    }
     if (!available) {
       _emit(VelaRealPhase.error, '请先在设置中导入订阅并选择一个节点');
       return false;
