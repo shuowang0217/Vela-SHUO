@@ -32,12 +32,22 @@ class VelaCoreSettingsCard extends StatelessWidget {
           ]),
           const SizedBox(height: 8),
           Text(
-            '使用你自行提供的 sing-box.exe 与本地 JSON 配置。'
-            '程序不会上传配置、自动安装内核或修改 Windows 系统代理。',
+            controller.usingBundledCore
+              ? '已内置经 SHA-256 校验的官方 sing-box。'
+                '本地直连测试配置会自动创建；无需自行下载内核。'
+              : '未发现打包内核，可重新解压完整便携包，'
+                '或手动选择可信来源的 sing-box.exe。',
             style: TextStyle(color: theme.muted, fontSize: 12, height: 1.5),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '没有订阅或远程服务器时，只能进行本地直连测试，'
+            '不能实现连接其他国家的网络。',
+            style: TextStyle(color: theme.muted, fontSize: 12),
           ),
           const SizedBox(height: 15),
           Wrap(spacing: 10, runSpacing: 8, children: [
+            if (!controller.usingBundledCore)
             OutlinedButton.icon(
               key: const ValueKey('choose_core'),
               onPressed: canChange && controller.supported ? () async {
@@ -78,9 +88,25 @@ class VelaCoreSettingsCard extends StatelessWidget {
                 }
               } : null,
               icon: const Icon(Icons.description_outlined, size: 17),
-              label: Text(controller.hasConfig ? '配置已校验 ✓' : '选择 JSON 配置'),
+              label: Text(controller.hasConfig
+                  ? '导入其他 JSON' : '导入自己的线路配置'),
             ),
           ]),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            key: const ValueKey('reset_direct_profile'),
+            onPressed: canChange && controller.supported
+                ? controller.useLocalDirectProfile : null,
+            icon: const Icon(Icons.settings_backup_restore_rounded, size: 17),
+            label: const Text('恢复本地直连测试'),
+          ),
+          if (controller.directTestProfile) Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              '当前模式：仅本机直连测试（无远程节点）',
+              style: TextStyle(color: theme.muted, fontSize: 12),
+            ),
+          ),
           const SizedBox(height: 14),
           Text(controller.supported ? controller.phaseLabel
               : '当前平台不支持此 Windows 内核功能',
@@ -116,9 +142,9 @@ class VelaCoreSettingsCard extends StatelessWidget {
           ]),
           const SizedBox(height: 10),
           Text(
-            '仅验证内核运行与 127.0.0.1 端口监听；这不等于远程节点可用。'
-            '本预览版不接管浏览器或系统流量。'
-            '如需测试，请在支持手动代理的程序中自行配置上述地址。',
+            '本功能不自动接管浏览器或系统流量。'
+            '即使本地端口启动成功，也不等于具备海外线路；'
+            '后续将提供订阅导入与真正的一键连接。',
             style: TextStyle(fontSize: 11, height: 1.55, color: theme.muted),
           ),
         ]),
