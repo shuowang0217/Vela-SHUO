@@ -48,7 +48,7 @@ class VelaLocalCoreConfig {
       final secret = data['secret'];
       if (apiPort == null || apiPort < 1024 || apiPort > 65535 ||
           apiPort == port || secret is! String || secret.length < 32 ||
-          secret.length > 256 || !RegExp(r'^[a-fA-F0-9]+
+          secret.length > 256 || !RegExp(r'^[a-fA-F0-9]+$').hasMatch(secret)) {
         throw const FormatException('本机控制接口必须绑定 loopback 且启用密钥');
       }
       verifiedApiPort = apiPort;
@@ -63,6 +63,7 @@ class VelaLocalCoreConfig {
         groups is! List || rules is! List || rules.length != 1) {
       throw const FormatException('Mihomo 节点或规则字段不合法');
     }
+    List<String> names = const <String>[];
     if (rules.single == 'MATCH,DIRECT') {
       if (proxies.isNotEmpty || groups.isNotEmpty) {
         throw const FormatException('直连配置不能包含代理节点');
@@ -89,40 +90,10 @@ class VelaLocalCoreConfig {
     } else {
       throw const FormatException('仅支持直连或 VELA_SELECT 策略');
     }
-    return VelaLocalCoreConfig(localPort: port, inboundType: 'mixed');
-  }
-}
-).hasMatch(secret)) {
-        throw const FormatException('本机控制接口必须绑定 loopback 且启用密钥');
-      }
-    } else if (data.containsKey('secret')) {
-      throw const FormatException('未启用控制接口时不能配置 API 密钥');
-    }
-    final proxies = data['proxies'];
-    final groups = data['proxy-groups'];
-    final rules = data['rules'];
-    if (proxies is! List || proxies.length > 500 ||
-        groups is! List || rules is! List || rules.length != 1) {
-      throw const FormatException('Mihomo 节点或规则字段不合法');
-    }
-    if (rules.single == 'MATCH,DIRECT') {
-      if (proxies.isNotEmpty || groups.isNotEmpty) {
-        throw const FormatException('直连配置不能包含代理节点');
-      }
-    } else if (rules.single == 'MATCH,VELA_SELECT') {
-      if (proxies.isEmpty || groups.length != 1 ||
-          groups.single is! Map ||
-          groups.single['name'] != 'VELA_SELECT' ||
-          groups.single['type'] != 'select' ||
-          groups.single['proxies'] is! List ||
-          (groups.single['proxies'] as List).isEmpty ||
-          proxies.any((item) => item is! Map ||
-              item['name'] is! String || item['type'] is! String)) {
-        throw const FormatException('Mihomo 策略组或节点字段不合法');
-      }
-    } else {
-      throw const FormatException('仅支持直连或 VELA_SELECT 策略');
-    }
-    return VelaLocalCoreConfig(localPort: port, inboundType: 'mixed');
+    return VelaLocalCoreConfig(
+      localPort: port, inboundType: 'mixed',
+      apiPort: verifiedApiPort, apiSecret: verifiedSecret,
+      selectorNames: List.unmodifiable(names),
+    );
   }
 }
