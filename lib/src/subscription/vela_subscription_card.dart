@@ -61,10 +61,41 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
             const SizedBox(height: 8),
             Text(
               '在这里粘贴自己的 HTTPS 订阅链接，不需要发到聊天里。'
-              '只在点击导入时请求一次，不保存链接或上传账号信息。',
+              '只在点击导入时请求一次，不保存链接或上传账号信息。'
+              '建议先使用「自动」，订阅内容优先请求 Clash/Mihomo 格式。',
               style: TextStyle(color: colors.muted, fontSize: 12, height: 1.55),
             ),
             const SizedBox(height: 12),
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 6,
+              children: [
+                Text('订阅下载方式',
+                    style: TextStyle(color: colors.muted, fontSize: 12)),
+                DropdownButton<VelaSubscriptionDownloadMode>(
+                  key: const ValueKey('subscription_download_mode'),
+                  value: subscription.downloadMode,
+                  onChanged: busy ? null : (mode) {
+                    if (mode != null) subscription.setDownloadMode(mode);
+                  },
+                  items: const [
+                    DropdownMenuItem(
+                      value: VelaSubscriptionDownloadMode.automatic,
+                      child: Text('自动（系统代理优先，失败后直连）'),
+                    ),
+                    DropdownMenuItem(
+                      value: VelaSubscriptionDownloadMode.systemProxy,
+                      child: Text('仅使用 Windows 系统代理'),
+                    ),
+                    DropdownMenuItem(
+                      value: VelaSubscriptionDownloadMode.direct,
+                      child: Text('仅直连'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
             TextField(
               key: const ValueKey('subscription_url_input'),
               controller: _url,
