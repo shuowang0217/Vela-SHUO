@@ -95,7 +95,9 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                   key: const ValueKey('subscription_download_mode'),
                   value: subscription.downloadMode,
                   onChanged: busy ? null : (mode) {
-                    if (mode != null) subscription.setDownloadMode(mode);
+                    if (mode != null) {
+                      subscription.setDownloadMode(mode);
+                    }
                   },
                   items: const [
                     DropdownMenuItem(
@@ -150,7 +152,9 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                   await subscription.importFromUrl(value);
                 }
                 // Do not retain subscription access tokens in text input.
-                if (mounted) _url.clear();
+                if (mounted) {
+                  _url.clear();
+                }
               },
               icon: const Icon(Icons.download_rounded, size: 19),
               label: Text(subscription.loading ? '正在导入…' :
