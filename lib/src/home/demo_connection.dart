@@ -137,7 +137,7 @@ class VelaDemoController extends ChangeNotifier {
     phase = VelaPhase.connecting;
     notifyListeners();
     _transition = Timer(const Duration(milliseconds: 1350), () {
-      if (id != _generation) return;
+      if (id != _generation) { return; }
       phase = VelaPhase.connected;
       notifyListeners();
     });
