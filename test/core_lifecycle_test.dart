@@ -6,8 +6,9 @@ import 'package:vela_shuo/src/core/vela_core_controller.dart';
 
 const _config = '''
 {
-  "inbounds": [{"type":"mixed","listen":"127.0.0.1","listen_port":20808}],
-  "outbounds": [{"type":"direct"}]
+  "mixed-port":20808,"bind-address":"127.0.0.1","allow-lan":false,
+  "ipv6":false,"mode":"rule","proxies":[],"proxy-groups":[],
+  "rules":["MATCH,DIRECT"]
 }''';
 
 class _FakeHandle implements VelaCoreHandle {
@@ -58,7 +59,7 @@ class _FakeRunner implements VelaCoreRunner {
 
 Future<(VelaCoreController, Directory)> _setup(_FakeRunner runner) async {
   final folder = await Directory.systemTemp.createTemp('vela_core_test_');
-  final core = File('${folder.path}/sing-box.exe');
+  final core = File('${folder.path}/mihomo.exe');
   final config = File('${folder.path}/profile.json');
   await core.writeAsString('fake-executable');
   await config.writeAsString(_config);

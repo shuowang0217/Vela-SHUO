@@ -8,7 +8,7 @@ void main() {
       () async {
     final sandbox = await Directory.systemTemp.createTemp('vela_first_run_');
     addTearDown(() => sandbox.delete(recursive: true));
-    final exe = File('${sandbox.path}/sing-box.exe');
+    final exe = File('${sandbox.path}/mihomo.exe');
     await exe.writeAsString('dummy for test only');
     final profiles = Directory('${sandbox.path}/profiles');
     final core = VelaCoreController(
@@ -25,8 +25,8 @@ void main() {
     expect(core.isListening, isFalse); // absolutely no auto-start
     final file = File('${profiles.path}/local-direct.json');
     final source = await file.readAsString();
-    expect(source, contains('"type": "direct"'));
-    expect(source, contains('"listen": "127.0.0.1"'));
+    expect(source, contains('"MATCH,DIRECT"'));
+    expect(source, contains('"bind-address": "127.0.0.1"'));
     expect(source, isNot(contains('password')));
     expect(source, isNot(contains('server":')));
     // Reinitializing must not launch, change active state or download.
@@ -40,7 +40,7 @@ void main() {
     addTearDown(() => dir.delete(recursive: true));
     final controller = VelaCoreController(
       supported: true,
-      bundledCorePath: '${dir.path}/missing/sing-box.exe',
+      bundledCorePath: '${dir.path}/missing/mihomo.exe',
       managedProfileDirectory: Directory('${dir.path}/profiles'),
     );
     await controller.initialize();

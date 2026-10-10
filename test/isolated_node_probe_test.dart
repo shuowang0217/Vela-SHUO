@@ -82,7 +82,7 @@ void main() {
     final runner = _Runner();
     final https = _Https();
     final probe = VelaIsolatedNodeProbe(
-      coreBinary: 'sing-box.exe', runner: runner,
+      coreBinary: 'mihomo.exe', runner: runner,
       httpsProbe: https, tempRoot: root,
     );
     final sample = await probe.measure(node);
@@ -100,7 +100,7 @@ void main() {
     addTearDown(() => root.delete(recursive: true));
     final runner = _Runner()..checkFails = true;
     final probe = VelaIsolatedNodeProbe(
-      coreBinary: 'sing-box.exe', runner: runner,
+      coreBinary: 'mihomo.exe', runner: runner,
       httpsProbe: _Https(), tempRoot: root,
     );
     final result = await probe.measure(node);
@@ -116,7 +116,7 @@ void main() {
     final download = _Download();
     final runner = _Runner();
     final probe = VelaIsolatedNodeProbe(
-      coreBinary: 'sing-box.exe', runner: runner,
+      coreBinary: 'mihomo.exe', runner: runner,
       httpsProbe: _Https(), downloadTransport: download, tempRoot: root,
     );
     final result = await probe.measureDownload(node);

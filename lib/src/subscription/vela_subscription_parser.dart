@@ -383,20 +383,4 @@ class VelaSubscriptionParser {
     );
   }
 
-  static String buildConfig(VelaSubscriptionNode node, {int port = 20808}) {
-    if (port < 1024 || port > 65535) {
-      throw const FormatException('本地端口无效');
-    }
-    // Apply only the outbound for the selected node, not arbitrary inbound,
-    // DNS or system-route settings from the subscription document.
-    return jsonEncode({
-      'log': {'level': 'warn'},
-      'inbounds': [
-        {'type': 'mixed', 'tag': 'vela-local',
-          'listen': '127.0.0.1', 'listen_port': port},
-      ],
-      'outbounds': [node.outbound, {'type':'direct', 'tag':'direct'}],
-      'route': {'final': 'selected'},
-    });
-  }
 }

@@ -33,17 +33,17 @@ class VelaCoreSettingsCard extends StatelessWidget {
           Row(children: [
             Icon(Icons.settings_ethernet_rounded, color: theme.accent),
             const SizedBox(width: 10),
-            Expanded(child: Text('本地代理内核 · v0.2 Alpha',
+            Expanded(child: Text('Mihomo 代理内核',
               style: TextStyle(color: theme.text, fontSize: 17,
                 fontWeight: FontWeight.w600))),
           ]),
           const SizedBox(height: 8),
           Text(
             controller.usingBundledCore
-              ? '已内置经 SHA-256 校验的官方 sing-box。'
+              ? '已内置经 SHA-256 校验的官方 Mihomo。'
                 '本地直连测试配置会自动创建；无需自行下载内核。'
               : '未发现打包内核，可重新解压完整便携包，'
-                '或手动选择可信来源的 sing-box.exe。',
+                '或手动选择可信来源的 mihomo.exe。',
             style: TextStyle(color: theme.muted, fontSize: 12, height: 1.5),
           ),
           const SizedBox(height: 6),
@@ -60,7 +60,7 @@ class VelaCoreSettingsCard extends StatelessWidget {
               onPressed: canChange && controller.supported ? () async {
                 try {
                   final file = await openFile(acceptedTypeGroups: [
-                    const XTypeGroup(label:'sing-box.exe', extensions:['exe']),
+                    const XTypeGroup(label:'mihomo.exe', extensions:['exe']),
                   ]);
                   if (file != null) {
                     await controller.chooseBinary(file.path);
@@ -74,7 +74,7 @@ class VelaCoreSettingsCard extends StatelessWidget {
                 }
               } : null,
               icon: const Icon(Icons.memory_rounded, size: 17),
-              label: Text(controller.hasCore ? '已选择内核 ✓' : '选择 sing-box.exe'),
+              label: Text(controller.hasCore ? '已选择内核 ✓' : '选择 mihomo.exe'),
             ),
             OutlinedButton.icon(
               key: const ValueKey('choose_json'),

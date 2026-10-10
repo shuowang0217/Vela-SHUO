@@ -73,7 +73,7 @@ Future<(VelaConnectionCoordinator, Directory, _Runner, _Probe, _Backend,
     VelaSubscriptionController, VelaCoreController, VelaSystemProxyManager)>
     _setup() async {
   final dir = await Directory.systemTemp.createTemp('vela_real_conn_');
-  final exe = File(dir.path + '/sing-box.exe');
+  final exe = File(dir.path + '/mihomo.exe');
   await exe.writeAsString('dummy');
   final runner = _Runner();
   final probe = _Probe(true);

@@ -49,7 +49,7 @@ void main() {
         .readAsString();
     expect(generated, contains('super-private'));
     expect(generated, isNot(contains(secretUrl)));
-    expect(generated, contains('"selected"'));
+    expect(generated, contains('"VELA_SELECT"'));
     sub.dispose();
     core.dispose();
   });

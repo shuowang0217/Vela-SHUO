@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:vela_shuo/src/app.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
-import 'package:vela_shuo/src/mihomo/vela_mihomo_lab_controller.dart';
 import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 
@@ -13,7 +12,6 @@ void main() {
   final diagnostics = VelaDiagnostics();
   final core = VelaCoreController();
   final systemProxy = VelaSystemProxyManager();
-  final mihomoLab = VelaMihomoLabController();
 
   // Initialize the binding inside the same error zone as the application.
   runZonedGuarded(() async {
@@ -36,9 +34,8 @@ void main() {
     // Recover a previous app-owned proxy before any new core can start.
     await systemProxy.recover();
     await core.initialize(); // Does not automatically start a proxy.
-    await mihomoLab.initialize(); // No Windows proxy, no core process started.
     runApp(VelaShuoApp(settings: settings, diagnostics: diagnostics,
-      core: core, systemProxy: systemProxy, mihomoLab: mihomoLab));
+      core: core, systemProxy: systemProxy));
   }, (error, stack) {
     diagnostics.record(VelaDiagnosticEvent.uncaughtError);
   });

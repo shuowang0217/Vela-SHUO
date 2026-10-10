@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_parser.dart';
+import 'package:vela_shuo/src/mihomo/vela_mihomo_config.dart';
 
 const _clashYaml = '''
 proxies:
@@ -58,8 +59,9 @@ void main() {
     expect(transport['type'], 'ws');
     expect(transport['path'], '/hello');
     expect((transport['headers'] as Map)['Host'], 'edge.example.test');
-    expect(jsonDecode(VelaSubscriptionParser.buildConfig(result.nodes.last))
-        ['route']['final'], 'selected');
+    expect(jsonDecode(const VelaMihomoConfigBuilder().build(result.nodes,
+      selectedIndex: 2, secret: 'a' * 64, apiPort: null,
+      proxyPort: 20808).configText)['rules'], ['MATCH,VELA_SELECT']);
   });
 
   test('sing-box JSON imports only independent secure outbounds', () {
@@ -83,11 +85,12 @@ void main() {
     expect(parsed.format, 'sing-box JSON');
     expect(parsed.nodes.single.name, 'SG-01');
     expect(parsed.skipped, 3);
-    final config = jsonDecode(
-        VelaSubscriptionParser.buildConfig(parsed.nodes.single));
-    expect(config['inbounds'][0]['listen'], '127.0.0.1');
-    expect(config['outbounds'][0]['type'], 'shadowsocks');
-    expect(config['route']['final'], 'selected');
+    final config = jsonDecode(const VelaMihomoConfigBuilder().build(
+      parsed.nodes, selectedIndex: 0, secret: 'a' * 64,
+      proxyPort: 20808, apiPort: null).configText);
+    expect(config['bind-address'], '127.0.0.1');
+    expect(config['proxies'][0]['type'], 'ss');
+    expect(config['rules'], ['MATCH,VELA_SELECT']);
     expect(config.toString(), isNot(contains('insecure')));
   });
 
