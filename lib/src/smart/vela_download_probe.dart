@@ -7,6 +7,8 @@ class VelaDownloadSample {
   const VelaDownloadSample({required this.ok, this.mbps, this.bytes = 0});
   final bool ok;
   final double? mbps;
+  /// Decimal MB/s, matching the user's FlClash-Custom ranking unit.
+  double? get megabytesPerSecond => mbps == null ? null : mbps! / 8;
   final int bytes;
 }
 
