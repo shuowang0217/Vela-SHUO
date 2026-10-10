@@ -108,20 +108,20 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
         '未检测到本机 Windows HTTP 系统代理；请在现有代理软件中开启系统代理',
       );
     }
-    // Reject known-private host DNS answers. An explicit localhost HTTP
-    // proxy may do its own DNS, so a local DNS lookup failure is tolerated.
-    try {
-      if (dnsCheck != null) {
-        await dnsCheck!(uri.host);
-      } else {
-        await _checkDns(uri.host);
-      }
-    } on SocketException {
-      if (proxy == null) {
+    // If a trusted localhost HTTP proxy is configured, let it resolve the
+    // hostname. Clash/Mihomo Fake-IP DNS often returns 198.18.0.0/15, which
+    // must not be mistaken for an actual subscription host. When using
+    // DIRECT, all DNS answers must still be public.
+    if (proxy == null) {
+      try {
+        if (dnsCheck != null) {
+          await dnsCheck!(uri.host);
+        } else {
+          await _checkDns(uri.host);
+        }
+      } on SocketException {
         throw const FormatException('订阅域名无法解析，请检查 DNS 或使用系统代理');
-      }
-    } on TimeoutException {
-      if (proxy == null) {
+      } on TimeoutException {
         throw const FormatException('订阅域名解析超时，请检查 DNS 或使用系统代理');
       }
     }
