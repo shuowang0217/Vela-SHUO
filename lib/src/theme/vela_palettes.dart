@@ -121,7 +121,7 @@ class VelaPalette {
       surface: surface,
       raised: Color.lerp(surface, dark ? Colors.white : Colors.black,
           dark ? .055 : .045)!,
-      line: Color.lerp(background, dark ? Colors.white : deep,
+      line: Color.lerp(background, dark ? Colors.white : Colors.black,
           dark ? .24 : .17)!,
       accent: accent,
       accentSoft: Color.lerp(accent, dark ? Colors.white : Colors.black,
