@@ -3,18 +3,14 @@ import 'package:flutter/material.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../theme/vela_palettes.dart';
 import 'vela_smart_controller.dart';
+import 'vela_smart_country.dart';
 
-/// Full subscription benchmark view. No demo delays or fake bandwidth.
 class VelaSmartPanel extends StatefulWidget {
   const VelaSmartPanel({
-    super.key,
-    required this.engine,
-    required this.subscription,
+    super.key, required this.engine, required this.subscription,
   });
-
   final VelaSmartController engine;
   final VelaSubscriptionController subscription;
-
   @override
   State<VelaSmartPanel> createState() => _VelaSmartPanelState();
 }
@@ -22,18 +18,50 @@ class VelaSmartPanel extends StatefulWidget {
 class _VelaSmartPanelState extends State<VelaSmartPanel> {
   int _shown = 40;
 
+  Future<void> _run() async {
+    final smart = widget.engine;
+    if (!smart.canTestAll) { return; }
+    final count = smart.aiMode
+        ? widget.subscription.nodes.where(
+            (n) => velaSmartCountryMatches(n.name, smart.country)).length
+        : smart.count;
+    if (count > 50) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('确认全节点测速流量'),
+          content: Text('本轮预计测试 ' + count.toString() +
+              ' 个节点，每个约下载 1 MiB，总共约 ' +
+              count.toString() + ' MiB（另有协议开销）。仍要开始吗？'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialog).pop(false),
+                child: const Text('取消')),
+            FilledButton(onPressed: () => Navigator.of(dialog).pop(true),
+                child: const Text('开始测速')),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) { return; }
+    }
+    await smart.testAllNodes();
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: Listenable.merge([widget.engine, widget.subscription]),
     builder: (context, _) {
-      final engine = widget.engine;
-      final subscription = widget.subscription;
+      final e = widget.engine;
+      final s = widget.subscription;
       final theme = VelaThemeRuntime.active;
-      final selected = subscription.selectedIndex;
-      final preferred = engine.recommendedIndex;
-      final available = engine.count;
-      final ranked = engine.sortedIndices.take(_shown).toList();
-
+      final selected = s.selectedIndex;
+      final rank = e.sortedIndices.take(_shown).toList();
+      final speed = selected == null
+          ? null : e.downloadAt(selected)?.megabytesPerSecond;
+      final last = e.lastScan;
+      final checkedAt = last == null ? '—'
+          : last.month.toString() + '/' + last.day.toString() + ' ' +
+            last.hour.toString().padLeft(2, '0') + ':' +
+            last.minute.toString().padLeft(2, '0');
       return Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
@@ -44,206 +72,187 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('SHUO Smart Engine · 全节点测速',
-              style: TextStyle(color: theme.text,
-                fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 7),
-            Text(
-              '一键检测整份订阅。独立临时代理发送真实 HTTPS 请求，'
-              '每次最多同时检测两个节点，不更改当前 Windows 系统代理。',
-              style: TextStyle(fontSize: 12, height: 1.5,
-                color: theme.muted),
-            ),
-            const SizedBox(height: 13),
+            Text('SHUO Smart · FlClash 定制优选',
+                style: TextStyle(color: theme.text,
+                    fontWeight: FontWeight.w600, fontSize: 17)),
+            const SizedBox(height: 8),
+            Text('当前节点：' + (s.selected?.name ?? '未选择') +
+                '  ·  下载速度：' +
+                (speed == null ? '—' : speed.toStringAsFixed(2) + ' MB/s'),
+                style: TextStyle(color: theme.muted, fontSize: 12)),
+            Text('最近检测：' + checkedAt +
+                '  ·  状态：' + (e.manualHold
+                    ? '手动保持' : e.autoPickWhenIdle
+                    ? '自动优选' : '手动优选'),
+                style: TextStyle(color: theme.muted, fontSize: 12)),
+            const SizedBox(height: 12),
             SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
               key: const ValueKey('smart_auto_pick'),
-              title: Text('空闲时自动选择优选节点',
+              contentPadding: EdgeInsets.zero,
+              value: e.autoPickWhenIdle,
+              title: Text('启用智能优选',
                   style: TextStyle(color: theme.text)),
-              subtitle: Text('仅断开状态下更换所选节点，不自动建立或中断连接',
-                  style: TextStyle(fontSize: 11, color: theme.muted)),
-              value: engine.autoPickWhenIdle,
-              onChanged: engine.setAutoPick,
+              subtitle: Text('每10分钟检查 · 下载速度提升至少20%才考虑改选',
+                  style: TextStyle(color: theme.muted, fontSize: 11)),
+              onChanged: e.setAutoPick,
             ),
-            const SizedBox(height: 7),
-            Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
+            SwitchListTile.adaptive(
+              key: const ValueKey('smart_ai_mode'),
+              contentPadding: EdgeInsets.zero,
+              value: e.aiMode,
+              title: Text('AI 模式 · 单国家优选',
+                  style: TextStyle(color: theme.text)),
+              subtitle: Text('只筛选所选国家，首次优选不受20%限制',
+                  style: TextStyle(color: theme.muted, fontSize: 11)),
+              onChanged: e.setAiMode,
+            ),
+            if (e.aiMode) Wrap(
+              spacing: 12, crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Text('自动健康检查', style:
-                    TextStyle(color: theme.muted, fontSize: 12)),
-                DropdownButton<int>(
-                  key: const ValueKey('smart_schedule_interval'),
-                  value: engine.scheduledMinutes,
-                  items: const [
-                    DropdownMenuItem(value: 0, child: Text('关闭')),
-                    DropdownMenuItem(value: 15, child: Text('每15分钟')),
-                    DropdownMenuItem(value: 30, child: Text('每30分钟')),
-                    DropdownMenuItem(value: 60, child: Text('每60分钟')),
+                Text('固定国家/地区',
+                    style: TextStyle(color: theme.muted, fontSize: 12)),
+                DropdownButton<String>(
+                  key: const ValueKey('smart_country'),
+                  value: e.country,
+                  items: [
+                    for (final item in velaSmartCountries.entries)
+                      DropdownMenuItem(
+                          value: item.key, child: Text(item.value)),
                   ],
-                  onChanged: (value) {
-                    if (value != null) { engine.setScheduledMinutes(value); }
+                  onChanged: (v) {
+                    if (v != null) { e.setCountry(v); }
                   },
                 ),
               ],
             ),
-            Text('仅在软件运行且未连接时，每次检查下一批最多8个节点。',
-                style: TextStyle(color: theme.muted, fontSize: 11)),
-            const SizedBox(height: 10),
-            Wrap(spacing: 9, runSpacing: 9, children: [
-              FilledButton.icon(
-                key: const ValueKey('smart_measure_all'),
-                onPressed: engine.canTestAll ? engine.testAllNodes : null,
-                icon: const Icon(Icons.travel_explore_rounded, size: 18),
-                label: const Text('一键测速全部节点'),
-              ),
-              if (engine.scanning)
-                OutlinedButton.icon(
-                  key: const ValueKey('smart_cancel_scan'),
-                  onPressed: engine.cancelling ? null : engine.cancelScan,
-                  icon: const Icon(Icons.stop_circle_outlined, size: 18),
-                  label: Text(engine.cancelling ? '正在停止…' : '停止测速'),
+            if (e.manualHold)
+              Row(children: [
+                Expanded(child: Text('已手动锁定，自动切换暂停',
+                    style: TextStyle(color: theme.muted, fontSize: 11))),
+                TextButton.icon(
+                  key: const ValueKey('smart_resume_auto'),
+                  onPressed: e.resumeAutoSelection,
+                  icon: const Icon(Icons.play_arrow, size: 17),
+                  label: const Text('恢复自动优选'),
                 ),
-              OutlinedButton.icon(
-                key: const ValueKey('smart_measure_batch'),
-                onPressed: engine.scanning || !engine.core.hasCore ||
-                    engine.connection.busy ||
-                    engine.connection.proxy.active ||
-                    engine.core.isListening || available == 0
-                    ? null : engine.testNextBatch,
-                icon: const Icon(Icons.speed_rounded, size: 18),
-                label: const Text('测试下一批（最多8个）'),
-              ),
-              OutlinedButton.icon(
-                key: const ValueKey('smart_download_selected'),
-                onPressed: engine.canTestSelectedDownload
-                    ? engine.testSelectedDownload : null,
-                icon: const Icon(Icons.download_rounded, size: 18),
-                label: Text(engine.downloading
-                    ? '正在测试下载速度…' : '测所选节点下载速度（1 MiB）'),
-              ),
-              OutlinedButton.icon(
-                key: const ValueKey('smart_use_recommended'),
-                onPressed: engine.canRecommend
-                    ? engine.useRecommended : null,
-                icon: const Icon(Icons.auto_awesome_rounded, size: 18),
-                label: const Text('选择推荐节点'),
-              ),
-            ]),
-            const SizedBox(height: 12),
-            if (engine.scanning || engine.total > 0) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(5),
-                child: LinearProgressIndicator(
-                  key: const ValueKey('smart_scan_progress'),
-                  value: engine.total == 0
-                      ? 0 : engine.scanned / engine.total,
-                  minHeight: 7,
-                ),
-              ),
-              const SizedBox(height: 7),
-              Wrap(spacing: 12, runSpacing: 4, children: [
-                Text('进度 ${engine.scanned} / ${engine.total}',
-                    style: TextStyle(color: theme.text, fontSize: 12)),
-                Text('成功 ${engine.successful}',
-                    style: TextStyle(color: theme.accent, fontSize: 12)),
-                Text('失败 ${engine.failed}',
-                    style: TextStyle(color: theme.muted, fontSize: 12)),
-                Text('剩余 ${engine.total - engine.scanned}',
-                    style: TextStyle(color: theme.muted, fontSize: 12)),
               ]),
-              const SizedBox(height: 8),
-            ],
-            if (engine.downloadStatus != null) ...[
-              Text(engine.downloadStatus!,
-                style: TextStyle(color: theme.muted, fontSize: 12)),
-              const SizedBox(height: 7),
-            ],
-            Text(engine.status ?? (available == 0
-                ? '请先在「设置」页面导入订阅。'
-                : '尚未测速 · 总计 $available 个节点'),
-              style: TextStyle(color: theme.muted, fontSize: 12)),
-            const SizedBox(height: 8),
-            Text('可在保持连接时测速，但不切换当前线路。'
-              '改选仍需满足3分钟冷却、改善至少20%且50ms的门槛。',
-              style: TextStyle(color: theme.muted, fontSize: 11)),
-            const SizedBox(height: 15),
-            Divider(color: theme.line),
-            const SizedBox(height: 9),
-            Row(children: [
-              Expanded(child: Text('全部节点（按实测结果排序）',
-                style: TextStyle(color: theme.muted, fontSize: 12))),
-              Text('HTTPS 耗时 / 结果',
-                style: TextStyle(color: theme.muted, fontSize: 12)),
-            ]),
-            const SizedBox(height: 7),
-            for (final i in ranked)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Row(children: [
-                  if (preferred == i)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: Icon(Icons.stars_rounded,
-                        size: 15, color: theme.accent),
-                    ),
-                  Expanded(child: Text(subscription.nodes[i].name,
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: theme.text, fontSize: 12,
-                      fontWeight: selected == i
-                          ? FontWeight.bold : FontWeight.normal,
-                    ))),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(_label(engine.resultAt(i)),
-                        style: TextStyle(
-                          color: engine.resultAt(i)?.reachable == true
-                              ? theme.accent : theme.muted,
-                          fontSize: 12,
-                        )),
-                      if (engine.downloadAt(i) != null)
-                        Text(engine.downloadAt(i)?.mbps != null
-                          ? '${engine.downloadAt(i)!.mbps!.toStringAsFixed(1)} Mbps · 1 MiB'
-                          : '下载样本失败',
-                          style: TextStyle(color: theme.muted, fontSize: 10)),
-                    ],
-                  ),
-                ]),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const ValueKey('smart_measure_all'),
+                onPressed: e.canTestAll ? _run : null,
+                icon: const Icon(Icons.speed_rounded, size: 19),
+                label: Text(e.scanning ? '测速进行中…'
+                    : '一键测速 · 全节点延迟 + 下载速度'),
               ),
-            if (available > ranked.length)
+            ),
+            if (e.scanning) Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                key: const ValueKey('smart_cancel_scan'),
+                onPressed: e.cancelling ? null : e.cancelScan,
+                icon: const Icon(Icons.stop_circle_outlined, size: 17),
+                label: Text(e.cancelling ? '正在停止…' : '停止测速'),
+              ),
+            ),
+            if (e.scanning || e.total > 0) ...[
+              const SizedBox(height: 10),
+              LinearProgressIndicator(
+                key: const ValueKey('smart_scan_progress'),
+                value: e.total == 0 ? 0 : e.scanned / e.total,
+                minHeight: 7,
+              ),
+              const SizedBox(height: 7),
+              Text('已测 ' + e.scanned.toString() + '/' +
+                  e.total.toString() + ' · 成功 ' +
+                  e.successful.toString() + ' · 失败 ' +
+                  e.failed.toString(),
+                  style: TextStyle(color: theme.muted, fontSize: 12)),
+            ],
+            const SizedBox(height: 10),
+            Text(e.status ?? '点击一次同时测所有节点的延迟与下载速度；'
+                '当前连接不会被测速断开。',
+                style: TextStyle(color: theme.muted, fontSize: 12)),
+            const SizedBox(height: 14),
+            Divider(color: theme.line),
+            const SizedBox(height: 6),
+            Row(children: [
+              Expanded(child: Text('速度排行榜',
+                  style: TextStyle(color: theme.text,
+                      fontWeight: FontWeight.w600))),
+              Text('下载 MB/s · 延迟 ms',
+                  style: TextStyle(color: theme.muted, fontSize: 11)),
+            ]),
+            const SizedBox(height: 6),
+            for (final i in rank) Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(children: [
+                if (e.recommendedIndex == i)
+                  Icon(Icons.stars_rounded, size: 16, color: theme.accent),
+                Expanded(child: Text(s.nodes[i].name, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: theme.text, fontSize: 12,
+                      fontWeight: selected == i
+                          ? FontWeight.bold : FontWeight.normal))),
+                const SizedBox(width: 8),
+                Text(_measure(e, i),
+                  style: TextStyle(fontSize: 11,
+                      color: e.downloadAt(i)?.ok == true
+                          ? theme.accent : theme.muted)),
+              ]),
+            ),
+            if (e.count > rank.length)
               TextButton.icon(
                 key: const ValueKey('smart_show_more'),
                 onPressed: () => setState(() {
-                  _shown = _shown + 40 < available ? _shown + 40 : available;
+                  _shown = (_shown + 40).clamp(40, e.count);
                 }),
-                icon: const Icon(Icons.expand_more_rounded, size: 18),
-                label: Text('显示更多（剩余 ${available - ranked.length} 个）'),
+                icon: const Icon(Icons.expand_more, size: 17),
+                label: Text('显示更多（剩余 ' +
+                    (e.count - rank.length).toString() + ' 个）'),
               ),
-            if (_shown > 40)
-              TextButton.icon(
-                key: const ValueKey('smart_collapse_results'),
-                onPressed: () => setState(() { _shown = 40; }),
-                icon: const Icon(Icons.expand_less_rounded, size: 18),
-                label: const Text('收起结果'),
+            if (_shown > 40) TextButton(
+              key: const ValueKey('smart_collapse_results'),
+              onPressed: () => setState(() { _shown = 40; }),
+              child: const Text('收起结果'),
+            ),
+            if (e.history.isNotEmpty)
+              ExpansionTile(
+                key: const ValueKey('smart_selection_history'),
+                tilePadding: EdgeInsets.zero,
+                title: Text('优选与手动切换记录',
+                    style: TextStyle(color: theme.text, fontSize: 12)),
+                children: [
+                  for (final entry in e.history.take(20))
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text(entry, style:
+                            TextStyle(color: theme.muted, fontSize: 11)),
+                      ),
+                    ),
+                ],
               ),
-            const SizedBox(height: 12),
-            Text('HTTPS 延迟与下载样本分开计量。下载测速只对所选节点'
-              '下载1 MiB 数据，结果不是持续带宽保证。自动健康检查不会下载文件。',
-              style: TextStyle(color: theme.muted, fontSize: 11, height: 1.5)),
+            const SizedBox(height: 10),
+            Text('测速下载每节点约1 MiB；使用 HTTPS 完整请求计时。'
+                 '自动模式只在空闲时更新所选节点，'
+                 '暂不支持 sing-box 在线无缝热切换。',
+                style: TextStyle(color: theme.muted, fontSize: 11)),
           ],
         ),
       );
     },
   );
 
-  static String _label(VelaNodeHealth? health) {
-    if (health == null) { return '未测试'; }
-    if (!health.reachable) {
-      return '失败 ×${health.consecutiveFailures}';
-    }
-    return '${health.lastMs} ms';
+  static String _measure(VelaSmartController e, int i) {
+    final delay = e.resultAt(i)?.lastMs;
+    final download = e.downloadAt(i);
+    if (delay == null && download == null) { return '未测试'; }
+    final speed = download?.megabytesPerSecond;
+    return (speed == null || speed <= 0
+        ? '下载失败' : speed.toStringAsFixed(2) + ' MB/s') +
+        ' · ' + (delay == null ? '—' : delay.toString() + ' ms');
   }
 }
