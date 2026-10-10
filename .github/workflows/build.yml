@@ -2,7 +2,7 @@ name: Vela-SHUO CI - Windows and Android Preview
 
 on:
   push:
-    branches: [main, feature/android-apk-preview]
+    branches: [main, feature/secure-subscription-vault]
   pull_request:
   workflow_dispatch:
 

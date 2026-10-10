@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import '../core/vela_core_controller.dart';
 import '../mihomo/vela_mihomo_config.dart';
 import 'vela_subscription_parser.dart';
+import 'vela_subscription_vault.dart';
 import 'vela_windows_proxy_detector.dart';
 
 /// The subscription is fetched only after the user explicitly requests it.
@@ -221,9 +222,17 @@ class VelaSubscriptionController extends ChangeNotifier {
     VelaSubscriptionFetcher? fetcher,
     required this.core,
     this.previewOnly = false,
-  }) : _fetcher = fetcher ?? const VelaHttpsSubscriptionFetcher();
+    VelaSubscriptionVault? vault,
+  }) : _vault = vault ?? VelaDeviceSubscriptionVault(),
+       _fetcher = fetcher ?? const VelaHttpsSubscriptionFetcher();
 
   final VelaSubscriptionFetcher _fetcher;
+  final VelaSubscriptionVault _vault;
+  String? _source;
+  bool _stored = false;
+  bool _vaultBusy = false;
+  bool get storedOnDevice => _stored;
+  bool get vaultBusy => _vaultBusy;
   /// Preview-only node browsing; never starts a proxy or VPN.
   final bool previewOnly;
   final VelaCoreController core;
@@ -251,6 +260,7 @@ class VelaSubscriptionController extends ChangeNotifier {
   int? get selectedIndex => _selected;
   String? get error => _error;
   bool get loading => _phase == VelaSubscriptionPhase.loading;
+  bool get canSave => _source != null && !loading && !_vaultBusy;
   String? configuredNameFor(int index) => _preparedProfile?.nameFor(index);
 
   /// The coordinator calls this only after the live API confirms the
@@ -284,6 +294,8 @@ class VelaSubscriptionController extends ChangeNotifier {
     _result = null;
     _preparedProfile = null;
     _selected = null;
+    _source = null;
+    _stored = false;
     final generation = ++_generation;
     _notify();
     try {
@@ -291,6 +303,8 @@ class VelaSubscriptionController extends ChangeNotifier {
       if (generation != _generation || _disposed) {
         return false;
       }
+      _source = source;
+      _stored = false;
       _result = parsed;
       _phase = VelaSubscriptionPhase.ready;
       _notify();
@@ -318,6 +332,8 @@ class VelaSubscriptionController extends ChangeNotifier {
     _result = null;
     _preparedProfile = null;
     _selected = null;
+    _source = null;
+    _stored = false;
     final generation = ++_generation;
     _notify();
     try {
@@ -328,6 +344,8 @@ class VelaSubscriptionController extends ChangeNotifier {
       final raw = await activeFetcher.download(url);
       final parsed = VelaSubscriptionParser.parse(raw);
       if (generation != _generation || _disposed) { return false; }
+      _source = raw;
+      _stored = false;
       _result = parsed;
       _phase = VelaSubscriptionPhase.ready;
       _notify();
@@ -378,12 +396,109 @@ class VelaSubscriptionController extends ChangeNotifier {
     return ok;
   }
 
+  /// Loads an encrypted, explicitly saved snapshot; never fetches a URL,
+  /// silently enables Windows proxy, or starts an Android VPN.
+  Future<bool> restoreSaved() async {
+    if (_disposed || loading || _vaultBusy ||
+        core.busy || core.isListening || nodes.isNotEmpty) return false;
+    _vaultBusy = true;
+    _phase = VelaSubscriptionPhase.loading;
+    final generation = ++_generation;
+    _notify();
+    try {
+      final encoded = await _vault.read().timeout(const Duration(seconds: 6));
+      if (_disposed || generation != _generation) return false;
+      if (encoded == null) {
+        _phase = VelaSubscriptionPhase.idle;
+        return false;
+      }
+      if (utf8.encode(encoded).length > VelaSubscriptionParser.maxBytes + 512) {
+        throw const FormatException('存档过大');
+      }
+      final obj = jsonDecode(encoded);
+      if (obj is! Map<String, dynamic> ||
+          obj['v'] != 1 || obj['raw'] is! String) {
+        throw const FormatException('存档版本或格式无效');
+      }
+      final raw = obj['raw'] as String;
+      final parsed = VelaSubscriptionParser.parse(raw);
+      if (_disposed || generation != _generation) return false;
+      _source = raw;
+      _result = parsed;
+      _selected = null;
+      _phase = VelaSubscriptionPhase.ready;
+      _stored = true;
+      final index = obj['selected'];
+      _notify();
+      if (index is int && index >= 0 && index < nodes.length) {
+        // Rebuild an ephemeral controller secret, but NEVER start the core.
+        await selectNode(index);
+      }
+      return true;
+    } catch (_) {
+      if (!_disposed && generation == _generation) {
+        _phase = VelaSubscriptionPhase.failed;
+        _error = '加密订阅恢复失败，请重新导入或清除本机存档';
+      }
+      return false;
+    } finally {
+      _vaultBusy = false;
+      _notify();
+    }
+  }
+
+  /// Only called after a direct user action. Never write the subscription
+  /// URL, only the validated source body and currently selected index.
+  Future<bool> saveOnDevice() async {
+    final source = _source;
+    if (_disposed || _vaultBusy || loading || source == null) return false;
+    _vaultBusy = true;
+    _notify();
+    try {
+      final snapshot = jsonEncode(<String, dynamic>{
+        'v': 1, 'raw': source, 'selected': _selected,
+      });
+      await _vault.write(snapshot).timeout(const Duration(seconds: 8));
+      if (_disposed) return false;
+      _stored = true;
+      _error = null;
+      return true;
+    } catch (_) {
+      _error = '本机安全存储不可用，订阅未保存；请检查系统权限';
+      return false;
+    } finally {
+      _vaultBusy = false;
+      _notify();
+    }
+  }
+
+  /// Removes only Vela's own encrypted snapshot, not other applications'
+  /// keys, current nodes, theme settings or Windows proxy recovery journal.
+  Future<bool> clearSaved() async {
+    if (_disposed || _vaultBusy || loading) return false;
+    _vaultBusy = true;
+    _notify();
+    try {
+      await _vault.delete().timeout(const Duration(seconds: 8));
+      _stored = false;
+      _error = null;
+      return true;
+    } catch (_) {
+      _error = '删除本机订阅存档失败，请检查系统权限';
+      return false;
+    } finally {
+      _vaultBusy = false;
+      _notify();
+    }
+  }
+
   @override
   void dispose() {
     ++_generation;
     _result = null;
     _preparedProfile = null;
     _selected = null;
+    _source = null;
     _disposed = true;
     super.dispose();
   }

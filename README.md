@@ -13,7 +13,7 @@ Windows x64 优先的 Flutter 网络工具，独立原创 UI「一帆越洋，�
 - 本地直连测试不等于远程网络连通；没有可用订阅节点时不会显示真实连接成功。
 - 系统代理仍为显式授权，不提供 TUN 系统级隧道。已经建立的连接不保证在切换节点时保持不中断；节点自动优选目前仅在断开期间执行。
 
-云端构建：`.github/workflows/build.yml` 同时打包 Windows x64 Mihomo 便携版和 Android ARM64 预览 APK。Windows 真实系统代理功能不变；Android 版仅支持订阅导入、离线粘贴分享链接/YAML、浏览节点与界面体验，不提供 VPN / Android Mihomo 运行层 / 真实测速。详情见 `docs/ANDROID_PREVIEW.md`。
+云端构建：`.github/workflows/build.yml` 同时打包 Windows x64 Mihomo 便携版和 Android ARM64 预览 APK。Windows 真实系统代理功能不变；Android 版支持订阅导入、离线粘贴分享链接/YAML、浏览节点与界面体验，不提供 VPN / Android Mihomo 运行层 / 真实测速。Windows / Android 现在都可以在用户主动点击“加密保存本机”后，通过系统安全存储恢复节点内容和所选节点（默认不持久化访问密钥或订阅链接）。详情见 `docs/ANDROID_PREVIEW.md`。
 
 ## 注意事项
 

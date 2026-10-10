@@ -131,6 +131,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     if (widget.core != null) {
       subscription = VelaSubscriptionController(
           core: widget.core!, previewOnly: Platform.isAndroid);
+      unawaited(subscription!.restoreSaved());
       if (widget.systemProxy != null) {
         connection = VelaConnectionCoordinator(
           core: widget.core!, subscription: subscription!,

@@ -40,7 +40,8 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
       final colors = VelaThemeRuntime.active;
       final subscription = widget.controller;
       final core = widget.core;
-      final busy = subscription.loading || core.busy || core.isListening;
+      final busy = subscription.loading || subscription.vaultBusy ||
+          core.busy || core.isListening;
       return Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
@@ -212,6 +213,41 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                 style: TextStyle(color: colors.accent, fontSize: 12),
               ),
             ],
+            const SizedBox(height: 12),
+            Text('重启恢复为可选功能：必须主动点击保存。'
+                '只加密保存已下载/解析的节点内容及当前选择，不保存订阅 URL；'
+                '默认不记录节点账号。',
+                style: TextStyle(color: colors.muted, fontSize: 11)),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              OutlinedButton.icon(
+                key: const ValueKey('save_subscription_securely'),
+                onPressed: !busy && subscription.canSave ? () async {
+                  final saved = await subscription.saveOnDevice();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(saved ? '已加密保存到本机，重启后可恢复'
+                        : subscription.error ?? '无法保存订阅'),
+                  ));
+                } : null,
+                icon: const Icon(Icons.lock_outline),
+                label: Text(subscription.storedOnDevice
+                    ? '更新加密存档' : '加密保存本机'),
+              ),
+              OutlinedButton.icon(
+                key: const ValueKey('clear_subscription_securely'),
+                onPressed: busy ? null : () async {
+                  final deleted = await subscription.clearSaved();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(deleted ? '已删除本机加密存档'
+                        : subscription.error ?? '删除失败'),
+                  ));
+                },
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('删除本机存档'),
+              ),
+            ]),
             const SizedBox(height: 12),
             Text(
               '目前支持常见 Shadowsocks、VMess、VLESS、Trojan 和 Hysteria2 '

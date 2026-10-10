@@ -26,6 +26,8 @@ if count != 1 or "<manifest" not in xml:
 if "android.permission.INTERNET" not in xml:
     pos = xml.index(">", xml.index("<manifest")) + 1
     xml = xml[:pos] + '\n    <uses-permission android:name="android.permission.INTERNET"/>' + xml[pos:]
+if 'android:allowBackup=' not in xml:
+    xml = xml.replace('<application', '<application android:allowBackup="false"', 1)
 if "BIND_VPN_SERVICE" in xml or "VpnService" in xml:
     raise SystemExit("Android preview must not declare a VPN service")
 manifest.write_text(xml, encoding="utf-8")
