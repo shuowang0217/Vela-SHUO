@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_interpolation_to_compose_strings
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
@@ -388,8 +389,8 @@ class _HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: Listenable.merge([demo, if (connection != null) connection!,
-      if (subscription != null) subscription!]),
+    animation: Listenable.merge([demo, ?connection,
+      ?subscription]),
     builder: (context, _) => desktop
       ? _DesktopHome(
           demo: demo, connection: connection, subscription: subscription,
@@ -892,8 +893,8 @@ class _NodesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: Listenable.merge([demo,
-      if (subscription != null) subscription!,
-      if (core != null) core!]),
+      ?subscription,
+      ?core]),
     builder: (context, _) => _ScreenPadding(child: ListView(children: [
       _ScreenHeading('节点', subscription?.nodes.isNotEmpty == true
           ? '来自订阅的真实节点 · 点击选择后返回首页'
