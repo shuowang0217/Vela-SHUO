@@ -138,7 +138,7 @@ class VelaSmartController extends ChangeNotifier {
   }
 
   void _onSubscription() {
-    if (identical(_lastNodes, subscription.nodes)) return;
+    if (identical(_lastNodes, subscription.nodes)) { return; }
     ++_generation;
     _lastNodes = subscription.nodes;
     _results.clear();
@@ -156,9 +156,9 @@ class VelaSmartController extends ChangeNotifier {
     int? best;
     for (final entry in _results.entries) {
       final health = entry.value;
-      if (!health.reachable || health.score == null) continue;
+      if (!health.reachable || health.score == null) { continue; }
       if (best == null ||
-          health.score! < _results[best]!.score!) best = entry.key;
+          health.score! < _results[best]!.score!) { best = entry.key; }
     }
     return best;
   }
@@ -169,11 +169,11 @@ class VelaSmartController extends ChangeNotifier {
       final ah = _results[a], bh = _results[b];
       final aa = ah != null && ah.reachable && ah.score != null;
       final bb = bh != null && bh.reachable && bh.score != null;
-      if (aa != bb) return aa ? -1 : 1;
-      if (aa && bb) return ah.score!.compareTo(bh.score!);
+      if (aa != bb) { return aa ? -1 : 1; }
+      if (aa && bb) { return ah.score!.compareTo(bh.score!); }
       // Not-yet-measured ahead of failed; preserve stable original order.
-      if (ah == null && bh != null) return -1;
-      if (bh == null && ah != null) return 1;
+      if (ah == null && bh != null) { return -1; }
+      if (bh == null && ah != null) { return 1; }
       return a.compareTo(b);
     });
     return result;
@@ -185,7 +185,7 @@ class VelaSmartController extends ChangeNotifier {
 
   bool get canRecommend {
     final winner = recommendedIndex;
-    if (winner == null || !safeToSelect || _scanning) return false;
+    if (winner == null || !safeToSelect || _scanning) { return false; }
     final selected = subscription.selectedIndex;
     if (selected == winner) return false;
     return _policy.shouldPrefer(
@@ -197,7 +197,7 @@ class VelaSmartController extends ChangeNotifier {
 
   Future<bool> useRecommended() async {
     final winner = recommendedIndex;
-    if (winner == null || !canRecommend) return false;
+    if (winner == null || !canRecommend) { return false; }
     final ok = await subscription.selectNode(winner);
     if (ok) {
       _lastSelection = _clock();
@@ -221,7 +221,7 @@ class VelaSmartController extends ChangeNotifier {
     _status = '正在检测真实 HTTPS 代理响应时间…';
     _emit();
     for (var n = 0; n < batch; n++) {
-      if (_disposed || run != _generation) break;
+      if (_disposed || run != _generation) { break; }
       final index = (start + n) % count;
       VelaLatencySample measured;
       try {
@@ -229,7 +229,7 @@ class VelaSmartController extends ChangeNotifier {
       } catch (_) {
         measured = const VelaLatencySample(ok: false);
       }
-      if (_disposed || run != _generation) break;
+      if (_disposed || run != _generation) { break; }
       final previous = _results[index];
       _results[index] = previous == null
           ? VelaNodeHealth.first(index, measured, _clock())
