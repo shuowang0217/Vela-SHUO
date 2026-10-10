@@ -9,6 +9,8 @@ import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
+import 'package:vela_shuo/src/mihomo/vela_mihomo_lab_controller.dart';
+import 'package:vela_shuo/src/mihomo/vela_mihomo_lab_card.dart';
 import 'package:vela_shuo/src/smart/vela_node_probe.dart';
 import 'package:vela_shuo/src/smart/vela_smart_controller.dart';
 import 'package:vela_shuo/src/smart/vela_smart_panel.dart';
@@ -38,11 +40,13 @@ class VelaShuoApp extends StatelessWidget {
     this.diagnostics,
     this.core,
     this.systemProxy,
+    this.mihomoLab,
   });
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
   final VelaSystemProxyManager? systemProxy;
+  final VelaMihomoLabController? mihomoLab;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -61,7 +65,7 @@ class VelaShuoApp extends StatelessWidget {
         theme: _theme(Brightness.light, palette),
         darkTheme: _theme(Brightness.dark, palette),
         home: _Shell(settings: settings, diagnostics: diagnostics,
-          core: core, systemProxy: systemProxy),
+          core: core, systemProxy: systemProxy, mihomoLab: mihomoLab),
       );
     },
   );
@@ -89,11 +93,12 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
 
 class _Shell extends StatefulWidget {
   const _Shell({required this.settings, this.diagnostics,
-    this.core, this.systemProxy});
+    this.core, this.systemProxy, this.mihomoLab});
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
   final VelaSystemProxyManager? systemProxy;
+  final VelaMihomoLabController? mihomoLab;
 
   @override
   State<_Shell> createState() => _ShellState();
@@ -170,6 +175,10 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     subscription?.removeListener(syncRealGlobe);
     connection?.removeListener(syncRealGlobe);
     smart?.dispose();
+    if (widget.mihomoLab != null) {
+      unawaited(widget.mihomoLab!.shutdown().whenComplete(
+          widget.mihomoLab!.dispose));
+    }
     // Restore WinINet BEFORE terminating its local endpoint. Never kill
     // the core synchronously while the system proxy still points at it.
     final link = connection;
@@ -197,6 +206,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       demo: demo, settings: widget.settings,
       diagnostics: widget.diagnostics, core: widget.core,
       subscription: subscription, connection: connection,
+      mihomoLab: widget.mihomoLab,
       goHome: () => navigate(0),
     ),
     _ => _HomePage(
@@ -1086,7 +1096,8 @@ class _SmartPage extends StatelessWidget {
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.demo, required this.settings, this.diagnostics, this.core,
-    this.subscription, this.connection, required this.goHome,
+    this.subscription, this.connection, this.mihomoLab,
+    required this.goHome,
   });
   final VelaDemoController demo;
   final SettingsController settings;
@@ -1094,6 +1105,7 @@ class _SettingsPage extends StatelessWidget {
   final VelaCoreController? core;
   final VelaSubscriptionController? subscription;
   final VelaConnectionCoordinator? connection;
+  final VelaMihomoLabController? mihomoLab;
   final VoidCallback goHome;
 
   @override
@@ -1110,6 +1122,10 @@ class _SettingsPage extends StatelessWidget {
         ],
         VelaCoreSettingsCard(controller: core!,
           connection: connection),
+        if (mihomoLab != null && subscription != null) ...[
+          const SizedBox(height: 16),
+          VelaMihomoLabCard(lab: mihomoLab!, subscription: subscription!),
+        ],
         SizedBox(height: 16),
       ],
       _PalettePicker(settings: settings),
