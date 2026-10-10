@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
@@ -50,6 +51,10 @@ void main() {
     expect(generated, contains('super-private'));
     expect(generated, isNot(contains(secretUrl)));
     expect(generated, contains('"VELA_SELECT"'));
+    final profile = jsonDecode(generated) as Map;
+    expect(profile['external-controller'], '127.0.0.1:20819');
+    expect((profile['secret'] as String).length, 64);
+    expect(sub.configuredNameFor(0), 'Japan SS');
     sub.dispose();
     core.dispose();
   });
