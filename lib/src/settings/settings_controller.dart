@@ -11,9 +11,11 @@ abstract class VelaPreferenceStore {
 }
 
 class VelaSharedPreferencesStore implements VelaPreferenceStore {
-  VelaSharedPreferencesStore() : _preferences = SharedPreferencesAsync();
+  VelaSharedPreferencesStore();
 
-  final SharedPreferencesAsync _preferences;
+  // Defer native plugin initialization until the first actual disk access.
+  // Constructing an inactive UI controller must work in widget tests too.
+  late final SharedPreferencesAsync _preferences = SharedPreferencesAsync();
   static const String themeKey = 'vela.shuo.theme.v1';
 
   @override
