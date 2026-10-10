@@ -127,7 +127,7 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     }
 
     final routes = <String>[
-      if (proxy != null) proxy,
+      ?proxy,
       if (mode != VelaSubscriptionDownloadMode.systemProxy) 'DIRECT',
     ];
     String? lastReason;
@@ -149,7 +149,7 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     final hint = proxy != null && routes.length == 2
         ? '已尝试 Windows 本机系统代理和直连'
         : proxy != null ? '本机系统代理请求失败' : '直连请求失败';
-    throw FormatException(hint + '：' + (lastReason ?? '网络不可达'));
+    throw FormatException('$hint：${lastReason ?? '网络不可达'}');
   }
 
   Future<String> _fetchVia(Uri uri, String route) async {
@@ -174,8 +174,7 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
         );
       }
       if (response.statusCode != HttpStatus.ok) {
-        throw FormatException('订阅服务器返回 HTTP ' +
-            response.statusCode.toString());
+        throw FormatException('订阅服务器返回 HTTP ${response.statusCode}');
       }
       final parts = <int>[];
       Future<void> receive() async {
