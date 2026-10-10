@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/smart/vela_node_probe.dart';
+import 'package:vela_shuo/src/smart/vela_download_probe.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_parser.dart';
 
 class _Handle implements VelaCoreHandle {
@@ -51,6 +52,19 @@ class _Https implements VelaRemoteProbe {
   }
 }
 
+class _Download implements VelaDownloadTransport {
+  bool succeed = true;
+  int? port;
+  @override
+  Future<VelaDownloadSample> sample(int localPort) async {
+    port = localPort;
+    return succeed
+        ? const VelaDownloadSample(ok: true, mbps: 42.5,
+            bytes: VelaHttpsDownloadTransport.sampleBytes)
+        : const VelaDownloadSample(ok: false);
+  }
+}
+
 const node = VelaSubscriptionNode(
   name: 'Sample', protocol: 'shadowsocks', server: 'sample.example.test',
   outbound: {
@@ -95,4 +109,35 @@ void main() {
     expect(runner.process, isNull);
     expect(await root.list().toList(), isEmpty);
   });
+  test('download measurement uses separate core then deletes profile',
+      () async {
+    final root = await Directory.systemTemp.createTemp('vela_dl_root_');
+    addTearDown(() => root.delete(recursive: true));
+    final download = _Download();
+    final runner = _Runner();
+    final probe = VelaIsolatedNodeProbe(
+      coreBinary: 'sing-box.exe', runner: runner,
+      httpsProbe: _Https(), downloadTransport: download, tempRoot: root,
+    );
+    final result = await probe.measureDownload(node);
+    expect(result.ok, true);
+    expect(result.mbps, 42.5);
+    expect(result.bytes, 1048576);
+    expect(download.port, greaterThan(0));
+    expect(runner.process?.killed, true);
+    expect(await root.list().toList(), isEmpty);
+
+    download.succeed = false;
+    final failed = await probe.measureDownload(node);
+    expect(failed.ok, false);
+    expect(failed.mbps, isNull);
+    expect(await root.list().toList(), isEmpty);
+  });
+
+  test('download transport rejects unsafe local ports', () async {
+    const transport = VelaHttpsDownloadTransport();
+    expect((await transport.sample(0)).ok, false);
+    expect((await transport.sample(65536)).ok, false);
+  });
+
 }
