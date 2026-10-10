@@ -30,7 +30,7 @@ void main() {
       '127.0.0.1:20819', '0.0.0.0:20819',
     )), throwsFormatException);
     expect(() => VelaLocalCoreConfig.parse(source.replaceFirst(
-      '"\NaN"', '"short"',
+      '"${'a' * 64}"', '"short"',
     )), throwsFormatException);
   });
 
