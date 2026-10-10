@@ -3,18 +3,25 @@ import 'package:flutter/material.dart';
 
 import '../theme/vela_palettes.dart';
 import 'vela_core_controller.dart';
+import 'vela_connection_coordinator.dart';
 
 /// Independent real-local proxy card. Does not alter the approved globe hero.
 class VelaCoreSettingsCard extends StatelessWidget {
-  const VelaCoreSettingsCard({super.key, required this.controller});
+  const VelaCoreSettingsCard({
+    super.key, required this.controller, this.connection,
+  });
   final VelaCoreController controller;
+  final VelaConnectionCoordinator? connection;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: controller,
     builder: (context, _) {
       final theme = VelaThemeRuntime.active;
-      final canChange = !controller.busy && !controller.isListening;
+      final systemManaged = connection?.proxy.active == true;
+      final coordinatedBusy = connection?.busy == true;
+      final canChange = !controller.busy && !controller.isListening &&
+          !systemManaged && !coordinatedBusy;
       return Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
@@ -126,9 +133,11 @@ class VelaCoreSettingsCard extends StatelessWidget {
           Row(children: [
             Expanded(child: FilledButton.icon(
               key: const ValueKey('real_core_toggle'),
-              onPressed: !controller.supported || controller.busy
-                  ? null : () {
-                if (controller.isListening) {
+              onPressed: !controller.supported || controller.busy ||
+                  coordinatedBusy ? null : () {
+                if (systemManaged) {
+                  connection!.disconnect();
+                } else if (controller.isListening) {
                   controller.stop();
                 } else {
                   controller.start();
@@ -136,8 +145,9 @@ class VelaCoreSettingsCard extends StatelessWidget {
               },
               icon: Icon(controller.isListening
                   ? Icons.stop_circle_outlined : Icons.play_arrow_rounded),
-              label: Text(controller.isListening
-                  ? '停止本地代理' : '启动本地代理'),
+              label: Text(systemManaged
+                  ? '安全断开并恢复 Windows 代理'
+                  : controller.isListening ? '停止本地代理' : '启动本地代理'),
             )),
           ]),
           if (controller.isListening && !controller.directTestProfile) ...[
