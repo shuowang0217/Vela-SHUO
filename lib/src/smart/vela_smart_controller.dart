@@ -403,12 +403,13 @@ class VelaSmartController extends ChangeNotifier {
   /// FlClash-like one-click benchmark of EVERY imported node. At most two
   /// isolated sing-box children run concurrently, including while the
   /// main Windows proxy is connected. No action touches that live proxy.
-  Future<void> testAllNodes() async {
+  Future<void> testAllNodes({bool automatic = false}) async {
     if (!canTestAll) { return; }
-    _results.clear(); // Never mix old and fresh measurements in live progress.
+    _results.clear();
+    _downloads.clear();
     _cursor = 0;
     final indices = List<int>.generate(count, (i) => i);
-    await _runScan(indices, all: true);
+    await _runScan(indices, all: true, automatic: automatic);
   }
 
   /// The original manual 8-at-a-time tool remains available when idle.
@@ -433,7 +434,8 @@ class VelaSmartController extends ChangeNotifier {
     _emit();
   }
 
-  Future<void> _runScan(List<int> indices, {required bool all}) async {
+  Future<void> _runScan(List<int> indices,
+      {required bool all, bool automatic = false}) async {
     if (_scanning || _downloading || _disposed || indices.isEmpty) {
       return;
     }
@@ -442,6 +444,10 @@ class VelaSmartController extends ChangeNotifier {
     _allNodesScan = all;
     final run = ++_generation;
     final nodes = subscription.nodes; // stable snapshot for this scan
+    // Automatic rounds are capped at ~50 MiB of download samples.
+    if (automatic && _fullProbe != null && indices.length > 50) {
+      indices = indices.take(50).toList();
+    }
     final previousCursor = _cursor;
     final workerCount = all ? (indices.length < 2 ? indices.length : 2) : 1;
     var nextPosition = 0;
@@ -450,7 +456,8 @@ class VelaSmartController extends ChangeNotifier {
     _successful = 0;
     _failed = 0;
     _status = all
-        ? '正在一键检测全部 ${indices.length} 个节点（最多同时2个）…'
+        ? '正在测延迟和下载速度：' +
+            indices.length.toString() + ' 个节点（最多并发2）…'
         : '正在检测真实 HTTPS 代理响应时间…';
     _emit();
 
@@ -460,17 +467,29 @@ class VelaSmartController extends ChangeNotifier {
         // Dart's single event loop reserves each index before the first await.
         final index = indices[nextPosition++];
         VelaLatencySample sample;
+        VelaDownloadSample? speed;
         try {
-          sample = await _probe.measure(nodes[index]);
+          if (all && _fullProbe != null) {
+            final measured = await _fullProbe.measureBoth(nodes[index]);
+            sample = measured.latency;
+            speed = measured.download;
+          } else {
+            sample = await _probe.measure(nodes[index]);
+          }
         } catch (_) {
           sample = const VelaLatencySample(ok: false);
+          if (all && _fullProbe != null) {
+            speed = const VelaDownloadSample(ok: false);
+          }
         }
         if (_disposed || _cancelRequested || run != _generation) { return; }
+        if (speed != null) { _downloads[index] = speed; }
         final previous = _results[index];
         _results[index] = previous == null
             ? VelaNodeHealth.first(index, sample, _clock())
             : previous.add(sample, _clock());
-        if (sample.ok && sample.milliseconds != null) {
+        if (sample.ok && sample.milliseconds != null &&
+            (speed == null || speed.ok)) {
           _successful++;
         } else {
           _failed++;
@@ -491,8 +510,13 @@ class VelaSmartController extends ChangeNotifier {
           } else {
             _cursor = (previousCursor + indices.length) % count;
           }
+          if (all) { _lastScan = _clock(); }
           _status = all
-              ? '全部测速完成：成功 $_successful，失败 $_failed，共 $_total 个。'
+              ? (automatic && count > 50 && _fullProbe != null
+                  ? '自动检测按50 MiB单轮流量上限完成前50个节点；'
+                      '手动一键测速可测全部节点。'
+                  : '延迟和下载速度检测完成：成功 $_successful，'
+                      '失败 $_failed，共 $_total 个。')
               : '本批次完成：成功 $_successful，失败 $_failed，共 $_total 个。';
         } else if (run == _generation) {
           _status = '测速已停止：完成 $_finished / $_total，剩余节点未测。';
