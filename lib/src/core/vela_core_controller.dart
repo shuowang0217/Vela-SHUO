@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'local_core_config.dart';
+import 'vela_windows_job.dart';
 
 enum VelaCorePhase { idle, checking, starting, listening, stopping, failed }
 
@@ -53,14 +54,22 @@ class VelaHttpsRemoteProbe implements VelaRemoteProbe {
 }
 
 class _NativeHandle implements VelaCoreHandle {
-  _NativeHandle(this.process);
+  _NativeHandle(this.process, this.job) {
+    unawaited(process.exitCode.then((_) => job?.close(),
+        onError: (Object _) => job?.close()));
+  }
+
   final Process process;
+  final VelaWindowsJob? job;
 
   @override
   Future<int> get exitCode => process.exitCode;
 
   @override
-  void kill() => process.kill();
+  void kill() {
+    job?.close(); // OS kills the child when the final Job handle closes.
+    process.kill();
+  }
 }
 
 class VelaNativeCoreRunner implements VelaCoreRunner {
@@ -101,8 +110,18 @@ class VelaNativeCoreRunner implements VelaCoreRunner {
   }
 
   @override
-  Future<VelaCoreHandle> launch(String binary, String config) async =>
-      _NativeHandle(await _spawn(binary, false, config));
+  Future<VelaCoreHandle> launch(String binary, String config) async {
+    final child = await _spawn(binary, false, config);
+    try {
+      // Refuse to run an uncontained Windows proxy; forced UI termination
+      // must never leave a lingering Mihomo owned by this app.
+      final job = Platform.isWindows ? VelaWindowsJob.attach(child.pid) : null;
+      return _NativeHandle(child, job);
+    } catch (_) {
+      child.kill();
+      rethrow;
+    }
+  }
 
   @override
   Future<bool> awaitLocalListener(int port) async {

@@ -27,6 +27,20 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   bool _closed = false;
   bool _handlingExit = false;
   bool _operation = false;
+  bool _exitRequested = false;
+  Completer<void>? _operationIdle;
+
+  void _beginOperation() {
+    _operation = true;
+    _operationIdle = Completer<void>();
+  }
+
+  void _endOperation() {
+    _operation = false;
+    final idle = _operationIdle;
+    _operationIdle = null;
+    if (idle != null && !idle.isCompleted) idle.complete();
+  }
 
   VelaRealPhase get phase => _phase;
   String? get error => _error;
@@ -52,12 +66,12 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   }
 
   Future<bool> connect() async {
-    if (_closed || _operation || connected || proxy.active) return false;
+    if (_closed || _exitRequested || _operation || connected || proxy.active) return false;
     if (!available) {
       _emit(VelaRealPhase.error, '请先在设置中导入订阅并选择一个节点');
       return false;
     }
-    _operation = true;
+    _beginOperation();
     _emit(VelaRealPhase.connecting);
     try {
       // Recover the prior journal BEFORE starting anything new.
@@ -95,14 +109,14 @@ class VelaConnectionCoordinator extends ChangeNotifier {
       _emit(VelaRealPhase.error, '连接失败，请检查内核和 Windows 代理状态');
       return false;
     } finally {
-      _operation = false;
+      _endOperation();
       if (!_closed) notifyListeners();
     }
   }
 
   Future<bool> disconnect() async {
-    if (_closed || _operation) return false;
-    _operation = true;
+    if (_closed || _exitRequested || _operation) return false;
+    _beginOperation();
     _emit(VelaRealPhase.disconnecting);
     try {
       if (!await proxy.disable()) {
@@ -117,13 +131,13 @@ class VelaConnectionCoordinator extends ChangeNotifier {
       _emit(VelaRealPhase.error, '断开时出现异常，请检查 Windows 代理设置');
       return false;
     } finally {
-      _operation = false;
+      _endOperation();
       if (!_closed) notifyListeners();
     }
   }
 
   void _onCore() {
-    if (_closed || _handlingExit || _operation) return;
+    if (_closed || _exitRequested || _handlingExit || _operation) return;
     if (_phase == VelaRealPhase.connected && !core.probing &&
         (!core.isListening || !core.remoteVerified)) {
       _handlingExit = true;
@@ -143,16 +157,36 @@ class VelaConnectionCoordinator extends ChangeNotifier {
 
   /// Shutdown is best effort. An abrupt OS process kill is recovered via
   /// the on-disk proxy journal when the application next launches.
-  Future<void>? _shutdownFuture;
-  Future<void> shutdown() =>
-      _shutdownFuture ??= _shutdownOnce();
+  Future<bool>? _shutdownFuture;
 
-  Future<void> _shutdownOnce() async {
-    // Always consult the durable journal, even after a failed apply when
-    // _active is false. Do NOT kill the core when restoration cannot be
-    // verified; Windows would otherwise point at a dead local port.
-    if (await proxy.disable()) {
+  /// Await the entire restore-and-stop sequence BEFORE the native window
+  /// is allowed to close. Refuse close if WinINet restoration fails.
+  Future<bool> shutdown() {
+    _exitRequested = true;
+    return _shutdownFuture ??= _shutdownOnce().then((ok) {
+      if (!ok) {
+        _exitRequested = false;
+        _shutdownFuture = null;
+      }
+      return ok;
+    });
+  }
+
+  Future<bool> _shutdownOnce() async {
+    final active = _operationIdle;
+    if (active != null) await active.future;
+    try {
+      if (!await proxy.disable()) {
+        _emit(VelaRealPhase.error, proxy.error ??
+            '无法恢复 Windows 代理，请检查后重试关闭');
+        return false;
+      }
       await core.stop();
+      _emit(VelaRealPhase.idle);
+      return true;
+    } catch (_) {
+      _emit(VelaRealPhase.error, '关闭清理失败，请检查系统代理');
+      return false;
     }
   }
 
