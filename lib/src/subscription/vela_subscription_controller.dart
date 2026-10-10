@@ -34,9 +34,20 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
       throw const FormatException('订阅域名未解析到公网地址');
     }
     for (final ip in addresses) {
-      if (ip.type != InternetAddressType.IPv4) {
-        // IPv6 would require a full RFC 6890 special-address policy.
-        throw const FormatException('此版本仅支持 IPv4 公网订阅地址');
+      if (ip.type == InternetAddressType.IPv6) {
+        final bytes = ip.rawAddress;
+        final allZeroPrefix = bytes.take(15).every((b) => b == 0);
+        // Do not connect to loopback, ULA, link-local, multicast, or
+        // IPv4-mapped addresses. Accept normal global unicast IPv6.
+        if (bytes[0] == 0xff || // multicast
+            (bytes[0] & 0xfe) == 0xfc || // unique-local
+            (bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80) ||
+            allZeroPrefix ||
+            (bytes.take(10).every((b) => b == 0) &&
+                bytes[10] == 0xff && bytes[11] == 0xff)) {
+          throw const FormatException('订阅域名包含非公网地址，已拒绝');
+        }
+        continue;
       }
       final bytes = ip.rawAddress;
       final a = bytes[0], b = bytes[1], c = bytes[2];
