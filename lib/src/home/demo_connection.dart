@@ -151,7 +151,7 @@ class VelaDemoController extends ChangeNotifier {
   }
 
   void selectNode(VelaDemoNode next) {
-    if (selected.id == next.id) return;
+    if (selected.id == next.id) { return; }
     _transition?.cancel();
     final id = ++_generation;
     selected = next;
@@ -162,7 +162,7 @@ class VelaDemoController extends ChangeNotifier {
     phase = VelaPhase.switching;
     notifyListeners();
     _transition = Timer(const Duration(milliseconds: 1200), () {
-      if (id != _generation) return;
+      if (id != _generation) { return; }
       phase = VelaPhase.connected;
       notifyListeners();
     });
