@@ -14,9 +14,11 @@ class _FakeStore implements VelaPreferenceStore {
   int removals = 0;
   final List<String> writes = [];
   Completer<void>? firstWrite;
+  Completer<String?>? blockedRead;
 
   @override
   Future<String?> readTheme() async {
+    if (blockedRead != null) return blockedRead!.future;
     if (throwOnRead) throw StateError('secret should never be logged');
     return value;
   }
@@ -86,6 +88,23 @@ void main() {
     expect(controller.themeMode, ThemeMode.light);
     expect(diagnostics.report, contains('settingsWriteFailed'));
     expect(diagnostics.report, isNot(contains('secret')));
+    controller.dispose();
+    diagnostics.dispose();
+  });
+
+  test('unresponsive preference read times out without freezing startup',
+      () async {
+    final store = _FakeStore()..blockedRead = Completer<String?>();
+    final diagnostics = VelaDiagnostics();
+    final controller = SettingsController(
+      store: store,
+      diagnostics: diagnostics,
+      ioTimeout: const Duration(milliseconds: 25),
+    );
+
+    await controller.load();
+    expect(controller.themeMode, ThemeMode.dark);
+    expect(diagnostics.report, contains('settingsReadFailed'));
     controller.dispose();
     diagnostics.dispose();
   });
