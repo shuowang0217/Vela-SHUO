@@ -124,7 +124,7 @@ class VelaConnectionCoordinator extends ChangeNotifier {
 
   void _onCore() {
     if (_closed || _handlingExit || _operation) return;
-    if (_phase == VelaRealPhase.connected &&
+    if (_phase == VelaRealPhase.connected && !core.probing &&
         (!core.isListening || !core.remoteVerified)) {
       _handlingExit = true;
       unawaited(_handleExit());
@@ -143,10 +143,17 @@ class VelaConnectionCoordinator extends ChangeNotifier {
 
   /// Shutdown is best effort. An abrupt OS process kill is recovered via
   /// the on-disk proxy journal when the application next launches.
-  Future<void> shutdown() async {
-    if (_closed) return;
-    if (proxy.active) await proxy.disable();
-    if (!proxy.active) await core.stop();
+  Future<void>? _shutdownFuture;
+  Future<void> shutdown() =>
+      _shutdownFuture ??= _shutdownOnce();
+
+  Future<void> _shutdownOnce() async {
+    // Always consult the durable journal, even after a failed apply when
+    // _active is false. Do NOT kill the core when restoration cannot be
+    // verified; Windows would otherwise point at a dead local port.
+    if (await proxy.disable()) {
+      await core.stop();
+    }
   }
 
   @override
