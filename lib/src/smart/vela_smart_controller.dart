@@ -141,7 +141,7 @@ class VelaSmartController extends ChangeNotifier {
     _aiMode = value;
     _regionFirstPick = value;
     _emit();
-    if (value && canTestAll) { unawaited(testAllNodes()); }
+    if (value && canTestAll) { unawaited(testAllNodes(automatic: true)); }
   }
 
   void setCountry(String value) {
@@ -151,7 +151,7 @@ class VelaSmartController extends ChangeNotifier {
     _country = value;
     _regionFirstPick = _aiMode;
     _emit();
-    if (_aiMode && canTestAll) { unawaited(testAllNodes()); }
+    if (_aiMode && canTestAll) { unawaited(testAllNodes(automatic: true)); }
   }
 
   void manualSelection() {
@@ -167,7 +167,7 @@ class VelaSmartController extends ChangeNotifier {
     _status = '已恢复自动优选';
     _history.insert(0, '恢复自动优选');
     _emit();
-    if (_autoPickWhenIdle && canTestAll) { unawaited(testAllNodes()); }
+    if (_autoPickWhenIdle && canTestAll) { unawaited(testAllNodes(automatic: true)); }
   }
 
   Map<int, VelaNodeHealth> get results => Map.unmodifiable(_results);
@@ -246,7 +246,7 @@ class VelaSmartController extends ChangeNotifier {
     _autoPickWhenIdle = enabled;
     setScheduledMinutes(enabled ? 10 : 0);
     _emit();
-    if (enabled && canTestAll) { unawaited(testAllNodes()); }
+    if (enabled && canTestAll) { unawaited(testAllNodes(automatic: true)); }
   }
 
   void _onSubscription() {
