@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
+import 'package:vela_shuo/src/core/vela_system_proxy.dart';
+import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
 import 'package:vela_shuo/src/core/vela_core_settings_card.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_card.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
@@ -30,10 +32,12 @@ class VelaShuoApp extends StatelessWidget {
     required this.settings,
     this.diagnostics,
     this.core,
+    this.systemProxy,
   });
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
+  final VelaSystemProxyManager? systemProxy;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -51,7 +55,8 @@ class VelaShuoApp extends StatelessWidget {
         themeMode: settings.themeMode,
         theme: _theme(Brightness.light, palette),
         darkTheme: _theme(Brightness.dark, palette),
-        home: _Shell(settings: settings, diagnostics: diagnostics, core: core),
+        home: _Shell(settings: settings, diagnostics: diagnostics,
+          core: core, systemProxy: systemProxy),
       );
     },
   );
@@ -78,10 +83,12 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
 }
 
 class _Shell extends StatefulWidget {
-  const _Shell({required this.settings, this.diagnostics, this.core});
+  const _Shell({required this.settings, this.diagnostics,
+    this.core, this.systemProxy});
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
+  final VelaSystemProxyManager? systemProxy;
 
   @override
   State<_Shell> createState() => _ShellState();
@@ -90,13 +97,35 @@ class _Shell extends StatefulWidget {
 class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   final VelaDemoController demo = VelaDemoController();
   VelaSubscriptionController? subscription;
+  VelaConnectionCoordinator? connection;
   int tab = 0;
+
+  void syncRealGlobe() {
+    final sub = subscription;
+    final conn = connection;
+    if (sub?.selected == null || conn == null) return;
+    final phase = switch (conn.phase) {
+      VelaRealPhase.connecting => VelaPhase.connecting,
+      VelaRealPhase.connected => conn.connected
+          ? VelaPhase.connected : VelaPhase.idle,
+      _ => VelaPhase.idle,
+    };
+    demo.projectRealState(phase, sub!.selected!.name);
+  }
 
   @override
   void initState() {
     super.initState();
     if (widget.core != null) {
       subscription = VelaSubscriptionController(core: widget.core!);
+      if (widget.systemProxy != null) {
+        connection = VelaConnectionCoordinator(
+          core: widget.core!, subscription: subscription!,
+          proxy: widget.systemProxy!,
+        );
+        subscription!.addListener(syncRealGlobe);
+        connection!.addListener(syncRealGlobe);
+      }
     }
     WidgetsBinding.instance.addObserver(this);
   }
@@ -107,6 +136,10 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       widget.diagnostics?.record(VelaDiagnosticEvent.appResumed);
     } else if (state == AppLifecycleState.paused) {
       widget.diagnostics?.record(VelaDiagnosticEvent.appPaused);
+    } else if (state == AppLifecycleState.detached) {
+      if (connection != null) {
+        connection!.shutdown();
+      }
     }
   }
 
@@ -120,6 +153,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    subscription?.removeListener(syncRealGlobe);
+    connection?.removeListener(syncRealGlobe);
+    // If the platform kills us before async shutdown completes, the
+    // persisted proxy journal is verified/restored on next launch.
+    connection?.shutdown();
+    connection?.dispose();
     subscription?.dispose();
     widget.core?.dispose();
     demo.dispose();
@@ -129,16 +168,18 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   void navigate(int i) => setState(() => tab = i);
 
   Widget page(bool desktop) => switch (tab) {
-    1 => _NodesPage(demo: demo, goHome: () => navigate(0)),
+    1 => _NodesPage(demo: demo, subscription: subscription,
+      core: widget.core, goHome: () => navigate(0)),
     2 => _SmartPage(demo: demo),
     3 => _SettingsPage(
       demo: demo, settings: widget.settings,
       diagnostics: widget.diagnostics, core: widget.core,
-      subscription: subscription,
+      subscription: subscription, connection: connection,
       goHome: () => navigate(0),
     ),
     _ => _HomePage(
       demo: demo, desktop: desktop,
+      connection: connection, subscription: subscription,
       showNodes: () => navigate(1), showSmart: () => navigate(2),
     ),
   };
