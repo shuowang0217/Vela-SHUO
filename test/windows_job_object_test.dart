@@ -13,9 +13,13 @@ void main() {
     ], runInShell: false);
     try {
       final guard = VelaWindowsJob.attach(child.pid);
+      final watch = Stopwatch()..start();
       guard.close();
-      final exit = await child.exitCode.timeout(const Duration(seconds: 8));
-      expect(exit, isNot(0));
+      // Windows may return exit code 0 for termination by a Job Object.
+      // What matters is that the 30-second sleeper ends promptly.
+      await child.exitCode.timeout(const Duration(seconds: 8));
+      watch.stop();
+      expect(watch.elapsed, lessThan(const Duration(seconds: 8)));
     } finally {
       child.kill();
     }
