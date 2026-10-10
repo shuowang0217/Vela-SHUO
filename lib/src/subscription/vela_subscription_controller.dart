@@ -254,7 +254,9 @@ class VelaSubscriptionController extends ChangeNotifier {
   /// selected node and the remote HTTPS probe passes.
   bool confirmRunningSelection(int index) {
     if (_disposed || !core.isListening ||
-        _preparedProfile?.nameFor(index) == null) return false;
+        _preparedProfile?.nameFor(index) == null) {
+      return false;
+    }
     _selected = index;
     _error = null;
     _notify();
