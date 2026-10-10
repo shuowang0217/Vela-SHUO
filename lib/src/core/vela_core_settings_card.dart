@@ -140,6 +140,27 @@ class VelaCoreSettingsCard extends StatelessWidget {
                   ? '停止本地代理' : '启动本地代理'),
             )),
           ]),
+          if (controller.isListening && !controller.directTestProfile) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              key: const ValueKey('real_remote_probe'),
+              onPressed: controller.probing ? null : () {
+                controller.verifyRemote();
+              },
+              icon: const Icon(Icons.network_check_rounded),
+              label: Text(controller.probing ? '正在验证线路…'
+                  : '验证真实外网连接'),
+            ),
+            const SizedBox(height: 6),
+            Text(controller.remoteVerified
+                ? '外网 HTTPS 代理验证成功（仅限当前测试地址）'
+                : '尚未验证线路连通性',
+              style: TextStyle(
+                color: controller.remoteVerified ? theme.accent : theme.muted,
+                fontSize: 12,
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           Text(
             '本功能不自动接管浏览器或系统流量。'
