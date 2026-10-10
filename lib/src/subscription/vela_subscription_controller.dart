@@ -64,10 +64,10 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     // Check DNS before fetching, disable redirects and proxy usage. This
     // narrows SSRF risk; this is NOT a substitute for DNS pinning / sandboxing.
     await _checkDns(uri.host);
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 8)
-      ..findProxy = (_) => 'DIRECT'
-      ..userAgent = 'Vela-SHUO/0.2';
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 8);
+    client.findProxy = (_) => 'DIRECT';
+    client.userAgent = 'Vela-SHUO/0.2';
     try {
       final req = await client.getUrl(uri).timeout(const Duration(seconds: 10));
       req.followRedirects = false; // Never leak bearer URL via 30x redirect.
@@ -138,7 +138,7 @@ class VelaSubscriptionController extends ChangeNotifier {
   }
 
   Future<bool> importFromUrl(String url) async {
-    if (loading || core.busy || core.isListening) return false;
+    if (loading || core.busy || core.isListening) { return false; }
     _phase = VelaSubscriptionPhase.loading;
     _error = null;
     _result = null;
@@ -148,17 +148,17 @@ class VelaSubscriptionController extends ChangeNotifier {
     try {
       final raw = await _fetcher.download(url);
       final parsed = VelaSubscriptionParser.parse(raw);
-      if (generation != _generation || _disposed) return false;
+      if (generation != _generation || _disposed) { return false; }
       _result = parsed;
       _phase = VelaSubscriptionPhase.ready;
       _notify();
       return true;
     } on FormatException catch (e) {
-      if (generation != _generation || _disposed) return false;
+      if (generation != _generation || _disposed) { return false; }
       // Error text must only be authored by our parser/fetcher.
       _error = e.message;
     } catch (_) {
-      if (generation != _generation || _disposed) return false;
+      if (generation != _generation || _disposed) { return false; }
       _error = '订阅导入失败，请检查格式或网络';
     }
     _phase = VelaSubscriptionPhase.failed;
@@ -168,7 +168,7 @@ class VelaSubscriptionController extends ChangeNotifier {
 
   Future<bool> selectNode(int index) async {
     if (loading || core.busy || core.isListening ||
-        index < 0 || index >= nodes.length) return false;
+        index < 0 || index >= nodes.length) { return false; }
     final node = nodes[index];
     final ok = await core.useRemoteSubscriptionProfile(
       VelaSubscriptionParser.buildConfig(node),
