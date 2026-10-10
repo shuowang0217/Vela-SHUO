@@ -107,6 +107,7 @@ class VelaSmartController extends ChangeNotifier {
        _clock = clock ?? DateTime.now,
        _periodicInterval = periodicInterval ?? _normalInterval {
     _lastNodes = subscription.nodes;
+    _lastSelectedIndex = subscription.selectedIndex;
     subscription.addListener(_onSubscription);
   }
 
@@ -120,6 +121,8 @@ class VelaSmartController extends ChangeNotifier {
   final VelaSmartSwitchPolicy _policy;
   final DateTime Function() _clock;
   late List<VelaSubscriptionNode> _lastNodes;
+  int? _lastSelectedIndex;
+  bool _smartSelecting = false;
   final Map<int, VelaNodeHealth> _results = {};
   final Map<int, VelaDownloadSample> _downloads = {};
   bool _aiMode = false;
@@ -159,6 +162,7 @@ class VelaSmartController extends ChangeNotifier {
   }
 
   void manualSelection() {
+    if (_manualHold) { return; }
     _manualHold = true;
     _status = '手动保持：自动换节点暂停，直到点击恢复自动优选';
     _history.insert(0, '手动选择节点 · 自动切换暂停');
@@ -258,10 +262,17 @@ class VelaSmartController extends ChangeNotifier {
   }
 
   void _onSubscription() {
+    final selected = subscription.selectedIndex;
+    if (selected != _lastSelectedIndex) {
+      _lastSelectedIndex = selected;
+      if (selected != null && !_smartSelecting) { manualSelection(); }
+    }
     if (identical(_lastNodes, subscription.nodes)) { return; }
     ++_generation;
     _cancelRequested = true;
     _lastNodes = subscription.nodes;
+    _lastSelectedIndex = subscription.selectedIndex;
+    _manualHold = false;
     _results.clear();
     _downloads.clear();
     _downloadStatus = null;
@@ -364,7 +375,13 @@ class VelaSmartController extends ChangeNotifier {
   Future<bool> useRecommended() async {
     final winner = recommendedIndex;
     if (winner == null || !canRecommend) { return false; }
-    final ok = await subscription.selectNode(winner);
+    _smartSelecting = true;
+    bool ok;
+    try {
+      ok = await subscription.selectNode(winner);
+    } finally {
+      _smartSelecting = false;
+    }
     if (ok) {
       _lastSelection = _clock();
       _regionFirstPick = false;
