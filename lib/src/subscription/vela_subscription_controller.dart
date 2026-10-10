@@ -27,11 +27,13 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     this.mode = VelaSubscriptionDownloadMode.automatic,
     this.proxyLookup,
     this.fetchTransport,
+    this.dnsCheck,
   });
 
   final VelaSubscriptionDownloadMode mode;
   final Future<String?> Function()? proxyLookup;
   final Future<String> Function(Uri, String)? fetchTransport;
+  final Future<void> Function(String)? dnsCheck;
 
   static void _validateUrl(Uri uri) {
     final host = uri.host.toLowerCase();
@@ -109,7 +111,11 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     // Reject known-private host DNS answers. An explicit localhost HTTP
     // proxy may do its own DNS, so a local DNS lookup failure is tolerated.
     try {
-      await _checkDns(uri.host);
+      if (dnsCheck != null) {
+        await dnsCheck!(uri.host);
+      } else {
+        await _checkDns(uri.host);
+      }
     } on SocketException {
       if (proxy == null) {
         throw const FormatException('订阅域名无法解析，请检查 DNS 或使用系统代理');
@@ -223,6 +229,15 @@ class VelaSubscriptionController extends ChangeNotifier {
   String? _error;
   bool _disposed = false;
   int _generation = 0;
+  VelaSubscriptionDownloadMode _downloadMode =
+      VelaSubscriptionDownloadMode.automatic;
+  VelaSubscriptionDownloadMode get downloadMode => _downloadMode;
+
+  void setDownloadMode(VelaSubscriptionDownloadMode next) {
+    if (loading || core.busy || core.isListening) return;
+    _downloadMode = next;
+    _notify();
+  }
 
   VelaSubscriptionPhase get phase => _phase;
   List<VelaSubscriptionNode> get nodes => _result?.nodes ?? const [];
@@ -248,7 +263,10 @@ class VelaSubscriptionController extends ChangeNotifier {
     final generation = ++_generation;
     _notify();
     try {
-      final raw = await _fetcher.download(url);
+      final activeFetcher = _fetcher is VelaHttpsSubscriptionFetcher
+          ? VelaHttpsSubscriptionFetcher(mode: _downloadMode)
+          : _fetcher;
+      final raw = await activeFetcher.download(url);
       final parsed = VelaSubscriptionParser.parse(raw);
       if (generation != _generation || _disposed) { return false; }
       _result = parsed;
