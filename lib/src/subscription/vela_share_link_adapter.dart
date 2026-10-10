@@ -13,7 +13,7 @@ class VelaShareLinkAdapter {
   static String? decodeBase64Subscription(String raw) {
     final compact = raw.replaceAll(RegExp(r'\s'), '');
     if (compact.length < 24 ||
-        !RegExp(r'^[A-Za-z0-9+/_=-]+$').hasMatch(compact)) return null;
+        !RegExp(r'^[A-Za-z0-9+/_=-]+$').hasMatch(compact)) { return null; }
     try {
       final decoded = utf8.decode(
         base64.decode(base64.normalize(compact)),
@@ -40,7 +40,7 @@ class VelaShareLinkAdapter {
   static Map<String, dynamic>? parseLink(String source) {
     try {
       final raw = source.trim();
-      if (raw.length > 8192 || !_link.hasMatch(raw)) return null;
+      if (raw.length > 8192 || !_link.hasMatch(raw)) { return null; }
       final uri = Uri.parse(raw);
       switch (uri.scheme.toLowerCase()) {
         case 'ss':
@@ -80,11 +80,11 @@ class VelaShareLinkAdapter {
   }
 
   static Map<String, dynamic>? _ss(Uri uri, String raw) {
-    if (uri.queryParameters.isNotEmpty) return null; // No unsafe SIP002 plugin.
+    if (uri.queryParameters.isNotEmpty) { return null; } // No unsafe SIP002 plugin.
     final text = raw.substring(raw.indexOf('://') + 3)
         .split('#').first.split('?').first.replaceFirst(RegExp(r'/$'), '');
     String? creds;
-    String? serverPort;
+    late final String serverPort;
     if (text.contains('@')) {
       final index = text.lastIndexOf('@');
       final encoded = Uri.decodeComponent(text.substring(0, index));
@@ -92,12 +92,12 @@ class VelaShareLinkAdapter {
       serverPort = text.substring(index + 1);
     } else {
       final decoded = _decode(text);
-      if (decoded == null || !decoded.contains('@')) return null;
+      if (decoded == null || !decoded.contains('@')) { return null; }
       final index = decoded.lastIndexOf('@');
       creds = decoded.substring(0, index);
       serverPort = decoded.substring(index + 1);
     }
-    if (creds == null || !creds.contains(':') || serverPort == null) {
+    if (creds == null || !creds.contains(':')) {
       return null;
     }
     final separator = creds.indexOf(':');
@@ -121,16 +121,16 @@ class VelaShareLinkAdapter {
   static Map<String, dynamic>? _vmess(String raw) {
     final encoded = raw.substring(raw.indexOf('://') + 3).split('#').first;
     final decoded = _decode(encoded);
-    if (decoded == null) return null;
+    if (decoded == null) { return null; }
     final data = jsonDecode(decoded);
-    if (data is! Map) return null;
+    if (data is! Map) { return null; }
     final p = Map<String, dynamic>.from(data);
     if (p['allowInsecure'] == true || p['insecure'] == true ||
-        (p['type'] != null && p['type'] != 'none')) return null;
+        (p['type'] != null && p['type'] != 'none')) { return null; }
     final tls = p['tls'] ?? '';
-    if (tls != '' && tls != 'tls') return null;
+    if (tls != '' && tls != 'tls') { return null; }
     final net = p['net'] ?? 'tcp';
-    if (net != 'tcp' && net != 'ws' && net != 'grpc') return null;
+    if (net != 'tcp' && net != 'ws' && net != 'grpc') { return null; }
     final name = p['ps'];
     final node = <String, dynamic>{
       'name': name is String && name.isNotEmpty ? name : 'VMess',
@@ -174,18 +174,18 @@ class VelaShareLinkAdapter {
       'type', 'host', 'path', 'serviceName', 'flow', 'headerType',
       'allowInsecure', 'insecure', 'skip-cert-verify',
     };
-    if (!_allow(uri, allowed) || !_secure(uri)) return null;
+    if (!_allow(uri, allowed) || !_secure(uri)) { return null; }
     if (uri.queryParameters['encryption'] != null &&
-        uri.queryParameters['encryption'] != 'none') return null;
+        uri.queryParameters['encryption'] != 'none') { return null; }
     final security = uri.queryParameters['security'] ?? 'none';
-    if (!['none', 'tls', 'reality'].contains(security)) return null;
+    if (!['none', 'tls', 'reality'].contains(security)) { return null; }
     final node = _basic(uri, 'vless');
-    if (node == null) return null;
+    if (node == null) { return null; }
     node['uuid'] = Uri.decodeComponent(uri.userInfo);
     node['tls'] = security != 'none';
     if (security == 'reality') {
       final key = uri.queryParameters['pbk'];
-      if (key == null || key.isEmpty) return null;
+      if (key == null || key.isEmpty) { return null; }
       node['reality-opts'] = {
         'public-key': key,
         if (uri.queryParameters['sid'] != null)
@@ -204,11 +204,11 @@ class VelaShareLinkAdapter {
       'serviceName', 'headerType', 'allowInsecure', 'insecure',
       'skip-cert-verify',
     };
-    if (!_allow(uri, allowed) || !_secure(uri)) return null;
+    if (!_allow(uri, allowed) || !_secure(uri)) { return null; }
     final security = uri.queryParameters['security'];
-    if (security != null && security != 'tls') return null;
+    if (security != null && security != 'tls') { return null; }
     final node = _basic(uri, 'trojan');
-    if (node == null) return null;
+    if (node == null) { return null; }
     node['password'] = Uri.decodeComponent(uri.userInfo);
     _transport(node, uri);
     return node;
@@ -219,13 +219,13 @@ class VelaShareLinkAdapter {
       'sni', 'alpn', 'obfs', 'obfs-password',
       'allowInsecure', 'insecure', 'skip-cert-verify',
     };
-    if (!_allow(uri, allowed) || !_secure(uri)) return null;
+    if (!_allow(uri, allowed) || !_secure(uri)) { return null; }
     final node = _basic(uri, 'hysteria2');
-    if (node == null) return null;
+    if (node == null) { return null; }
     node['password'] = Uri.decodeComponent(uri.userInfo);
     final obfs = uri.queryParameters['obfs'];
     if (obfs != null) {
-      if (obfs != 'salamander') return null;
+      if (obfs != 'salamander') { return null; }
       node['obfs'] = obfs;
       node['obfs-password'] = uri.queryParameters['obfs-password'];
     }
