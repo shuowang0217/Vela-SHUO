@@ -2,7 +2,7 @@
 
 **全新原创的 Windows / Android 网络工具。** 独立于 FlClash-Custom，不包含任何旧项目源代码。
 
-## 当前阶段：Windows 0.2-a · 本地代理内核 Alpha
+## 当前阶段：Windows 0.2-b1 · HTTPS 订阅导入与节点连接 Beta
 
 首页已按确认的视觉稿定稿：**一帆越洋，尽览四方。** 保留 `VELA / — SHUO —` 品牌名、地球与帆船，不再显示旧的技术宣传文案。
 
@@ -14,7 +14,7 @@
 - 节点页可选择**演示节点**，智能页可操作**演示开关**。
 - 深色主题默认开启，仍可切换浅色或跟随系统，主题本地持久化。
 
-**重要：主界面节点、动画、延迟与速度仍属于演示数据，不代表真实联网。** 0.2-a 已独立增加 Windows 设置页的本地 sing-box 内核进程控制。新版 Windows ZIP 随包提供经 SHA-256 校验的官方稳定版 sing-box 1.14.3；首次启动自动生成无账号、无海外线路的本地 direct 测试配置，可以启动 127.0.0.1 HTTP/mixed 代理监听，但暂不修改系统代理、不检测远程线路、不提供订阅或自动测速。
+**重要：主界面节点、动画、延迟与速度仍属于演示数据，不代表真实联网。** 0.2-a 已独立增加 Windows 设置页的本地 sing-box 内核进程控制。新版 Windows ZIP 随包提供经 SHA-256 校验的官方稳定版 sing-box 1.14.3；首次启动自动生成无账号、无海外线路的本地 direct 测试配置，可以启动 127.0.0.1 HTTP/mixed 代理监听，但暂不修改系统代理、不检测远程线路、不提供已加入 HTTPS 订阅导入和部分常见 Clash/Mihomo YAML、sing-box JSON 的真实节点选择，以及通过本地代理进行外网 HTTPS 连通检测；但仍不修改系统代理，不提供完整的订阅加密保存与自动测速。
 
 ### 云端构建
 
@@ -26,7 +26,7 @@
 
 球体采用 Natural Earth 公开地理边界资料，由 https://github.com/holtzy/D3-graph-gallery/blob/master/DATA/world.geojson 的示例数据提取和简化。Natural Earth public-domain 地图数据；地图绘制、渲染算法、航线、简笔帆船及界面均在本项目中实现。
 
-主界面定稿见 [docs/HOME_UI_FINAL.md](docs/HOME_UI_FINAL.md)；本地内核 Alpha、官方 GPLv3 内核打包、直连测试的配置要求与风险见 [docs/CORE_0_2_ALPHA.md](docs/CORE_0_2_ALPHA.md)；0.1-C 可靠性规范见 [docs/RELIABILITY_0_1_C.md](docs/RELIABILITY_0_1_C.md)；开发计划见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+主界面定稿见 [docs/HOME_UI_FINAL.md](docs/HOME_UI_FINAL.md)；订阅导入与协议支持见 [docs/SUBSCRIPTION_0_2_B.md](docs/SUBSCRIPTION_0_2_B.md)；本地内核 Alpha、官方 GPLv3 内核打包、直连测试的配置要求与风险见 [docs/CORE_0_2_ALPHA.md](docs/CORE_0_2_ALPHA.md)；0.1-C 可靠性规范见 [docs/RELIABILITY_0_1_C.md](docs/RELIABILITY_0_1_C.md)；开发计划见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ## 安全
 
