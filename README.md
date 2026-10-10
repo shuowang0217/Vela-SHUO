@@ -2,7 +2,7 @@
 
 **全新原创的 Windows / Android 网络工具。** 独立于 FlClash-Custom，不包含任何旧项目源代码。
 
-## 当前阶段：Windows 首页 UI 已定稿，准备 0.1-C 可靠性与 0.2 真实网络内核
+## 当前阶段：Windows 首页 UI 已定稿，0.1-C 本地可靠性功能开发中
 
 首页已按确认的视觉稿定稿：**一帆越洋，尽览四方。** 保留 `VELA / — SHUO —` 品牌名、地球与帆船，不再显示旧的技术宣传文案。
 
@@ -26,7 +26,7 @@
 
 球体采用 Natural Earth 公开地理边界资料，由 https://github.com/holtzy/D3-graph-gallery/blob/master/DATA/world.geojson 的示例数据提取和简化。Natural Earth public-domain 地图数据；地图绘制、渲染算法、航线、简笔帆船及界面均在本项目中实现。
 
-主界面定稿规范见 [docs/HOME_UI_FINAL.md](docs/HOME_UI_FINAL.md)；后续开发计划见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+主界面定稿规范见 [docs/HOME_UI_FINAL.md](docs/HOME_UI_FINAL.md)；0.1-C 配置容错、脱敏本地诊断的实现与限制见 [docs/RELIABILITY_0_1_C.md](docs/RELIABILITY_0_1_C.md)；后续开发计划见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ## 安全
 
