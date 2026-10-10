@@ -137,7 +137,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         smart = VelaSmartController(
           subscription: subscription!, core: widget.core!,
           connection: connection!, probe: benchmark,
-          downloadProbe: benchmark,
+          downloadProbe: benchmark, fullProbe: benchmark,
         );
       }
     }
@@ -999,7 +999,10 @@ class _NodesPage extends StatelessWidget {
                     ? Icon(Icons.check_circle, color: _mint)
                     : Icon(Icons.chevron_right, color: _blue),
                 onTap: core?.isListening == true ? null : () async {
-                  if (await subscription!.selectNode(i)) goHome();
+                  if (await subscription!.selectNode(i)) {
+                    smart?.manualSelection();
+                    goHome();
+                  }
                 },
               ),
             ),
