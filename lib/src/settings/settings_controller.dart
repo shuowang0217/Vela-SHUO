@@ -1,24 +1,81 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Stores only local UI preferences. Never blocks first launch on I/O errors.
+import '../diagnostics/vela_diagnostics.dart';
+
+/// Small storage boundary to make invalid values and I/O errors testable.
+abstract class VelaPreferenceStore {
+  Future<String?> readTheme();
+  Future<void> writeTheme(String value);
+  Future<void> removeTheme();
+}
+
+class VelaSharedPreferencesStore implements VelaPreferenceStore {
+  VelaSharedPreferencesStore() : _preferences = SharedPreferencesAsync();
+
+  final SharedPreferencesAsync _preferences;
+  static const String themeKey = 'vela.shuo.theme.v1';
+
+  @override
+  Future<String?> readTheme() => _preferences.getString(themeKey);
+
+  @override
+  Future<void> writeTheme(String value) =>
+      _preferences.setString(themeKey, value);
+
+  @override
+  Future<void> removeTheme() => _preferences.remove(themeKey);
+}
+
+/// Local UI preferences, independent of the future proxy core.
+/// Unsupported/corrupted data resets to a safe default; storage failure
+/// cannot prevent offline launch or overwrite unrelated application keys.
 class SettingsController extends ChangeNotifier {
-  static const _themeKey = 'vela.shuo.theme.v1';
+  SettingsController({
+    VelaPreferenceStore? store,
+    VelaDiagnostics? diagnostics,
+  })  : _store = store ?? VelaSharedPreferencesStore(),
+        _diagnostics = diagnostics;
+
+  final VelaPreferenceStore _store;
+  final VelaDiagnostics? _diagnostics;
   ThemeMode _themeMode = ThemeMode.dark;
+  Future<void> _writes = Future<void>.value();
 
   ThemeMode get themeMode => _themeMode;
 
   Future<void> load() async {
     try {
-      final prefs = SharedPreferencesAsync();
-      final saved = await prefs.getString(_themeKey);
-      _themeMode = switch (saved) {
-        'light' => ThemeMode.light,
-        'dark' => ThemeMode.dark,
-        _ => ThemeMode.dark,
-      };
+      final value = await _store.readTheme();
+      if (value != null &&
+          value != 'dark' &&
+          value != 'light' &&
+          value != 'system') {
+        _themeMode = ThemeMode.dark;
+        _diagnostics?.record(VelaDiagnosticEvent.settingsRecovered);
+        // Repair only this application's known theme key.
+        try {
+          await _store.removeTheme();
+        } catch (_) {
+          _diagnostics?.record(VelaDiagnosticEvent.settingsWriteFailed);
+        }
+      } else {
+        _themeMode = switch (value) {
+          'light' => ThemeMode.light,
+          'system' => ThemeMode.system,
+          _ => ThemeMode.dark,
+        };
+        _diagnostics?.record(VelaDiagnosticEvent.settingsLoaded);
+      }
     } catch (_) {
+      // Includes malformed value types and permissions/I/O failures.
       _themeMode = ThemeMode.dark;
+      _diagnostics?.record(VelaDiagnosticEvent.settingsReadFailed);
+      try {
+        await _store.removeTheme();
+      } catch (_) {
+        // Storage may be unreadable; the application remains usable.
+      }
     }
     notifyListeners();
   }
@@ -27,11 +84,20 @@ class SettingsController extends ChangeNotifier {
     if (_themeMode == next) return;
     _themeMode = next;
     notifyListeners();
-    try {
-      final prefs = SharedPreferencesAsync();
-      await prefs.setString(_themeKey, next.name);
-    } catch (_) {
-      // The running application remains usable if persistent storage fails.
-    }
+
+    // A user may toggle multiple times before a disk write completes.
+    // Serialize writes so the last selected theme wins after restart.
+    final value = next.name;
+    _writes = _writes.then((_) async {
+      try {
+        await _store.writeTheme(value);
+        _diagnostics?.record(VelaDiagnosticEvent.settingsSaved);
+      } catch (_) {
+        _diagnostics?.record(VelaDiagnosticEvent.settingsWriteFailed);
+      }
+    });
+    await _writes;
   }
+
+  Future<void> flush() => _writes;
 }
