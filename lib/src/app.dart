@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 
@@ -155,12 +156,19 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     subscription?.removeListener(syncRealGlobe);
     connection?.removeListener(syncRealGlobe);
-    // If the platform kills us before async shutdown completes, the
-    // persisted proxy journal is verified/restored on next launch.
-    connection?.shutdown();
-    connection?.dispose();
+    // Restore WinINet BEFORE terminating its local endpoint. Never kill
+    // the core synchronously while the system proxy still points at it.
+    final link = connection;
+    final engine = widget.core;
+    if (link != null) {
+      unawaited(link.shutdown().whenComplete(() {
+        link.dispose();
+        engine?.dispose();
+      }));
+    } else {
+      engine?.dispose();
+    }
     subscription?.dispose();
-    widget.core?.dispose();
     demo.dispose();
     super.dispose();
   }
