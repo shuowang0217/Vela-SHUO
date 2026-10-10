@@ -92,12 +92,93 @@ class VelaNativeCoreRunner implements VelaCoreRunner {
 /// Real LOCAL listener state, deliberately separate from VelaDemoController.
 /// Never changes Windows proxy settings or claims an Internet tunnel exists.
 class VelaCoreController extends ChangeNotifier {
-  VelaCoreController({VelaCoreRunner? runner, bool? supported})
-      : _runner = runner ?? const VelaNativeCoreRunner(),
-        supported = supported ?? Platform.isWindows;
+  VelaCoreController({
+    VelaCoreRunner? runner,
+    bool? supported,
+    String? bundledCorePath,
+    Directory? managedProfileDirectory,
+  })  : _runner = runner ?? const VelaNativeCoreRunner(),
+        supported = supported ?? Platform.isWindows,
+        _bundledCorePath = bundledCorePath,
+        _managedProfileDirectory = managedProfileDirectory;
 
   final VelaCoreRunner _runner;
   final bool supported;
+  final String? _bundledCorePath;
+  final Directory? _managedProfileDirectory;
+  bool _initialized = false;
+  bool _directTestProfile = false;
+  bool get directTestProfile => _directTestProfile;
+  bool get usingBundledCore => _binary != null &&
+      _binary == _defaultCorePath;
+  String get _defaultCorePath => _bundledCorePath ??
+      '${File(Platform.resolvedExecutable).parent.path}'
+      '${Platform.pathSeparator}core${Platform.pathSeparator}sing-box.exe';
+
+  Directory? get _profileFolder {
+    if (_managedProfileDirectory != null) return _managedProfileDirectory;
+    if (!Platform.isWindows) return null;
+    final root = Platform.environment['LOCALAPPDATA'];
+    if (root == null || root.trim().isEmpty) return null;
+    return Directory(
+      '$root${Platform.pathSeparator}Vela-SHUO'
+      '${Platform.pathSeparator}Profiles',
+    );
+  }
+
+  /// Prepare a verified, bundled core and a local DIRECT test profile.
+  /// No process is started, no system setting is touched, and no
+  /// external subscriptions are generated or downloaded.
+  Future<void> initialize() async {
+    if (_initialized || !supported || _disposed) return;
+    _initialized = true;
+    if (await File(_defaultCorePath).exists()) {
+      _binary = File(_defaultCorePath).absolute.path;
+    }
+    await useLocalDirectProfile();
+    if (!_disposed) notifyListeners();
+  }
+
+  /// This profile is only for verifying the bundled binary/loopback port.
+  /// Outbound is DIRECT, not a foreign proxy node or VPN.
+  Future<bool> useLocalDirectProfile() async {
+    if (busy || isListening) return false;
+    final folder = _profileFolder;
+    if (folder == null) {
+      _update(VelaCorePhase.failed, '没有可用的本地配置目录');
+      return false;
+    }
+    try {
+      await folder.create(recursive: true);
+      final file = File(
+        '${folder.path}${Platform.pathSeparator}local-direct.json',
+      );
+      // This file never contains credentials or subscription addresses.
+      // Write our known-safe content to avoid accidentally using an old
+      // file with the same name from a previous release.
+      const source = '''
+{
+  "log": {"level": "warn"},
+  "inbounds": [{
+    "type": "mixed", "tag": "vela-local",
+    "listen": "127.0.0.1", "listen_port": 20808
+  }],
+  "outbounds": [{"type": "direct", "tag": "direct"}],
+  "route": {"final": "direct"}
+}
+''';
+      await file.writeAsString(source, flush: true);
+      final validated = VelaLocalCoreConfig.parse(source);
+      _config = validated;
+      _configPath = file.absolute.path;
+      _directTestProfile = true;
+      _update(VelaCorePhase.idle);
+      return true;
+    } catch (_) {
+      _update(VelaCorePhase.failed, '无法创建本机直连测试配置');
+      return false;
+    }
+  }
   VelaCorePhase _phase = VelaCorePhase.idle;
   String? _binary;
   String? _configPath;
@@ -139,6 +220,7 @@ class VelaCoreController extends ChangeNotifier {
     // Never silently fall back to a previous profile after a failed import.
     _config = null;
     _configPath = null;
+    _directTestProfile = false;
     try {
       final file = File(path);
       final length = await file.length();
@@ -149,6 +231,7 @@ class VelaCoreController extends ChangeNotifier {
       final parsed = VelaLocalCoreConfig.parse(await file.readAsString());
       _configPath = file.absolute.path;
       _config = parsed;
+      _directTestProfile = false;
       _update(VelaCorePhase.idle);
       return true;
     } on FormatException catch (e) {
@@ -185,14 +268,18 @@ class VelaCoreController extends ChangeNotifier {
     final path = _configPath;
     final config = _config;
     if (binary == null || path == null || config == null) {
-      _update(VelaCorePhase.failed, '请先选择 sing-box.exe 和本地 JSON 配置');
+      _update(VelaCorePhase.failed, '内核或配置尚未就绪，请检查便携包是否完整');
       return false;
     }
     final generation = ++_generation;
     _update(VelaCorePhase.checking);
     try {
       // Re-read at start in case the JSON file was changed after selection.
-      final source = await File(path).readAsString();
+      final file = File(path);
+      if (await file.length() > VelaLocalCoreConfig.maxBytes) {
+        throw const FormatException('配置文件超过 2 MB 限制');
+      }
+      final source = await file.readAsString();
       final current = VelaLocalCoreConfig.parse(source);
       if (current.localPort != config.localPort) {
         throw const FormatException('配置端口已改变，请重新导入');
