@@ -100,7 +100,9 @@ void main() {
     await tester.pumpWidget(VelaShuoApp(settings: settings));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('nav_3')));
-    await tester.pumpAndSettle();
+    // Cloud animation is perpetual; do not wait for every ticker to settle.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
 
     expect(find.text('主题配色'), findsOneWidget);
     for (final p in VelaPalette.all) {
@@ -110,6 +112,7 @@ void main() {
     await tester.pump();
     expect(settings.paletteId, 'mint');
     expect(settings.themeMode, ThemeMode.light);
+    await tester.pumpWidget(const SizedBox.shrink());
     settings.dispose();
   });
 }
