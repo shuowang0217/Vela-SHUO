@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:vela_shuo/src/app.dart';
+import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 
 void main() {
   final diagnostics = VelaDiagnostics();
+  final core = VelaCoreController();
 
   // Initialize the binding inside the same error zone as the application.
   runZonedGuarded(() async {
@@ -27,7 +29,7 @@ void main() {
     diagnostics.record(VelaDiagnosticEvent.appStarted);
     final settings = SettingsController(diagnostics: diagnostics);
     await settings.load();
-    runApp(VelaShuoApp(settings: settings, diagnostics: diagnostics));
+    runApp(VelaShuoApp(settings: settings, diagnostics: diagnostics, core: core));
   }, (error, stack) {
     diagnostics.record(VelaDiagnosticEvent.uncaughtError);
   });
