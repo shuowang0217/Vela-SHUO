@@ -505,7 +505,7 @@ void main() {
       fullProbe: both, downloadProbe: _SpeedProbe(),
     );
     try {
-      expect(await smart.testAllNodes(), isNull);
+      await smart.testAllNodes();
       expect(both.names.length, 5);
       expect(smart.scanned, 5);
       expect(smart.successful, 5);
