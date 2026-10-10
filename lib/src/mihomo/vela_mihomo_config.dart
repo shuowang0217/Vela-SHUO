@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_interpolation_to_compose_strings
 import 'dart:convert';
 
 import '../subscription/vela_subscription_parser.dart';
@@ -157,10 +158,11 @@ class VelaMihomoConfigBuilder {
         if (headers != null && (headers is! Map ||
             headers.values.any((v) => v is! String))) { return null; }
         result['network'] = 'ws';
-        result['ws-opts'] = <String, dynamic>{
+        final wsOptions = <String, dynamic>{
           'path': transport['path'] is String ? transport['path'] : '/',
-          if (headers != null) 'headers': headers,
         };
+        if (headers != null) { wsOptions['headers'] = headers; }
+        result['ws-opts'] = wsOptions;
       } else if (transport['type'] == 'grpc') {
         result['network'] = 'grpc';
         result['grpc-opts'] = {
