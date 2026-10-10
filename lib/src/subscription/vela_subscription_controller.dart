@@ -226,6 +226,7 @@ class VelaSubscriptionController extends ChangeNotifier {
   final VelaCoreController core;
   VelaSubscriptionPhase _phase = VelaSubscriptionPhase.idle;
   VelaSubscriptionResult? _result;
+  VelaMihomoConfiguration? _preparedProfile;
   int? _selected;
   String? _error;
   bool _disposed = false;
@@ -247,6 +248,19 @@ class VelaSubscriptionController extends ChangeNotifier {
   int? get selectedIndex => _selected;
   String? get error => _error;
   bool get loading => _phase == VelaSubscriptionPhase.loading;
+  String? configuredNameFor(int index) => _preparedProfile?.nameFor(index);
+
+  /// The coordinator calls this only after the live API confirms the
+  /// selected node and the remote HTTPS probe passes.
+  bool confirmRunningSelection(int index) {
+    if (_disposed || !core.isListening ||
+        _preparedProfile?.nameFor(index) == null) return false;
+    _selected = index;
+    _error = null;
+    _notify();
+    return true;
+  }
+
   VelaSubscriptionNode? get selected => _selected == null ||
       _selected! < 0 || _selected! >= nodes.length
       ? null : nodes[_selected!];
@@ -260,6 +274,7 @@ class VelaSubscriptionController extends ChangeNotifier {
     _phase = VelaSubscriptionPhase.loading;
     _error = null;
     _result = null;
+    _preparedProfile = null;
     _selected = null;
     final generation = ++_generation;
     _notify();
@@ -291,23 +306,24 @@ class VelaSubscriptionController extends ChangeNotifier {
     if (loading || core.busy || core.isListening ||
         index < 0 || index >= nodes.length) { return false; }
     // Whitelisted conversion: subscriptions cannot supply listeners or TUN.
-    late final String config;
+    late final VelaMihomoConfiguration prepared;
     try {
       final random = Random.secure();
       final secret = List.generate(32, (_) =>
           random.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
-      config = const VelaMihomoConfigBuilder().build(nodes,
+      prepared = const VelaMihomoConfigBuilder().build(nodes,
         selectedIndex: index, secret: secret,
-        proxyPort: 20808, apiPort: null,
-      ).configText;
+        proxyPort: 20808, apiPort: 20819,
+      );
     } on FormatException {
       _error = '所选节点不兼容 Mihomo，请换一个节点';
       _notify();
       return false;
     }
-    final ok = await core.useRemoteSubscriptionProfile(config);
+    final ok = await core.useRemoteSubscriptionProfile(prepared.configText);
     if (ok) {
       _selected = index;
+      _preparedProfile = prepared;
       _error = null;
     } else {
       _error = '无法准备节点配置，请检查磁盘权限';
@@ -320,6 +336,7 @@ class VelaSubscriptionController extends ChangeNotifier {
   void dispose() {
     ++_generation;
     _result = null;
+    _preparedProfile = null;
     _selected = null;
     _disposed = true;
     super.dispose();
