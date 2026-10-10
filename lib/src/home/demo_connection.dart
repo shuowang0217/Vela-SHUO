@@ -55,7 +55,7 @@ class VelaDemoNode {
     for (final (id, markers) in rules) {
       if (markers.any((marker) => text.contains(marker))) {
         for (final node in samples) {
-          if (node.id == id) return node;
+          if (node.id == id) { return node; }
         }
       }
     }
@@ -126,7 +126,7 @@ class VelaDemoController extends ChangeNotifier {
     _generation++;
     _realVisual = true;
     _realLabel = name;
-    if (inferred != null) selected = inferred;
+    if (inferred != null) { selected = inferred; }
     phase = visible;
     notifyListeners();
   }
