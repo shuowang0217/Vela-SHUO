@@ -171,8 +171,28 @@ class VelaSubscriptionParser {
       }
     }
     if (nodes.isEmpty) {
-      throw const FormatException(
-        '检测到节点分享链接，但协议或安全参数暂不兼容；请尝试 Clash 订阅',
+      // Only summarize allowlisted protocol *names* and totals, never URLs,
+      // node names, hosts, UUIDs, subscription tokens or raw content.
+      const aliases = <String, String>{
+        'ss': 'SS', 'ssr': 'SSR', 'vmess': 'VMess',
+        'vless': 'VLESS', 'trojan': 'Trojan',
+        'hysteria': 'Hysteria', 'hysteria2': 'Hysteria2',
+        'hy2': 'Hysteria2', 'tuic': 'TUIC', 'anytls': 'AnyTLS',
+      };
+      final counts = <String, int>{};
+      final scheme = RegExp(r'^([a-zA-Z][a-zA-Z0-9+.-]*):\/\/');
+      for (final line in lines) {
+        final key = scheme.firstMatch(line)?.group(1)?.toLowerCase();
+        final label = aliases[key] ?? '其他';
+        counts[label] = (counts[label] ?? 0) + 1;
+      }
+      final types = counts.entries.map((e) =>
+          e.key + ' ' + e.value.toString()).join('、');
+      throw FormatException(
+        '识别到 ' + lines.length.toString() +
+        ' 条分享链接，但没有可导入节点。协议统计：' +
+        types + '。请优先复制服务商提供的 Clash/Mihomo 专用订阅；'
+        '也可能是传输参数或 TLS 安全要求不兼容。',
       );
     }
     return VelaSubscriptionResult(
