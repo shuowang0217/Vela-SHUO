@@ -131,12 +131,13 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         );
         subscription!.addListener(syncRealGlobe);
         connection!.addListener(syncRealGlobe);
+        final benchmark = VelaIsolatedNodeProbe(
+          coreBinary: widget.core!.benchmarkCorePath ?? '',
+        );
         smart = VelaSmartController(
           subscription: subscription!, core: widget.core!,
-          connection: connection!,
-          probe: VelaIsolatedNodeProbe(
-            coreBinary: widget.core!.benchmarkCorePath ?? '',
-          ),
+          connection: connection!, probe: benchmark,
+          downloadProbe: benchmark,
         );
       }
     }
@@ -721,9 +722,11 @@ class _Stats extends StatelessWidget {
     Expanded(child: _MetricCard(
       icon: Icons.download_outlined,
       label: '下载速度',
-      value: real ? '—' : (demo.isConnected
-          ? demo.selected.downloadMbps.toStringAsFixed(0) : '—'),
-      unit: 'Mbps', caption: real ? '吞吐测速尚未实现'
+      value: real
+          ? (selectedIndex == null ? '—'
+              : (smart?.downloadAt(selectedIndex!)?.mbps?.toStringAsFixed(1) ?? '—'))
+          : (demo.isConnected ? demo.selected.downloadMbps.toStringAsFixed(0) : '—'),
+      unit: 'Mbps', caption: real ? '按需 HTTPS 1 MiB 样本'
           : '示意数据 · 非真实测速', highlight: _blue,
     )),
     SizedBox(width: 11),
@@ -855,10 +858,12 @@ class _MobileHome extends StatelessWidget {
         SizedBox(width: 10),
         Expanded(child: _MetricCard(
           icon: Icons.download_outlined, label: '下载速度',
-          value: subscription?.selected != null ? '—' : (demo.isConnected
-              ? demo.selected.downloadMbps.toStringAsFixed(0) : '—'),
+          value: subscription?.selected != null
+              ? (subscription?.selectedIndex == null ? '—'
+                  : (smart?.downloadAt(subscription!.selectedIndex!)?.mbps?.toStringAsFixed(1) ?? '—'))
+              : (demo.isConnected ? demo.selected.downloadMbps.toStringAsFixed(0) : '—'),
           unit: 'Mbps', caption: subscription?.selected != null
-              ? '吞吐测速尚未实现' : '示意数据', highlight: _blue,
+              ? '按需 HTTPS 1 MiB 样本' : '示意数据', highlight: _blue,
         )),
       ]),
       SizedBox(height: 10),
