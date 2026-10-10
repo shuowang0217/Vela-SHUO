@@ -34,11 +34,13 @@ class SettingsController extends ChangeNotifier {
   SettingsController({
     VelaPreferenceStore? store,
     VelaDiagnostics? diagnostics,
+    this.ioTimeout = const Duration(seconds: 3),
   })  : _store = store ?? VelaSharedPreferencesStore(),
         _diagnostics = diagnostics;
 
   final VelaPreferenceStore _store;
   final VelaDiagnostics? _diagnostics;
+  final Duration ioTimeout;
   ThemeMode _themeMode = ThemeMode.dark;
   Future<void> _writes = Future<void>.value();
 
@@ -46,7 +48,7 @@ class SettingsController extends ChangeNotifier {
 
   Future<void> load() async {
     try {
-      final value = await _store.readTheme();
+      final value = await _store.readTheme().timeout(ioTimeout);
       if (value != null &&
           value != 'dark' &&
           value != 'light' &&
@@ -55,7 +57,7 @@ class SettingsController extends ChangeNotifier {
         _diagnostics?.record(VelaDiagnosticEvent.settingsRecovered);
         // Repair only this application's known theme key.
         try {
-          await _store.removeTheme();
+          await _store.removeTheme().timeout(ioTimeout);
         } catch (_) {
           _diagnostics?.record(VelaDiagnosticEvent.settingsWriteFailed);
         }
@@ -72,7 +74,7 @@ class SettingsController extends ChangeNotifier {
       _themeMode = ThemeMode.dark;
       _diagnostics?.record(VelaDiagnosticEvent.settingsReadFailed);
       try {
-        await _store.removeTheme();
+        await _store.removeTheme().timeout(ioTimeout);
       } catch (_) {
         // Storage may be unreadable; the application remains usable.
       }
@@ -90,7 +92,7 @@ class SettingsController extends ChangeNotifier {
     final value = next.name;
     _writes = _writes.then((_) async {
       try {
-        await _store.writeTheme(value);
+        await _store.writeTheme(value).timeout(ioTimeout);
         _diagnostics?.record(VelaDiagnosticEvent.settingsSaved);
       } catch (_) {
         _diagnostics?.record(VelaDiagnosticEvent.settingsWriteFailed);
