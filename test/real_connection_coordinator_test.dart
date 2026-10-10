@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
+import 'package:vela_shuo/src/mihomo/vela_mihomo_selector.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 
@@ -36,6 +37,37 @@ class _Runner implements VelaCoreRunner {
     return handle;
   }
 }
+class _Selector implements VelaMihomoSelectorApi {
+  String current = 'Japan 01';
+  bool changeUnexpectedly = false;
+  int putCount = 0;
+  final List<String> operations = [];
+  @override
+  Future<String?> active(int port, String secret) async {
+    expect(port, 20819);
+    expect(secret.length, 64);
+    return changeUnexpectedly ? 'not-owned' : current;
+  }
+  @override
+  Future<bool> select(int port, String secret, String node) async {
+    expect(port, 20819);
+    putCount++;
+    operations.add(node);
+    current = node;
+    return true;
+  }
+}
+
+class _SequenceProbe implements VelaRemoteProbe {
+  _SequenceProbe(this.answers);
+  final List<bool> answers;
+  @override
+  Future<bool> verify(int localPort) async {
+    expect(localPort, 20808);
+    return answers.isNotEmpty ? answers.removeAt(0) : false;
+  }
+}
+
 class _GatedProbe implements VelaRemoteProbe {
   final Completer<void> entered = Completer<void>();
   final Completer<bool> answer = Completer<bool>();
@@ -62,6 +94,12 @@ proxies:
     port: 443
     cipher: aes-128-gcm
     password: dummy-secret
+  - name: "US 02"
+    type: ss
+    server: us.example.test
+    port: 443
+    cipher: aes-128-gcm
+    password: dummy-secret-two
 ''';
 }
 class _Backend implements VelaWindowsProxyBackend {
@@ -85,7 +123,7 @@ class _Backend implements VelaWindowsProxyBackend {
 
 Future<(VelaConnectionCoordinator, Directory, _Runner, _Probe, _Backend,
     VelaSubscriptionController, VelaCoreController, VelaSystemProxyManager)>
-    _setup({VelaRemoteProbe? remoteProbe}) async {
+    _setup({VelaRemoteProbe? remoteProbe, _Selector? selector}) async {
   final dir = await Directory.systemTemp.createTemp('vela_real_conn_');
   final exe = File(dir.path + '/mihomo.exe');
   await exe.writeAsString('dummy');
@@ -93,7 +131,7 @@ Future<(VelaConnectionCoordinator, Directory, _Runner, _Probe, _Backend,
   final probe = _Probe(true);
   final core = VelaCoreController(
     supported: true, runner: runner, remoteProbe: remoteProbe ?? probe,
-    managedProfileDirectory: dir,
+    selectorApi: selector, managedProfileDirectory: dir,
   );
   await core.chooseBinary(exe.path);
   final sub = VelaSubscriptionController(core: core, fetcher: _Fetch());
@@ -222,6 +260,82 @@ void main() {
       expect(await connection.shutdown(), true);
       expect(core.isListening, false);
       expect(backend.state.server, '127.0.0.1:7890');
+    } finally {
+      connection.dispose();
+      sub.dispose();
+      core.dispose();
+      proxy.dispose();
+      await dir.delete(recursive: true);
+    }
+  });
+
+  test('online selector changes without replacing Windows proxy or core',
+      () async {
+    final selector = _Selector();
+    final (connection, dir, runner, probe, backend, sub, core, proxy) =
+        await _setup(selector: selector);
+    try {
+      expect(await connection.connect(), true);
+      expect(sub.configuredNameFor(1), 'US 02');
+      final handle = runner.handles.single;
+      expect(await connection.switchNode(1), true);
+      expect(sub.selectedIndex, 1);
+      expect(connection.connected, true);
+      expect(selector.current, 'US 02');
+      expect(backend.state.server, '127.0.0.1:20808');
+      expect(runner.handles, [handle]);
+      expect(await connection.switchNode(1), true); // no duplicate PUT
+      expect(selector.putCount, 1);
+      expect(await connection.disconnect(), true);
+    } finally {
+      connection.dispose();
+      sub.dispose();
+      core.dispose();
+      proxy.dispose();
+      await dir.delete(recursive: true);
+    }
+  });
+
+  test('failed HTTPS on new node restores old selected node',
+      () async {
+    final selector = _Selector();
+    final probeSequence = _SequenceProbe([true, false, true]);
+    final (connection, dir, runner, probe, backend, sub, core, proxy) =
+        await _setup(remoteProbe: probeSequence, selector: selector);
+    try {
+      expect(await connection.connect(), true);
+      expect(await connection.switchNode(1), false);
+      expect(connection.connected, true);
+      expect(sub.selectedIndex, 0);
+      expect(selector.current, 'Japan 01');
+      expect(selector.operations, ['US 02', 'Japan 01']);
+      expect(backend.state.server, '127.0.0.1:20808');
+      expect(connection.error, contains('恢复原节点'));
+      expect(await connection.disconnect(), true);
+    } finally {
+      connection.dispose();
+      sub.dispose();
+      core.dispose();
+      proxy.dispose();
+      await dir.delete(recursive: true);
+    }
+  });
+
+  test('unexpected selector state triggers safe Windows proxy restoration',
+      () async {
+    final selector = _Selector();
+    final (connection, dir, runner, probe, backend, sub, core, proxy) =
+        await _setup(selector: selector);
+    try {
+      expect(await connection.connect(), true);
+      selector.changeUnexpectedly = true;
+      expect(await connection.switchNode(1), false);
+      expect(connection.connected, false);
+      expect(core.isListening, false);
+      expect(proxy.active, false);
+      expect(sub.selectedIndex, 0);
+      expect(backend.state.server, '127.0.0.1:7890');
+      expect(selector.putCount, 0);
     } finally {
       connection.dispose();
       sub.dispose();
