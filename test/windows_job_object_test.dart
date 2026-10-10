@@ -14,8 +14,8 @@ void main() {
     try {
       final guard = VelaWindowsJob.attach(child.pid);
       guard.close();
-      await child.exitCode.timeout(const Duration(seconds: 8));
-      expect(await Process.killPid(child.pid), false);
+      final exit = await child.exitCode.timeout(const Duration(seconds: 8));
+      expect(exit, isNot(0));
     } finally {
       child.kill();
     }
