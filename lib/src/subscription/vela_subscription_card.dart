@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../core/vela_core_controller.dart';
+import '../android/vela_android_vpn.dart';
 import '../theme/vela_palettes.dart';
 import 'vela_subscription_controller.dart';
 
@@ -12,10 +13,12 @@ class VelaSubscriptionCard extends StatefulWidget {
     super.key,
     required this.controller,
     required this.core,
+    this.androidVpn,
   });
 
   final VelaSubscriptionController controller;
   final VelaCoreController core;
+  final VelaAndroidVpnController? androidVpn;
 
   @override
   State<VelaSubscriptionCard> createState() => _VelaSubscriptionCardState();
@@ -41,7 +44,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
       final subscription = widget.controller;
       final core = widget.core;
       final busy = subscription.loading || subscription.vaultBusy ||
-          core.busy || core.isListening;
+          core.busy || core.isListening || widget.androidVpn?.active == true;
       return Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
@@ -56,7 +59,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               Icon(Icons.link_rounded, color: colors.accent),
               const SizedBox(width: 10),
               Expanded(child: Text(
-                Platform.isAndroid ? '订阅浏览 · Android 预览版' :
+                Platform.isAndroid ? 'Android VPN · 订阅节点管理' :
                     '订阅导入与节点管理 · Beta',
                 style: TextStyle(
                   color: colors.text, fontWeight: FontWeight.w600, fontSize: 17,
@@ -67,7 +70,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
             Text(
               Platform.isAndroid
                 ? '支持直接导入 HTTPS 订阅或粘贴节点分享链接。'
-                  '内容仅在本次应用会话中解析，不会建立 VPN 连接。'
+                  '导入不自动建立 VPN，需在首页明确授权连接。'
                 : '在这里粘贴自己的 HTTPS 订阅链接或分享链接，'
                   '无需发到聊天里。不会保存访问密钥。',
               style: TextStyle(color: colors.muted, fontSize: 12, height: 1.55),
@@ -207,7 +210,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               const SizedBox(height: 9),
               if (subscription.selected != null) Text(
                 Platform.isAndroid
-                    ? '已选：${subscription.selected!.name} · 仅预览，不提供 VPN'
+                    ? '已选：${subscription.selected!.name} · 首页可授权并连接'
                     : '已选择：${subscription.selected!.name} · '
                       '现在可以点击下方「启动本地代理」',
                 style: TextStyle(color: colors.accent, fontSize: 12),
@@ -253,7 +256,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               '目前支持常见 Shadowsocks、VMess、VLESS、Trojan 和 Hysteria2 '
               '节点的部分 Clash/Mihomo YAML、sing-box JSON 格式。'
               '证书校验被关闭或不支持的传输参数会被跳过。'
-              '${Platform.isAndroid ? 'Android 预览版不会安装 VPN Service、运行 Mihomo 或改变网络设置。' : '导入与节点选择不会自动接管 Windows 系统流量。'}',
+              '${Platform.isAndroid ? 'Android VPN 只会在首页点击授权连接后启动。' : '导入与节点选择不会自动接管 Windows 系统流量。'}',
               style: TextStyle(color: colors.muted, fontSize: 11, height: 1.5),
             ),
           ],

@@ -216,7 +216,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       demo: demo, settings: widget.settings,
       diagnostics: widget.diagnostics, core: widget.core,
       subscription: subscription, connection: connection,
-      goHome: () => navigate(0),
+      androidVpn: androidVpn, goHome: () => navigate(0),
     ),
     _ => _HomePage(
       demo: demo, desktop: desktop,
@@ -881,7 +881,7 @@ class _MobileHome extends StatelessWidget {
               ? (subscription?.selectedIndex == null ? '—'
                   : (smart?.resultAt(subscription!.selectedIndex!)?.lastMs?.toString() ?? '—'))
               : (demo.isConnected ? demo.selected.latency.toString() : '—'),
-          unit: 'ms', caption: Platform.isAndroid ? '预览版无网络测速' :
+          unit: 'ms', caption: Platform.isAndroid ? '尚未接入移动端测速' :
               subscription?.selected != null
                   ? '最近 HTTPS 实测' : '示意数据', highlight: _mint,
         )),
@@ -893,7 +893,7 @@ class _MobileHome extends StatelessWidget {
               ? (subscription?.selectedIndex == null ? '—'
                   : (smart?.downloadAt(subscription!.selectedIndex!)?.mbps?.toStringAsFixed(1) ?? '—'))
               : (demo.isConnected ? demo.selected.downloadMbps.toStringAsFixed(0) : '—'),
-          unit: 'Mbps', caption: Platform.isAndroid ? '预览版无下载测速' :
+          unit: 'Mbps', caption: Platform.isAndroid ? '尚未接入移动端测速' :
               subscription?.selected != null
                   ? '按需 HTTPS 1 MiB 样本' : '示意数据', highlight: _blue,
         )),
@@ -906,7 +906,7 @@ class _MobileHome extends StatelessWidget {
               subscription?.selected != null
               ? (smart?.autoPickWhenIdle == true ? '空闲优选' : '手动优选')
               : (demo.smartEnabled ? '已启用' : '已关闭'),
-          unit: '', caption: Platform.isAndroid ? '安卓内核尚未接入' :
+          unit: '', caption: Platform.isAndroid ? 'Android VPN Beta' :
               subscription?.selected != null
                   ? '真实评分引擎' : '引擎尚未接入',
           highlight: _blue, onTap: showSmart,
@@ -1157,7 +1157,7 @@ class _SmartPage extends StatelessWidget {
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.demo, required this.settings, this.diagnostics, this.core,
-    this.subscription, this.connection,
+    this.subscription, this.connection, this.androidVpn,
     required this.goHome,
   });
   final VelaDemoController demo;
@@ -1166,6 +1166,7 @@ class _SettingsPage extends StatelessWidget {
   final VelaCoreController? core;
   final VelaSubscriptionController? subscription;
   final VelaConnectionCoordinator? connection;
+  final VelaAndroidVpnController? androidVpn;
   final VoidCallback goHome;
 
   @override
@@ -1173,12 +1174,13 @@ class _SettingsPage extends StatelessWidget {
     child: ListView(children: [
       _ScreenHeading('设置', '为 Vela-SHUO 定义你的使用方式'),
       SizedBox(height: 18),
-      Platform.isAndroid ? const Text('Android Mihomo VPN · Beta') :
+      Platform.isAndroid ? _AndroidVpnTag(vpn: androidVpn!) :
           subscription?.selected != null ? _RealTag() : _DemoTag(),
       SizedBox(height: 24),
       if (core != null) ...[
         if (subscription != null) ...[
-          VelaSubscriptionCard(controller: subscription!, core: core!),
+          VelaSubscriptionCard(controller: subscription!, core: core!,
+              androidVpn: androidVpn),
           SizedBox(height: 16),
         ],
         if (!Platform.isAndroid) ...[
@@ -1255,7 +1257,9 @@ class _SettingsPage extends StatelessWidget {
       _GlassCard(child: ListTile(
         leading: Icon(Icons.privacy_tip_outlined, color: _blue),
         title: Text('隐私与安全'),
-        subtitle: Text('当前原型不申请 VPN 权限，不上传遥测数据。',
+        subtitle: Text(Platform.isAndroid
+            ? 'VPN 授权由 Android 系统管理；不上传遥测数据。'
+            : '无需 VPN 权限，不上传遥测数据。',
             style: TextStyle(color: _muted)),
       )),
     ]),
