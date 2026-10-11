@@ -93,6 +93,50 @@ android {
         src, "Clash.getTotalTraffic()", "Core.getTotalTraffic(false)",
         "MainActivity JNI counters",
     )
+    src = replace_once(
+        src,
+        '                "stop" -> {',
+        '''                "testConnection" -> {
+                    if (VelaVpnState.state != "connected") {
+                        result.success(false)
+                    } else {
+                        Thread({
+                            val urls = listOf(
+                                "https://www.gstatic.com/generate_204",
+                                "https://cp.cloudflare.com/generate_204",
+                                "https://www.cloudflare.com/cdn-cgi/trace",
+                            )
+                            var ok = false
+                            for (url in urls) {
+                                try {
+                                    val conn = URL(url).openConnection() as HttpsURLConnection
+                                    conn.connectTimeout = 7000
+                                    conn.readTimeout = 7000
+                                    conn.instanceFollowRedirects = false
+                                    try {
+                                        val status = conn.responseCode
+                                        if (status == 200 || status == 204) {
+                                            ok = true
+                                            break
+                                        }
+                                    } finally {
+                                        conn.disconnect()
+                                    }
+                                } catch (_: Exception) {}
+                            }
+                            runOnUiThread { result.success(ok &&
+                                VelaVpnState.state == "connected") }
+                        }, "vela-real-network-retest").start()
+                    }
+                }
+                "stop" -> {''',
+        "Android native HTTPS-over-VPN retest",
+    )
+    src = replace_once(
+        src, "import java.io.File",
+        "import java.io.File\\nimport java.net.URL\\nimport javax.net.ssl.HttpsURLConnection",
+        "Android HTTPS imports",
+    )
     (VELA_APP / "src/main/kotlin/com/shuowang/vela_shuo/MainActivity.kt"
      ).write_text(src, encoding="utf-8")
 
