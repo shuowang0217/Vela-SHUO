@@ -2,7 +2,7 @@
 """Apply a pinned, auditable Vela-SHUO visual overlay to a FlClash checkout.
 
 No Vela subscription downloader, DNS policy, HTTP proxy or VPN service
-is copied into FlClash. FlClash remains the network and settings owner.
+is copied into FlClash. FlClash remains the networking owner; Vela is UI.
 """
 from __future__ import annotations
 
@@ -74,6 +74,30 @@ def apply_overlay(vela: Path, upstream: Path, *, verify_sha: bool = True) -> Non
     target = upstream / dst
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(vela / src, target)
+    # Vela owns the ENTIRE visible four-tab shell, not a FlClash dashboard card.
+    shell_source = vela / "scripts/migration/flclash/vela_shell.dart"
+    shell_target = upstream / "lib/vela_shuo/vela_shell.dart"
+    shutil.copy2(shell_source, shell_target)
+
+    app = upstream / "lib/application.dart"
+    app_text = app.read_text(encoding="utf-8")
+    app_text = replace_once(
+        app_text,
+        "import 'pages/pages.dart';",
+        "import 'package:fl_clash/vela_shuo/vela_shell.dart';",
+        "application.dart:import",
+    )
+    app_text = replace_once(
+        app_text,
+        "child: const HomePage(),",
+        "child: const VelaShell(),",
+        "application.dart:home",
+    )
+    app_text = replace_once(
+        app_text, "title: appName,", "title: 'Vela-SHUO',",
+        "application.dart:title",
+    )
+    app.write_text(app_text, encoding="utf-8")
 
     pubspec = upstream / "pubspec.yaml"
     yaml_text = pubspec.read_text(encoding="utf-8")
@@ -84,24 +108,8 @@ def apply_overlay(vela: Path, upstream: Path, *, verify_sha: bool = True) -> Non
     )
     pubspec.write_text(yaml_text, encoding="utf-8")
 
-    dashboard = upstream / "lib/views/dashboard/dashboard.dart"
-    dart = dashboard.read_text(encoding="utf-8")
-    dart = replace_once(
-        dart, "import 'package:fl_clash/common/common.dart';",
-        "import 'package:fl_clash/common/common.dart';\n" + IMPORT,
-        "dashboard.dart:import",
-    )
-    dart = replace_once(
-        dart, "                slivers: [\n",
-        "                slivers: [\n" + SLIVER,
-        "dashboard.dart:slivers",
-    )
-    dart = replace_once(
-        dart, "title: context.appLocalizations.dashboard,",
-        "title: 'Vela-SHUO',",
-        "dashboard.dart:title",
-    )
-    dashboard.write_text(dart, encoding="utf-8")
+    # FlClash navigation and pages remain internal source only and are never
+    # mounted by VelaShell. Do not attach a Vela widget to FlClash dashboard.
     # A full upstream source tree plus our Git-tracked overlay is the
     # redistributable corresponding source for this GPL-derived build.
     notice = upstream / "VELA-SHUO-UPSTREAM.txt"
