@@ -217,9 +217,10 @@ class VelaScreenPadding extends StatelessWidget {
 /// No sample-node connection timer or secondary proxy engine is used.
 class VelaOriginalHome extends ConsumerStatefulWidget {
   const VelaOriginalHome({super.key, required this.showNodes,
-    required this.showSmart});
+    required this.showSmart, required this.desktop});
   final VoidCallback showNodes;
   final VoidCallback showSmart;
+  final bool desktop;
 
   @override
   ConsumerState<VelaOriginalHome> createState() => _VelaOriginalHomeState();
@@ -261,10 +262,9 @@ class _VelaOriginalHomeState extends ConsumerState<VelaOriginalHome> {
 
   @override
   Widget build(BuildContext context) {
-    final desktop = MediaQuery.sizeOf(context).width >= 820;
-    return desktop
-      ? _desktop()
-      : _mobile();
+    // Parent Vela shell owns responsive mode. Child content width differs
+    // from full window width because the desktop sidebar consumes space.
+    return widget.desktop ? _desktop() : _mobile();
   }
 
   Widget _desktop() => LayoutBuilder(builder: (context, constraints) {
