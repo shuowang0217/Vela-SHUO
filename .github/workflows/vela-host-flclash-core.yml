@@ -165,11 +165,14 @@ jobs:
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
           test -n "$SDKMANAGER"
           "$SDKMANAGER" --install "ndk;27.3.13750724" "cmake;3.22.1"
-          NDK_ROOT="\${ANDROID_HOME}/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64"
+          NDK_ROOT="${ANDROID_HOME}/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64"
           LIBCLANG="$(find /usr/lib/llvm-* -name 'libclang.so*' -print | sort -V | tail -n 1)"
           test -n "$LIBCLANG"
           sudo mkdir -p "$NDK_ROOT/lib"
           sudo ln -sf "$LIBCLANG" "$NDK_ROOT/lib/libclang.so"
+          # Rust bindgen looks for libclang inside the NDK toolchain.
+          test -f "$NDK_ROOT/lib/libclang.so"
+          echo "Confirmed NDK libclang: $NDK_ROOT/lib/libclang.so"
       - name: Build pinned FlClash Go JNI backend from source
         working-directory: flclash
         shell: bash
