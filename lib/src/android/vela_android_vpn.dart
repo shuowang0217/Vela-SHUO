@@ -117,6 +117,19 @@ class VelaAndroidVpnController extends ChangeNotifier {
     }
   }
 
+  /// User-triggered real HTTPS check through the already established VPN.
+  /// The native Android channel returns the outcome of actual TLS requests;
+  /// this is not inferred from the existence of a local port or a timer.
+  Future<bool> testConnectivity() async {
+    if (!Platform.isAndroid || _disposed || !connected) return false;
+    try {
+      return await _channel.invokeMethod<bool>('testConnection')
+          .timeout(const Duration(seconds: 26)) == true && connected;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> stop() async {
     if (!Platform.isAndroid || _disposed) return false;
     try {
