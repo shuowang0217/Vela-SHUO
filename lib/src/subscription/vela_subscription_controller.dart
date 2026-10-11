@@ -294,13 +294,14 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
         proxy = null;
       }
     }
+    String? extraProxy;
     if (mode == VelaSubscriptionDownloadMode.automatic &&
-        proxy == null && proxyLookup == null && Platform.isWindows) {
-      // System proxy may be disabled while Clash/Mihomo still exposes an
-      // active local HTTP/Mixed listener. Probe only known local ports with
-      // a token-free CONNECT request before trying subscription DNS.
-      proxy = await const VelaWindowsProxyDetector()
+        proxyLookup == null && Platform.isWindows) {
+      // A stale WinINet proxy entry must not hide a working HTTP/Mixed
+      // listener. The extra route is CONNECT-verified without any secret.
+      extraProxy = await const VelaWindowsProxyDetector()
           .discoverLocalHttpProxy();
+      if (extraProxy == proxy) extraProxy = null;
     }
     if (mode == VelaSubscriptionDownloadMode.systemProxy &&
         proxy == null) {
@@ -313,6 +314,7 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     // and pin the socket IP to prevent a DNS-rebinding TOCTOU.
     final routes = <String>[
       ?proxy,
+      ?extraProxy,
       if (mode != VelaSubscriptionDownloadMode.systemProxy &&
           mode != VelaSubscriptionDownloadMode.localHttp) 'DIRECT',
     ];
@@ -357,6 +359,8 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     final hint = mode == VelaSubscriptionDownloadMode.localHttp
         ? '本机 HTTP/Mixed 代理 127.0.0.1:$localHttpProxyPort 请求失败'
           '（请确认该端口是 HTTP 或 Mixed，不是仅 SOCKS5）'
+        : extraProxy != null
+        ? '已尝试 Windows 本机代理、探测到的本机 HTTP 代理及直连'
         : proxy != null && routes.length == 2
         ? '已尝试 Windows 本机系统代理和直连'
         : proxy != null ? '本机系统代理请求失败' : '直连请求失败';
