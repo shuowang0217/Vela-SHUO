@@ -129,12 +129,17 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y libclang-dev
+          # On clean GitHub runners Flutter/Gradle install the required NDK
+          # on their first build. Provision it before the bindgen shim.
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" --install "ndk;27.3.13750724"
           # Flutter supplies NDK r27, but this Android NDK no longer
           # bundles libclang.so. Upstream rquickjs bindgen requires it
           # directly under the NDK's lib or lib64 directory.
           NDK_ROOT="${ANDROID_HOME}/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64"
           test -x "$NDK_ROOT/bin/clang"
-          LIBCLANG="$(find /usr/lib/llvm-* -type f -name 'libclang.so*' -print | sort -V | tail -n 1)"
+          LIBCLANG="$(find /usr/lib/llvm-* -name 'libclang.so*' -print | sort -V | tail -n 1)"
           test -n "$LIBCLANG"
           sudo mkdir -p "$NDK_ROOT/lib"
           sudo ln -sf "$LIBCLANG" "$NDK_ROOT/lib/libclang.so"
