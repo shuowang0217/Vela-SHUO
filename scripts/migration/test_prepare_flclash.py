@@ -26,15 +26,16 @@ class OverlayTests(unittest.TestCase):
         script_overlay = self.vela / module.OVERLAY[0]
         script_overlay.parent.mkdir(parents=True, exist_ok=True)
         script_overlay.write_text("class VelaFlightHeader {}\n", encoding="utf-8")
-        d = self.upstream / "lib/views/dashboard/dashboard.dart"
-        d.parent.mkdir(parents=True, exist_ok=True)
-        d.write_text(
-            "import 'package:fl_clash/common/common.dart';\n"
-            "return CustomScrollView(\n"
-            "                slivers: [\n"
-            "title: context.appLocalizations.dashboard,\n",
+        app = self.upstream / "lib/application.dart"
+        app.parent.mkdir(parents=True, exist_ok=True)
+        app.write_text(
+            "import 'pages/pages.dart';\n"
+            "return MaterialApp(title: appName, child: const HomePage());\n",
             encoding="utf-8",
         )
+        shell = self.vela / "scripts/migration/flclash/vela_shell.dart"
+        shell.parent.mkdir(parents=True, exist_ok=True)
+        shell.write_text("class VelaShell {}\n", encoding="utf-8")
         (self.upstream / "LICENSE").write_text("GNU GPLv3")
         (self.upstream / "pubspec.yaml").write_text(
             "flutter:\n  assets:\n    - assets/data/\n",
@@ -43,10 +44,11 @@ class OverlayTests(unittest.TestCase):
 
     def test_preserves_flclash_backend_and_adds_animated_visual_only(self):
         module.apply_overlay(self.vela, self.upstream, verify_sha=False)
-        dashboard = (self.upstream / "lib/views/dashboard/dashboard.dart").read_text()
-        self.assertIn("VelaFlightHeader()", dashboard)
-        self.assertIn("title: 'Vela-SHUO'", dashboard)
-        self.assertIn("return CustomScrollView(", dashboard)
+        app = (self.upstream / "lib/application.dart").read_text()
+        self.assertIn("child: const VelaShell()", app)
+        self.assertNotIn("child: const HomePage()", app)
+        self.assertIn("title: 'Vela-SHUO'", app)
+        self.assertTrue((self.upstream / "lib/vela_shuo/vela_shell.dart").exists())
         pubspec = (self.upstream / "pubspec.yaml").read_text()
         self.assertIn("assets/earth/", pubspec)
         self.assertIn("assets/maps/", pubspec)
@@ -54,8 +56,8 @@ class OverlayTests(unittest.TestCase):
         self.assertTrue((self.upstream / "lib/vela_shuo/home/globe.dart").exists())
         self.assertTrue((self.upstream / "LICENSE").exists())
 
-    def test_refuses_unknown_upstream_dashboard_shape(self):
-        (self.upstream / "lib/views/dashboard/dashboard.dart").write_text(
+    def test_refuses_unknown_upstream_app_shape(self):
+        (self.upstream / "lib/application.dart").write_text(
             "changed upstream internals", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "Unsupported FlClash layout"):
             module.apply_overlay(self.vela, self.upstream, verify_sha=False)
