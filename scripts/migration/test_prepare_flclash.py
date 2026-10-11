@@ -30,7 +30,26 @@ class OverlayTests(unittest.TestCase):
         app.parent.mkdir(parents=True, exist_ok=True)
         app.write_text(
             "import 'pages/pages.dart';\n"
+            "final platformApp = isDesktop\n"
+            "      ? WindowHeaderContainer(child: child)\n"
+            "      : VpnManager(child: child);\n"
+            "  return AppEnvManager(\n"
+            "    child: LocaleManager(\n"
+            "      child: StatusManager(child: ThemeManager(child: platformState)),\n"
+            "    ),\n"
+            "  );\n"
             "return MaterialApp(title: appName, child: const HomePage(),);\n",
+            encoding="utf-8",
+        )
+        window = self.upstream / "lib/common/window.dart"
+        window.parent.mkdir(parents=True, exist_ok=True)
+        window.write_text(
+            "    if (!system.isMacOS || version > 10) {\n"
+            "      await desktopWindow.setTitleBarStyle(TitleBarStyle.hidden);\n"
+            "    }\n"
+            "    await desktopWindow.setSize(props.size);\n"
+            "    await desktopWindow.setMinimumSize(const Size(380, 400));\n"
+            "    await _windowPosition(props);\n",
             encoding="utf-8",
         )
         shell = self.vela / "scripts/migration/flclash/vela_shell.dart"
@@ -60,6 +79,11 @@ class OverlayTests(unittest.TestCase):
         self.assertIn("child: const VelaShell()", app)
         self.assertNotIn("child: const HomePage()", app)
         self.assertIn("title: 'Vela-SHUO'", app)
+        self.assertNotIn("WindowHeaderContainer(child: child)", app)
+        self.assertNotIn("return AppEnvManager(", app)
+        window = (self.upstream / "lib/common/window.dart").read_text()
+        self.assertIn("TitleBarStyle.normal", window)
+        self.assertIn("size.width < 1120", window)
         self.assertTrue((self.upstream / "lib/vela_shuo/vela_shell.dart").exists())
         self.assertTrue((self.upstream / "lib/vela_shuo/vela_original_home.dart").exists())
         pubspec = (self.upstream / "pubspec.yaml").read_text()
