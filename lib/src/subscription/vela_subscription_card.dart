@@ -6,6 +6,7 @@ import '../core/vela_core_controller.dart';
 import '../android/vela_android_vpn.dart';
 import '../theme/vela_palettes.dart';
 import 'vela_subscription_controller.dart';
+import 'vela_node_filter_panel.dart';
 
 /// Subscription credentials never enter a diagnostic log or persisted field.
 class VelaSubscriptionCard extends StatefulWidget {
@@ -178,12 +179,15 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                 style: TextStyle(color: colors.muted, fontSize: 12),
               ),
               const SizedBox(height: 10),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 330),
-                child: ListView.builder(
+              VelaNodeFilterPanel(
+                controller: subscription,
+                builder: (context, indices) => ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 330),
+                  child: ListView.builder(
                   shrinkWrap: true,
-                  itemCount: subscription.nodes.length,
-                  itemBuilder: (context, i) {
+                  itemCount: indices.length,
+                  itemBuilder: (context, position) {
+                    final i = indices[position];
                     final node = subscription.nodes[i];
                     final selected = subscription.selectedIndex == i;
                     return ListTile(
@@ -192,6 +196,16 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                       enabled: !busy,
                       selected: selected,
                       contentPadding: EdgeInsets.zero,
+                      leading: IconButton(
+                        key: ValueKey('subscription_favorite_$i'),
+                        tooltip: subscription.isFavorite(i)
+                            ? '取消收藏' : '收藏节点',
+                        onPressed: () => subscription.toggleFavorite(i),
+                        icon: Icon(subscription.isFavorite(i)
+                            ? Icons.star_rounded : Icons.star_border_rounded,
+                          color: subscription.isFavorite(i)
+                              ? colors.accent : colors.muted),
+                      ),
                       title: Text(node.name,
                           maxLines: 1, overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: colors.text)),
@@ -205,6 +219,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                       onTap: busy ? null : () => subscription.selectNode(i),
                     );
                   },
+                  ),
                 ),
               ),
               const SizedBox(height: 9),
@@ -217,9 +232,9 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               ),
             ],
             const SizedBox(height: 12),
-            Text('重启恢复为可选功能：必须主动点击保存。'
-                '存档包含节点账号与密钥，会使用系统安全存储加密保存；'
-                '不会保存输入的订阅 URL。',
+            Text('星标收藏仅调整列表顺序，不会自动切换节点。'
+                '如需重启保留收藏，点击「加密保存本机」或「更新加密存档」。'
+                '订阅及收藏仅通过系统安全存储加密保存，不保存订阅 URL。',
                 style: TextStyle(color: colors.muted, fontSize: 11)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [
