@@ -19,6 +19,8 @@ class VelaShell extends ConsumerStatefulWidget {
 class _VelaShellState extends ConsumerState<VelaShell> {
   int tab = 0;
   String query = '';
+  bool favoritesOnly = false;
+  final Set<String> favoriteNames = <String>{};
   String paletteId = VelaPalette.defaultId;
 
   static const labels = ['首页', '节点', '智能优选', '设置'];
@@ -174,48 +176,117 @@ class _VelaShellState extends ConsumerState<VelaShell> {
   Widget _nodes() {
     final t = VelaThemeRuntime.active;
     final groups = ref.watch(visibleGroupsStateProvider).value;
-    final selected = ref.watch(currentProfileProvider)?.selectedMap ?? <String, String>{};
-    final results = groups.map((g) => (group: g,
-      proxies: g.all.where((p) => p.name.toLowerCase().contains(query.toLowerCase())).toList()))
-      .where((entry) => entry.proxies.isNotEmpty).toList();
+    final selected = ref.watch(currentProfileProvider)?.selectedMap
+      ?? <String, String>{};
+    final allNodes = groups.expand((g) => g.all.map((p) =>
+      (group: g, proxy: p))).toList();
+    final matching = allNodes.where((e) {
+      final key = e.group.name + '|' + e.proxy.name;
+      final hit = e.proxy.name.toLowerCase().contains(query.trim().toLowerCase());
+      return hit && (!favoritesOnly || favoriteNames.contains(key));
+    }).toList();
     return _page('节点', [
       TextField(
-        key: const ValueKey('vela_node_search'),
+        key: const ValueKey('node_search_input'),
+        maxLength: 80,
+        textInputAction: TextInputAction.search,
         onChanged: (value) => setState(() => query = value),
-        decoration: const InputDecoration(
-          prefixIcon: Icon(Icons.search),
-          hintText: '搜索节点名称',
-          border: OutlineInputBorder(),
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: '搜索节点名称或协议',
+          prefixIcon: const Icon(Icons.search_rounded),
+          border: const OutlineInputBorder(),
+          counterText: '',
+          suffixIcon: query.isEmpty ? null : IconButton(
+            key: const ValueKey('node_search_clear'),
+            tooltip: '清除搜索',
+            onPressed: () => setState(() => query = ''),
+            icon: const Icon(Icons.close_rounded),
+          ),
         ),
       ),
-      const SizedBox(height: 16),
-      if (groups.isEmpty) _card(Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      const SizedBox(height: 9),
+      Wrap(
+        spacing: 12,
+        runSpacing: 3,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          const Text('还没有可用节点'),
-          _subtitle('请先添加订阅并连接内核。'),
-          TextButton(onPressed: () => setState(() => tab = 3),
-            child: const Text('前往订阅管理')),
+          FilterChip(
+            key: const ValueKey('node_favorites_only'),
+            label: Text('仅收藏 (' + favoriteNames.length.toString() + ')'),
+            selected: favoritesOnly,
+            onSelected: (checked) => setState(() => favoritesOnly = checked),
+            avatar: const Icon(Icons.star_rounded, size: 17),
+          ),
+          Text('显示 ' + matching.length.toString() + ' / ' +
+            allNodes.length.toString() + ' 个节点',
+            style: Theme.of(context).textTheme.bodySmall),
         ],
-      )),
-      for (final entry in results)
-        _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(entry.group.name, style: TextStyle(
-            color: t.text, fontSize: 18, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          for (final proxy in entry.proxies)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(proxy.name, maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: t.text)),
-              leading: Icon(selected[entry.group.name] == proxy.name
-                ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                color: selected[entry.group.name] == proxy.name ? t.accent : t.muted),
-              onTap: () => ref.read(proxiesActionProvider.notifier).changeProxy(
-                groupName: entry.group.name, proxyName: proxy.name),
+      ),
+      const SizedBox(height: 12),
+      if (allNodes.isEmpty)
+        _card(Column(crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('尚未导入订阅', style: TextStyle(color: t.text)),
+            const SizedBox(height: 10),
+            _subtitle('请在「设置」添加订阅。'),
+            TextButton(onPressed: () => setState(() => tab = 3),
+              child: const Text('前往订阅管理')),
+          ]))
+      else if (matching.isEmpty)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 18),
+          child: Text('没有匹配的节点，可清除搜索或关闭「仅收藏」'),
+        ),
+      for (final group in groups)
+        if (matching.any((entry) => entry.group.name == group.name)) ...[
+          Padding(
+            padding: const EdgeInsets.only(top: 10, bottom: 12),
+            child: Text(group.name, style: TextStyle(
+              color: t.text, fontSize: 18, fontWeight: FontWeight.w600))),
+          for (final entry in matching.where((e) =>
+            e.group.name == group.name))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: VelaGlassCard(
+                padding: EdgeInsets.zero,
+                child: Consumer(builder: (context, ref, _) {
+                  final proxy = entry.proxy;
+                  final key = group.name + '|' + proxy.name;
+                  final favorite = favoriteNames.contains(key);
+                  final delay = ref.watch(delayProvider(proxyName: proxy.name));
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    leading: IconButton(
+                      key: ValueKey('node_favorite_' + key),
+                      tooltip: favorite ? '取消收藏' : '收藏节点',
+                      onPressed: () => setState(() {
+                        if (favorite) { favoriteNames.remove(key); }
+                        else { favoriteNames.add(key); }
+                      }),
+                      icon: Icon(favorite ? Icons.star_rounded
+                        : Icons.star_border_rounded,
+                        color: favorite ? t.accentSoft : t.muted),
+                    ),
+                    title: Text(proxy.name, style: TextStyle(color: t.text)),
+                    subtitle: Text(delay == null ? '未测速'
+                      : delay.toString() + ' ms',
+                      style: TextStyle(color: t.muted)),
+                    trailing: selected[group.name] == proxy.name
+                      ? Icon(Icons.check_circle, color: t.accentSoft)
+                      : Icon(Icons.chevron_right, color: t.accent),
+                    onTap: () async {
+                      await ref.read(proxiesActionProvider.notifier).changeProxy(
+                        groupName: group.name, proxyName: proxy.name);
+                      if (mounted) setState(() => tab = 0);
+                    },
+                  );
+                }),
+              ),
             ),
-        ])),
+        ],
+      const SizedBox(height: 16),
+      _subtitle('节点延迟来自 FlClash 内核真实探测；收藏暂仅在本次运行有效。'),
     ]);
   }
 
