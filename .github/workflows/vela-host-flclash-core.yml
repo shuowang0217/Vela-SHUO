@@ -118,3 +118,98 @@ jobs:
             vela/SHA256-Windows.txt
           if-no-files-found: error
           retention-days: 14
+
+  android:
+    name: Android ARM64: Vela UI + FlClash Go JNI VPN
+    needs: vela-ui
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: vela
+      - uses: actions/checkout@v4
+        with:
+          repository: chen08209/FlClash
+          ref: \${{ env.FLCLASH_SHA }}
+          submodules: recursive
+          path: flclash
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: \${{ env.FLUTTER_VERSION }}
+          channel: master
+          cache: true
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Reclaim Android build runner space
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/powershell
+          sudo rm -rf /usr/local/lib/android/sdk/ndk
+          sudo apt-get clean
+          df -h /
+      - name: Install native Android toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup target add aarch64-linux-android
+          sudo apt-get update -qq
+          sudo apt-get install -y libclang-dev
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" --install "ndk;27.3.13750724" "cmake;3.22.1"
+          NDK_ROOT="\${ANDROID_HOME}/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64"
+          LIBCLANG="$(find /usr/lib/llvm-* -name 'libclang.so*' -print | sort -V | tail -n 1)"
+          test -n "$LIBCLANG"
+          sudo mkdir -p "$NDK_ROOT/lib"
+          sudo ln -sf "$LIBCLANG" "$NDK_ROOT/lib/libclang.so"
+      - name: Build pinned FlClash Go JNI backend from source
+        working-directory: flclash
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$FLCLASH_SHA"
+          test "$(git -C core/Clash.Meta rev-parse HEAD)" = "$FLCLASH_MIHOMO_SHA"
+          flutter pub get
+          dart setup.dart android --env pre --arch arm64 --targets apk
+          test -s android/core/src/main/jniLibs/arm64-v8a/libclash.so
+          test -s android/core/src/main/cpp/includes/arm64-v8a/libclash.h
+      - name: Generate original Vela Android app and replace only native bridge
+        working-directory: vela
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter create --project-name vela_shuo --org com.shuowang --platforms android .
+          python3 scripts/configure_android_vpn.py
+          python3 scripts/migration/attach_flclash_android_core.py
+          grep -q 'home: _Shell(settings: settings' lib/src/app.dart
+          grep -q 'import com.follow.clash.core.Core' android/app/src/main/kotlin/com/shuowang/vela_shuo/VelaVpnService.kt
+          flutter pub get
+      - name: Build original Vela Flutter app with FlClash Go VPN backend
+        working-directory: vela
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter build apk --release --target-platform android-arm64
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk dist/Vela-SHUO-Original-UI-FlClash-Go-VPN-arm64.apk
+          unzip -l dist/Vela-SHUO-Original-UI-FlClash-Go-VPN-arm64.apk | grep 'lib/arm64-v8a/libcore.so'
+          unzip -l dist/Vela-SHUO-Original-UI-FlClash-Go-VPN-arm64.apk | grep 'lib/arm64-v8a/libclash.so'
+          if unzip -l dist/Vela-SHUO-Original-UI-FlClash-Go-VPN-arm64.apk | grep -q libmihomo-jni.so; then
+            echo 'Unexpected legacy native core included' >&2
+            exit 1
+          fi
+          sha256sum dist/Vela-SHUO-Original-UI-FlClash-Go-VPN-arm64.apk > dist/SHA256-Android.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Vela-SHUO-Android-Original-UI-FlClash-Go-Core
+          path: vela/dist/*
+          if-no-files-found: error
+          retention-days: 14
