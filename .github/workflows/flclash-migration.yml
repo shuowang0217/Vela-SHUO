@@ -45,7 +45,9 @@ jobs:
             exit 1
           fi
           grep -q 'child: const VelaShell()' flclash/lib/application.dart
-          grep -q 'VelaFlightHeader' flclash/lib/vela_shuo/vela_shell.dart
+          grep -q 'VelaOriginalHome' flclash/lib/vela_shuo/vela_shell.dart
+          grep -q 'designHeight = 760.0' flclash/lib/vela_shuo/vela_original_home.dart
+          grep -q 'VelaGlobe(demo: animation)' flclash/lib/vela_shuo/vela_original_home.dart
           grep -q 'assets/earth/' flclash/pubspec.yaml
           grep -q 'GNU GENERAL PUBLIC LICENSE' flclash/LICENSE
           grep -q 'GNU GENERAL PUBLIC LICENSE' vela/LICENSE
