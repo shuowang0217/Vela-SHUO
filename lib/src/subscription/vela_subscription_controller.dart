@@ -53,7 +53,9 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
   }
 
   static bool isFakeIp(InternetAddress address) {
-    if (address.type != InternetAddressType.IPv4) return false;
+    if (address.type != InternetAddressType.IPv4) {
+      return false;
+    }
     final bytes = address.rawAddress;
     return bytes[0] == 198 && (bytes[1] == 18 || bytes[1] == 19);
   }
@@ -91,7 +93,9 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     final v4 = <InternetAddress>[], v6 = <InternetAddress>[];
     final fake = <InternetAddress>[], seen = <String>{};
     for (final ip in addresses) {
-      if (!seen.add(ip.address)) continue;
+      if (!seen.add(ip.address)) {
+        continue;
+      }
       if (isPublicIp(ip)) {
         (ip.type == InternetAddressType.IPv4 ? v4 : v6).add(ip);
       } else if (isFakeIp(ip)) {
@@ -311,7 +315,9 @@ class VelaSubscriptionController extends ChangeNotifier {
   VelaSubscriptionDownloadMode get downloadMode => _downloadMode;
 
   void setDownloadMode(VelaSubscriptionDownloadMode next) {
-    if (loading || core.busy || core.isListening) return;
+    if (loading || core.busy || core.isListening) {
+      return;
+    }
     _downloadMode = next;
     _notify();
   }
@@ -356,7 +362,9 @@ class VelaSubscriptionController extends ChangeNotifier {
     final pinned = <int>[];
     final other = <int>[];
     for (final i in ordered) {
-      if (favoritesOnly && !_favorites.contains(i)) continue;
+      if (favoritesOnly && !_favorites.contains(i)) {
+        continue;
+      }
       final node = nodes[i];
       if (normalized.isNotEmpty &&
           !node.name.toLowerCase().contains(normalized) &&
@@ -381,7 +389,9 @@ class VelaSubscriptionController extends ChangeNotifier {
       return null;
     }
     final profile = jsonDecode(_preparedProfile!.configText);
-    if (profile is! Map<String, dynamic>) return null;
+    if (profile is! Map<String, dynamic>) {
+      return null;
+    }
     profile.remove('external-controller');
     profile.remove('secret');
     profile['mixed-port'] = 0;
@@ -422,7 +432,9 @@ class VelaSubscriptionController extends ChangeNotifier {
   /// Failed updates keep the existing node list and encrypted snapshot.
   Future<bool> refreshLastUrl() async {
     final url = _sessionUrl;
-    if (url == null || _disposed || !canRefresh) return false;
+    if (url == null || _disposed || !canRefresh) {
+      return false;
+    }
     return importFromUrl(url);
   }
 
@@ -461,7 +473,9 @@ class VelaSubscriptionController extends ChangeNotifier {
       }
       _error = e.message;
     } catch (_) {
-      if (generation != _generation || _disposed) return false;
+      if (generation != _generation || _disposed) {
+        return false;
+      }
       _error = '节点内容无效，请检查格式';
     }
     // Old nodes and favorites survive a malformed replacement.
@@ -497,7 +511,9 @@ class VelaSubscriptionController extends ChangeNotifier {
           : _fetcher;
       final raw = await activeFetcher.download(normalizedUrl);
       final parsed = VelaSubscriptionParser.parse(raw);
-      if (generation != _generation || _disposed) return false;
+      if (generation != _generation || _disposed) {
+        return false;
+      }
 
       // Commit the new subscription only after both HTTPS fetch and parse.
       _result = parsed;
@@ -528,10 +544,14 @@ class VelaSubscriptionController extends ChangeNotifier {
       }
       return true;
     } on FormatException catch (e) {
-      if (generation != _generation || _disposed) return false;
+      if (generation != _generation || _disposed) {
+        return false;
+      }
       _error = e.message;
     } catch (_) {
-      if (generation != _generation || _disposed) return false;
+      if (generation != _generation || _disposed) {
+        return false;
+      }
       _error = '订阅导入失败，请检查格式或网络';
     }
     // A temporary outage must not delete a working profile or favorites.
