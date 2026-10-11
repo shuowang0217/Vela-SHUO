@@ -274,7 +274,7 @@ class _VelaShellState extends ConsumerState<VelaShell> {
         Text('节点延迟检测', style: TextStyle(color: t.text,
           fontSize: 19, fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
-        _subtitle('使用 FlClash 内核执行真实延迟测试，不生成模拟成绩。'),
+        _subtitle('对真实节点执行延迟测试，不展示模拟成绩。'),
         const SizedBox(height: 16),
         SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: !running || groups.isEmpty ? null
@@ -356,8 +356,7 @@ class _VelaShellState extends ConsumerState<VelaShell> {
         Text('关于 Vela-SHUO', style: TextStyle(color: t.text,
           fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
-        _subtitle('完整界面由 Vela-SHUO 负责，网络、订阅、VPN 和 '
-          'Mihomo 内核由 FlClash 工程管理。'),
+        _subtitle('Vela-SHUO · 一帆越洋，尽览四方。'),
       ])),
     ]);
   }
