@@ -143,31 +143,24 @@ class _VelaShellState extends ConsumerState<VelaShell> {
   }
 
   Widget _page(String title, List<Widget> children) {
-    final t = VelaThemeRuntime.active;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 24, 18, 40),
-      children: [
-        Text(title, style: TextStyle(fontSize: 27, fontWeight: FontWeight.bold,
-          color: t.text, letterSpacing: .5)),
-        const SizedBox(height: 20),
-        ...children,
-      ],
-    );
+    // Exactly match the original Vela centered, padded screen framing.
+    final subtitle = switch (title) {
+      '节点' => '来自真实订阅的节点 · 点击选择后返回首页',
+      '智能优选' => '稳定优先 · 让每一次连接更从容',
+      '设置' => '为 Vela-SHUO 定义你的使用方式',
+      _ => '',
+    };
+    return VelaScreenPadding(child: ListView(children: [
+      VelaScreenHeading(title, subtitle),
+      const SizedBox(height: 18),
+      ...children,
+    ]));
   }
 
-  Widget _card(Widget content) {
-    final t = VelaThemeRuntime.active;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: t.surface.withValues(alpha: .94),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: t.line),
-      ),
-      child: content,
-    );
-  }
+  Widget _card(Widget content) => Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: VelaGlassCard(child: content),
+  );
 
   Widget _subtitle(String text) => Text(text, style:
     TextStyle(fontSize: 13, color: VelaThemeRuntime.active.muted));
@@ -347,19 +340,11 @@ class _VelaShellState extends ConsumerState<VelaShell> {
           ),
         ]),
       ])),
-      _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Vela 配色', style: TextStyle(color: t.text,
-          fontSize: 19, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 12),
-        for (final palette in VelaPalette.all)
-          RadioListTile<String>(
-            title: Text(palette.name, style: TextStyle(color: t.text)),
-            value: palette.id,
-            groupValue: paletteId,
-            onChanged: (value) { if (value != null) setState(() => paletteId = value); },
-            activeColor: t.accent,
-          ),
-      ])),
+      VelaPaletteGrid(
+        paletteId: paletteId,
+        onSelected: (id) => setState(() => paletteId = id),
+      ),
+      const SizedBox(height: 16),
       _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('关于 Vela-SHUO', style: TextStyle(color: t.text,
           fontWeight: FontWeight.w600)),
