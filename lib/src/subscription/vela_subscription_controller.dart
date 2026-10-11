@@ -31,12 +31,14 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     this.proxyLookup,
     this.fetchTransport,
     this.dnsCheck,
+    this.dnsLookup,
   });
 
   final VelaSubscriptionDownloadMode mode;
   final Future<String?> Function()? proxyLookup;
   final Future<String> Function(Uri, String)? fetchTransport;
   final Future<void> Function(String)? dnsCheck;
+  final Future<List<InternetAddress>> Function(String)? dnsLookup;
 
   static void _validateUrl(Uri uri) {
     final host = uri.host.toLowerCase();
@@ -48,40 +50,70 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     }
   }
 
-  static Future<void> _checkDns(String host) async {
-    final addresses = await InternetAddress.lookup(host)
+  static bool isFakeIp(InternetAddress address) {
+    if (address.type != InternetAddressType.IPv4) return false;
+    final bytes = address.rawAddress;
+    return bytes[0] == 198 && (bytes[1] == 18 || bytes[1] == 19);
+  }
+
+  static bool isPublicIp(InternetAddress address) {
+    final bytes = address.rawAddress;
+    if (address.type == InternetAddressType.IPv6) {
+      if (bytes.length != 16) return false;
+      // Global unicast only. Reject ULA, link-local, IPv4-mapped, etc.
+      return (bytes[0] & 0xe0) == 0x20;
+    }
+    if (address.type != InternetAddressType.IPv4 ||
+        bytes.length != 4) return false;
+    final a = bytes[0], b = bytes[1], c = bytes[2];
+    return !(a == 0 || a == 10 || a == 127 || a >= 224 ||
+        (a == 100 && b >= 64 && b <= 127) ||
+        (a == 169 && b == 254) ||
+        (a == 172 && b >= 16 && b <= 31) ||
+        (a == 192 && (b == 0 || b == 168)) ||
+        (a == 192 && b == 88 && c == 99) ||
+        (a == 192 && b == 0 && c == 2) ||
+        (a == 198 && (b == 18 || b == 19 ||
+            (b == 51 && c == 100))) ||
+        (a == 203 && b == 0 && c == 113));
+  }
+
+  /// Keep safe global addresses ahead of Mihomo's 198.18/15 Fake-IP.
+  /// Mixed public/private results never authorize a private socket.
+  static List<InternetAddress> checkedAddresses(
+      List<InternetAddress> addresses) {
+    final v4 = <InternetAddress>[], v6 = <InternetAddress>[];
+    final fake = <InternetAddress>[], seen = <String>{};
+    for (final ip in addresses) {
+      if (!seen.add(ip.address)) continue;
+      if (isPublicIp(ip)) {
+        (ip.type == InternetAddressType.IPv4 ? v4 : v6).add(ip);
+      } else if (isFakeIp(ip)) {
+        fake.add(ip);
+      }
+    }
+    final safe = <InternetAddress>[...v4, ...v6, ...fake];
+    if (safe.isEmpty) {
+      throw const FormatException(
+          '订阅域名仅解析到内网或保留地址，已拒绝；可尝试本机 HTTP 系统代理');
+    }
+    return safe.take(8).toList(growable: false);
+  }
+
+  Future<List<InternetAddress>> _resolveDirect(String host) async {
+    if (dnsCheck != null) {
+      await dnsCheck!(host);
+      if (fetchTransport != null && dnsLookup == null) {
+        return []; // Legacy unit-test transport never creates sockets.
+      }
+    }
+    final addresses = await (dnsLookup?.call(host) ??
+            InternetAddress.lookup(host))
         .timeout(const Duration(seconds: 6));
     if (addresses.isEmpty) {
-      throw const FormatException('订阅域名未解析到公网地址');
+      throw const FormatException('订阅域名未解析到可用地址');
     }
-    for (final ip in addresses) {
-      if (ip.type == InternetAddressType.IPv6) {
-        final bytes = ip.rawAddress;
-        final allZeroPrefix = bytes.take(15).every((b) => b == 0);
-        // Do not connect to loopback, ULA, link-local, multicast, or
-        // IPv4-mapped addresses. Accept normal global unicast IPv6.
-        if (bytes[0] == 0xff || // multicast
-            (bytes[0] & 0xfe) == 0xfc || // unique-local
-            (bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80) ||
-            allZeroPrefix ||
-            (bytes.take(10).every((b) => b == 0) &&
-                bytes[10] == 0xff && bytes[11] == 0xff)) {
-          throw const FormatException('订阅域名包含非公网地址，已拒绝');
-        }
-        continue;
-      }
-      final bytes = ip.rawAddress;
-      final a = bytes[0], b = bytes[1], c = bytes[2];
-      if (a == 0 || a == 10 || a == 127 || a >= 224 ||
-          (a == 100 && b >= 64 && b <= 127) ||
-          (a == 169 && b == 254) ||
-          (a == 172 && b >= 16 && b <= 31) ||
-          (a == 192 && b == 168) ||
-          (a == 192 && b == 0 && c == 0) ||
-          (a == 198 && (b == 18 || b == 19))) {
-        throw const FormatException('订阅域名包含非公网地址，已拒绝');
-      }
-    }
+    return checkedAddresses(addresses);
   }
 
   @override
@@ -111,24 +143,9 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
         '未检测到本机 Windows HTTP 系统代理；请在现有代理软件中开启系统代理',
       );
     }
-    // If a trusted localhost HTTP proxy is configured, let it resolve the
-    // hostname. Clash/Mihomo Fake-IP DNS often returns 198.18.0.0/15, which
-    // must not be mistaken for an actual subscription host. When using
-    // DIRECT, all DNS answers must still be public.
-    if (proxy == null) {
-      try {
-        if (dnsCheck != null) {
-          await dnsCheck!(uri.host);
-        } else {
-          await _checkDns(uri.host);
-        }
-      } on SocketException {
-        throw const FormatException('订阅域名无法解析，请检查 DNS 或使用系统代理');
-      } on TimeoutException {
-        throw const FormatException('订阅域名解析超时，请检查 DNS 或使用系统代理');
-      }
-    }
-
+    // Proxy resolution belongs to the trusted loopback HTTP proxy, not to
+    // system DNS (which may be Mihomo Fake-IP). For DIRECT, resolve once
+    // and pin the socket IP to prevent a DNS-rebinding TOCTOU.
     final routes = <String>[
       ?proxy,
       if (mode != VelaSubscriptionDownloadMode.systemProxy) 'DIRECT',
@@ -136,15 +153,19 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     String? lastReason;
     for (final route in routes) {
       try {
+        final addresses = route == 'DIRECT'
+            ? await _resolveDirect(uri.host) : null;
         return await (fetchTransport == null
-            ? _fetchVia(uri, route)
+            ? _fetchVia(uri, route, addresses)
             : fetchTransport!(uri, route));
+      } on FormatException {
+        rethrow;
       } on _VelaSubscriptionTransportFailure catch (e) {
         lastReason = e.reason;
       } on TimeoutException {
         lastReason = '请求超时';
       } on SocketException {
-        lastReason = '网络连接失败';
+        lastReason = '域名解析或网络连接失败';
       } on HandshakeException {
         lastReason = 'HTTPS 证书验证失败';
       }
@@ -152,15 +173,42 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     final hint = proxy != null && routes.length == 2
         ? '已尝试 Windows 本机系统代理和直连'
         : proxy != null ? '本机系统代理请求失败' : '直连请求失败';
-    throw FormatException('$hint：${lastReason ?? '网络不可达'}');
+    throw FormatException(hint + '：' + (lastReason ?? '网络不可达'));
   }
 
-  Future<String> _fetchVia(Uri uri, String route) async {
-    final client = HttpClient();
-    client.connectionTimeout = const Duration(seconds: 10);
-    client.findProxy = (_) => route;
-    // Ask providers for compatible Clash YAML without rewriting signed URLs.
-    client.userAgent = 'Clash.Meta';
+  Future<String> _fetchVia(
+      Uri uri, String route, List<InternetAddress>? addresses) async {
+    final targets = addresses == null
+        ? <InternetAddress?>[null]
+        : addresses.map<InternetAddress?>((ip) => ip).toList();
+    _VelaSubscriptionTransportFailure? lastFailure;
+    for (final target in targets) {
+      try {
+        return await _fetchViaAddress(uri, route, target);
+      } on _VelaSubscriptionTransportFailure catch (e) {
+        lastFailure = e;
+      }
+    }
+    throw lastFailure ??
+        const _VelaSubscriptionTransportFailure('无可用解析地址');
+  }
+
+  Future<String> _fetchViaAddress(
+      Uri uri, String route, InternetAddress? pinnedAddress) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10)
+      ..findProxy = (_) => route
+      ..userAgent = 'Clash.Meta';
+    if (pinnedAddress != null) {
+      client.connectionFactory =
+          (Uri target, String? proxyHost, int? proxyPort) {
+        if (proxyHost != null || proxyPort != null) {
+          throw StateError('直连禁止使用代理重定向');
+        }
+        // Original URI keeps HTTPS certificate validation and SNI intact.
+        return Socket.startConnect(pinnedAddress, target.port);
+      };
+    }
     try {
       final req = await client.getUrl(uri).timeout(
         const Duration(seconds: 12),
@@ -177,7 +225,8 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
         );
       }
       if (response.statusCode != HttpStatus.ok) {
-        throw FormatException('订阅服务器返回 HTTP ${response.statusCode}');
+        throw FormatException(
+            '订阅服务器返回 HTTP ' + response.statusCode.toString());
       }
       final parts = <int>[];
       Future<void> receive() async {
