@@ -83,7 +83,7 @@ class _VelaFlightHeaderState extends ConsumerState<VelaFlightHeader> {
           Text(label, style: const TextStyle(
               fontSize: 15, color: Colors.white)),
           const SizedBox(height: 9),
-          const Text('连接、订阅、代理及 VPN 由 FlClash 网络层控制',
+          const Text('连接、订阅与 VPN 使用统一的后台网络服务',
               style: TextStyle(fontSize: 11, color: Color(0xFF9DABB7))),
           const SizedBox(height: 5),
           const Text('航向位置按节点名称推测，仅用于动画',
