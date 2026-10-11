@@ -121,6 +121,10 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
   /// These fixed addresses are public, not derived from untrusted DNS.
   static Future<List<InternetAddress>> _lookupViaDoh(String host) async {
     const resolvers = <(String, String, String)>[
+      // Alibaba's public JSON DoH service works on mainland networks.
+      // The pinned address is public, with TLS verified for dns.alidns.com.
+      ('dns.alidns.com', '223.5.5.5', '/resolve'),
+      ('dns.alidns.com', '223.6.6.6', '/resolve'),
       ('cloudflare-dns.com', '1.1.1.1', '/dns-query'),
       ('dns.google', '8.8.8.8', '/resolve'),
     ];
@@ -186,6 +190,11 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
           // Never include the DoH URL or subscription host in diagnostics.
         } finally {
           client.close(force: true);
+        }
+        // The vast majority of subscription hosts have valid A records.
+        // Avoid unnecessary secondary AAAA requests once one is found.
+        if (results.isNotEmpty) {
+          break;
         }
       }
       if (results.isNotEmpty) {
