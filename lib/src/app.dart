@@ -116,6 +116,20 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
 
   void syncRealGlobe() {
     final sub = subscription;
+    final vpn = androidVpn;
+    if (Platform.isAndroid && vpn != null) {
+      final state = switch (vpn.phase) {
+        VelaAndroidVpnPhase.preparing ||
+        VelaAndroidVpnPhase.connecting => VelaPhase.connecting,
+        VelaAndroidVpnPhase.connected => VelaPhase.connected,
+        VelaAndroidVpnPhase.error => VelaPhase.error,
+        VelaAndroidVpnPhase.disconnected => VelaPhase.idle,
+      };
+      // The VPN service is authoritative, including when returning to
+      // the application from the background. No animation-only success.
+      demo.projectRealState(state, sub?.selected?.name);
+      return;
+    }
     final conn = connection;
     if (sub?.selected == null || conn == null) return;
     final phase = switch (conn.phase) {
@@ -138,6 +152,9 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       subscription = VelaSubscriptionController(
           core: widget.core!, previewOnly: Platform.isAndroid);
       unawaited(subscription!.restoreSaved());
+      if (Platform.isAndroid) {
+        subscription!.addListener(syncRealGlobe);
+      }
       if (widget.systemProxy != null && !Platform.isAndroid) {
         connection = VelaConnectionCoordinator(
           core: widget.core!, subscription: subscription!,
@@ -155,6 +172,10 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
           downloadProbe: benchmark, fullProbe: benchmark,
         );
       }
+    }
+    if (androidVpn != null) {
+      androidVpn!.addListener(syncRealGlobe);
+      syncRealGlobe();
     }
     WidgetsBinding.instance.addObserver(this);
   }
@@ -186,6 +207,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     subscription?.removeListener(syncRealGlobe);
     connection?.removeListener(syncRealGlobe);
     smart?.dispose();
+    androidVpn?.removeListener(syncRealGlobe);
     androidVpn?.dispose();
     widget.windowExitGuard?.shutdownConnection = null;
     // Restore WinINet BEFORE terminating its local endpoint. Never kill
