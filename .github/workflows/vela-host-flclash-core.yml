@@ -1,0 +1,120 @@
+name: Vela-owned UI with pinned FlClash network core
+
+on:
+  push:
+    branches: [migration/vela-host-flclash-core]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vela-native-core-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.4'
+  FLCLASH_SHA: '4b59eca853778d4e7be3de26589252889c899bc5'
+  FLCLASH_MIHOMO_SHA: '8597778c7df410ebe88c57e59eaab32d203156df'
+
+jobs:
+  vela-ui:
+    name: Original Vela source and UI regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: master
+          cache: true
+      - run: flutter create --project-name vela_shuo --org com.shuowang --platforms windows .
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test --reporter expanded
+      - name: Prove this is the Vela host, never the FlClash UI overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'runApp(VelaShuoApp(' lib/main.dart
+          grep -q 'home: _Shell(settings: settings' lib/src/app.dart
+          grep -q 'class VelaGlobe extends StatefulWidget' lib/src/home/globe.dart
+          grep -q 'class _DesktopHome extends StatelessWidget' lib/src/app.dart
+          ! grep -R -q 'VelaShell\|WindowHeaderContainer\|FlClash dashboard' lib/src/app.dart
+
+  windows:
+    name: Windows x64: Vela UI + FlClash pinned Mihomo source
+    needs: vela-ui
+    runs-on: windows-2022
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: vela
+      - uses: actions/checkout@v4
+        with:
+          repository: chen08209/FlClash
+          ref: ${{ env.FLCLASH_SHA }}
+          submodules: recursive
+          path: flclash
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: master
+          cache: true
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - name: Assert pinned network source (not UI)
+        shell: pwsh
+        run: |
+          $actual = git -C flclash rev-parse HEAD
+          $submodule = git -C flclash/core/Clash.Meta rev-parse HEAD
+          if ($actual -ne $env:FLCLASH_SHA -or $submodule -ne $env:FLCLASH_MIHOMO_SHA) {
+            throw "Pinned FlClash/Mihomo source differs"
+          }
+      - name: Compile FlClash-pinned Mihomo network engine from source
+        shell: pwsh
+        working-directory: flclash/core/Clash.Meta
+        run: |
+          $env:CGO_ENABLED = '1'
+          go build -trimpath -ldflags="-s -w" -o "$env:RUNNER_TEMP/mihomo.exe" .
+          if ($LASTEXITCODE -ne 0) { throw "Cannot compile pinned Mihomo engine" }
+      - name: Build unmodified original Vela Flutter interface
+        shell: pwsh
+        working-directory: vela
+        run: |
+          flutter create --project-name vela_shuo --org com.shuowang --platforms windows .
+          if ($LASTEXITCODE -ne 0) { throw "Flutter scaffold failed" }
+          flutter pub get
+          if ($LASTEXITCODE -ne 0) { throw "Flutter dependencies failed" }
+          flutter build windows --release
+          if ($LASTEXITCODE -ne 0) { throw "Vela UI build failed" }
+      - name: Bundle engine into Vela native core location
+        shell: pwsh
+        run: |
+          $release = Get-ChildItem 'vela/build/windows' -Directory -Recurse |
+            Where-Object { $_.Name -eq 'Release' -and
+              (Test-Path (Join-Path $_.FullName 'vela_shuo.exe')) } |
+            Select-Object -First 1
+          if (-not $release) { throw 'Original Vela Windows executable missing' }
+          $coreDir = Join-Path $release.FullName 'core'
+          New-Item -Path $coreDir -ItemType Directory -Force | Out-Null
+          Copy-Item "$env:RUNNER_TEMP/mihomo.exe" (Join-Path $coreDir 'mihomo.exe')
+          Copy-Item 'flclash/core/Clash.Meta/LICENSE' (Join-Path $coreDir 'LICENSE-mihomo.txt')
+          Copy-Item 'flclash/LICENSE' (Join-Path $coreDir 'LICENSE-FlClash-GPL-3.0.txt')
+          Rename-Item (Join-Path $release.FullName 'vela_shuo.exe') 'Vela-SHUO.exe'
+          $target = 'vela/Vela-SHUO-Windows-x64-FlClash-Core.zip'
+          Compress-Archive -Path (Join-Path $release.FullName '*') -DestinationPath $target
+          $sha = (Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sha  Vela-SHUO-Windows-x64-FlClash-Core.zip" |
+            Set-Content 'vela/SHA256-Windows.txt'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Vela-SHUO-Windows-Original-UI-FlClash-Core
+          path: |
+            vela/Vela-SHUO-Windows-x64-FlClash-Core.zip
+            vela/SHA256-Windows.txt
+          if-no-files-found: error
+          retention-days: 14
