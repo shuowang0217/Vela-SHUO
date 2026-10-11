@@ -134,7 +134,7 @@ android {
     )
     src = replace_once(
         src, "import java.io.File",
-        "import java.io.File\\nimport java.net.URL\\nimport javax.net.ssl.HttpsURLConnection",
+        "import java.io.File\nimport java.net.URL\nimport javax.net.ssl.HttpsURLConnection",
         "Android HTTPS imports",
     )
     (VELA_APP / "src/main/kotlin/com/shuowang/vela_shuo/MainActivity.kt"
