@@ -1,0 +1,9 @@
+Vela-SHUO FlClash-derived migration (GPL-3.0)
+Original project: https://github.com/chen08209/FlClash
+Pinned commit: 4b59eca853778d4e7be3de26589252889c899bc5
+Original FlClash copyright remains with the upstream authors.
+Mihomo and its components retain their corresponding notices and licenses.
+Vela-SHUO original interface assets and source are modified and redistributed
+under GPL-3.0 on this migration branch, with asset attribution retained.
+Complete source: the pinned upstream FlClash repository plus this branch.
+Do not imply upstream developers endorse the modified Vela-SHUO app.
