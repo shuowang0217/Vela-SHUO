@@ -10,6 +10,8 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.net.URL
+import javax.net.ssl.HttpsURLConnection
 
 /** Flutter only sends a whitelisted, generated Mihomo profile. */
 class MainActivity : FlutterActivity() {
@@ -66,6 +68,44 @@ class MainActivity : FlutterActivity() {
                                 startActivityForResult(intent, consentCode)
                             }
                         }
+                    }
+                }
+                "testConnection" -> {
+                    if (VelaVpnState.state != "connected") {
+                        result.success(false)
+                    } else {
+                        // Never use a UI timer, an external browser, or an
+                        // unauthenticated DNS-only probe as evidence of VPN.
+                        // The app socket runs through Android's active TUN.
+                        Thread({
+                            val urls = listOf(
+                                "https://www.gstatic.com/generate_204",
+                                "https://cp.cloudflare.com/generate_204",
+                                "https://www.cloudflare.com/cdn-cgi/trace",
+                            )
+                            var ok = false
+                            for (url in urls) {
+                                try {
+                                    val conn = URL(url).openConnection() as HttpsURLConnection
+                                    conn.connectTimeout = 7000
+                                    conn.readTimeout = 7000
+                                    conn.instanceFollowRedirects = false
+                                    try {
+                                        val status = conn.responseCode
+                                        if (status == 200 || status == 204) {
+                                            ok = true
+                                            break
+                                        }
+                                    } finally {
+                                        conn.disconnect()
+                                    }
+                                } catch (_: Exception) {
+                                    // Try next HTTPS endpoint, no TLS bypass.
+                                }
+                            }
+                            runOnUiThread { result.success(ok &&
+                                VelaVpnState.state == "connected") }
+                        }, "vela-real-network-retest").start()
                     }
                 }
                 "stop" -> {
