@@ -57,6 +57,8 @@ service = '''
             <intent-filter>
                 <action android:name="android.net.VpnService"/>
             </intent-filter>
+            <meta-data android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON"
+                android:value="false"/>
         </service>
 '''
 if xml.count('</application>') != 1:
