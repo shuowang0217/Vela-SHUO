@@ -72,11 +72,49 @@ void main() {
     expect(attempts, 1);
   });
 
+  test('system DNS private-only addresses trigger pinned safe DoH', () async {
+    var secureCalls = 0;
+    final fetcher = VelaHttpsSubscriptionFetcher(
+      mode: VelaSubscriptionDownloadMode.direct,
+      dnsLookup: (_) async => [_ip('10.10.1.2')],
+      secureDnsLookup: (_) async {
+        secureCalls++;
+        return [_ip('1.1.1.1')];
+      },
+      fetchTransport: (_, route) async {
+        expect(route, 'DIRECT');
+        return 'proxies: []';
+      },
+    );
+    expect(await fetcher.download('https://subscribe.example.com/sub'),
+        'proxies: []');
+    expect(secureCalls, 1);
+  });
+
+  test('private DNS and DoH private answers never authorize a socket',
+      () async {
+    var attempts = 0;
+    final fetcher = VelaHttpsSubscriptionFetcher(
+      mode: VelaSubscriptionDownloadMode.direct,
+      dnsLookup: (_) async => [_ip('192.168.1.8'), _ip('127.0.0.1')],
+      secureDnsLookup: (_) async => [_ip('10.42.0.2')],
+      fetchTransport: (uri, route) async {
+        attempts++;
+        return 'unsafe';
+      },
+    );
+    await expectLater(
+        fetcher.download('https://subscribe.example.com/private'),
+        throwsFormatException);
+    expect(attempts, 0);
+  });
+
   test('direct mode blocks private-only DNS before any transport', () async {
     var attempts = 0;
     final fetcher = VelaHttpsSubscriptionFetcher(
       mode: VelaSubscriptionDownloadMode.direct,
       dnsLookup: (_) async => [_ip('192.168.1.8'), _ip('127.0.0.1')],
+      secureDnsLookup: (_) async => [],
       fetchTransport: (uri, route) async {
         attempts++;
         return 'unsafe';

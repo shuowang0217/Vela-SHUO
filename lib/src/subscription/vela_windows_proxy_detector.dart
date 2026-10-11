@@ -61,12 +61,27 @@ class VelaWindowsProxyDetector {
         Process.run('reg.exe', ['query', registryKey, '/v', 'ProxyServer'],
             runInShell: false),
       ]).timeout(const Duration(seconds: 4));
-      if (queries.any((r) => r.exitCode != 0)) return null;
-      return parseRegistryOutput(queries[0].stdout.toString(),
-          queries[1].stdout.toString());
+      if (queries.every((r) => r.exitCode == 0)) {
+        final detected = parseRegistryOutput(queries[0].stdout.toString(),
+            queries[1].stdout.toString());
+        if (detected != null) return detected;
+      }
+      return _environmentProxy();
     } catch (_) {
-      // No exceptions/registry values enter diagnostics.
-      return null;
+      // Registry restrictions must not prevent use of a safe loopback HTTP
+      // proxy explicitly configured in the current process environment.
+      return _environmentProxy();
     }
+  }
+
+  static String? _environmentProxy() {
+    for (final key in ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY',
+        'http_proxy']) {
+      final value = Platform.environment[key];
+      if (value == null) continue;
+      final proxy = parseProxyServer(value);
+      if (proxy != null) return proxy;
+    }
+    return null;
   }
 }

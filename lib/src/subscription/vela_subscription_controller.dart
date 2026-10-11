@@ -34,6 +34,7 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     this.fetchTransport,
     this.dnsCheck,
     this.dnsLookup,
+    this.secureDnsLookup,
   });
 
   final VelaSubscriptionDownloadMode mode;
@@ -41,6 +42,10 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
   final Future<String> Function(Uri, String)? fetchTransport;
   final Future<void> Function(String)? dnsCheck;
   final Future<List<InternetAddress>> Function(String)? dnsLookup;
+
+  /// DNS-over-HTTPS fallback (pinned public resolver IPs). Only consulted
+  /// after local DNS fails or returns no acceptable public/Fake-IP targets.
+  final Future<List<InternetAddress>> Function(String)? secureDnsLookup;
 
   static void _validateUrl(Uri uri) {
     final host = uri.host.toLowerCase();
@@ -110,20 +115,116 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     return safe.take(8).toList(growable: false);
   }
 
+  /// Queries a public DNS-over-HTTPS resolver WITHOUT resolving the DoH
+  /// server through the local (possibly hijacked) DNS. HTTPS still validates
+  /// the resolver certificate against its real hostname; socket IP is pinned.
+  /// These fixed addresses are public, not derived from untrusted DNS.
+  static Future<List<InternetAddress>> _lookupViaDoh(String host) async {
+    const resolvers = <(String, String, String)>[
+      ('cloudflare-dns.com', '1.1.1.1', '/dns-query'),
+      ('dns.google', '8.8.8.8', '/resolve'),
+    ];
+    for (final (dnsHost, dnsIp, endpoint) in resolvers) {
+      final results = <InternetAddress>[];
+      var succeeded = false;
+      for (final type in ['A', 'AAAA']) {
+        final client = HttpClient();
+        client.connectionTimeout = const Duration(seconds: 4);
+        client.findProxy = (_) => 'DIRECT';
+        client.connectionFactory = (Uri uri, String? proxyHost, int? proxyPort) {
+          if (proxyHost != null || proxyPort != null ||
+              uri.host != dnsHost || uri.scheme != 'https') {
+            throw const FormatException('不允许 DNS 查询重定向');
+          }
+          return Socket.startConnect(InternetAddress(dnsIp), 443);
+        };
+        try {
+          final uri = Uri.https(dnsHost, endpoint, <String, String>{
+            'name': host,
+            'type': type,
+          });
+          final request = await client.getUrl(uri)
+              .timeout(const Duration(seconds: 6));
+          request.followRedirects = false;
+          request.headers.set(HttpHeaders.acceptHeader,
+              'application/dns-json');
+          final response = await request.close()
+              .timeout(const Duration(seconds: 6));
+          if (response.statusCode != HttpStatus.ok || response.isRedirect ||
+              response.contentLength > 32768) {
+            continue;
+          }
+          final bytes = <int>[];
+          await for (final chunk in response.timeout(
+              const Duration(seconds: 4))) {
+            if (bytes.length + chunk.length > 32768) break;
+            bytes.addAll(chunk);
+          }
+          if (bytes.isEmpty || bytes.length > 32768) continue;
+          final result = jsonDecode(utf8.decode(bytes));
+          if (result is! Map || result['Status'] != 0) continue;
+          succeeded = true;
+          final answers = result['Answer'];
+          if (answers is! List) continue;
+          for (final value in answers) {
+            if (value is! Map || value['type'] != (type == 'A' ? 1 : 28) ||
+                value['data'] is! String) {
+              continue;
+            }
+            final parsed = InternetAddress.tryParse(value['data'] as String);
+            if (parsed != null && isPublicIp(parsed)) results.add(parsed);
+          }
+        } catch (_) {
+          // Never include the DoH URL or subscription host in diagnostics.
+        } finally {
+          client.close(force: true);
+        }
+      }
+      if (results.isNotEmpty) {
+        return checkedAddresses(results);
+      }
+      if (succeeded) {
+        // A valid public resolver answer with no public addresses means
+        // fail closed. Trying another resolver remains permissible.
+        continue;
+      }
+    }
+    throw const FormatException(
+      '本机 DNS 返回不可用地址，安全 DNS 备用解析也未成功；'
+      '请检查网络或在 Windows 中开启可信的本机 HTTP 系统代理');
+  }
+
   Future<List<InternetAddress>> _resolveDirect(String host) async {
     if (dnsCheck != null) {
       await dnsCheck!(host);
-      if (fetchTransport != null && dnsLookup == null) {
-        return []; // Legacy unit-test transport never creates sockets.
+      if (fetchTransport != null && dnsLookup == null &&
+          secureDnsLookup == null) {
+        return []; // Legacy mocked transport does not create sockets.
       }
     }
-    final addresses = await (dnsLookup?.call(host) ??
-            InternetAddress.lookup(host))
-        .timeout(const Duration(seconds: 6));
-    if (addresses.isEmpty) {
-      throw const FormatException('订阅域名未解析到可用地址');
+    try {
+      final addresses = await (dnsLookup?.call(host) ??
+              InternetAddress.lookup(host))
+          .timeout(const Duration(seconds: 6));
+      if (addresses.isNotEmpty) {
+        final safe = checkedAddresses(addresses);
+        if (safe.isNotEmpty) return safe;
+      }
+    } on FormatException {
+      // System DNS was poisoned/rewritten to a private or reserved address.
+      // Public DoH is the next path; never try to connect to that LAN IP.
+    } on SocketException {
+      // A DNS failure can be recovered by pinned public DNS-over-HTTPS.
+    } on TimeoutException {
+      // Likewise for a blocked or nonresponsive system resolver.
     }
-    return checkedAddresses(addresses);
+
+    final secure = await (secureDnsLookup?.call(host) ??
+        _lookupViaDoh(host)).timeout(const Duration(seconds: 24),
+        onTimeout: () => throw const FormatException(
+            '备用安全 DNS 查询超时，请检查网络'));
+    // Even a trusted resolver cannot authorize an internal target.
+    return checkedAddresses(secure.where(isPublicIp).toList());
   }
 
   @override

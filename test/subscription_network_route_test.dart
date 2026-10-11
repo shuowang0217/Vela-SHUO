@@ -84,6 +84,15 @@ void main() {
     expect(attempted, ['PROXY 127.0.0.1:7890']);
   });
 
+  test('local HTTP proxy environment values retain strict loopback guard', () {
+    expect(VelaWindowsProxyDetector.parseProxyServer(
+        'http://127.0.0.1:7897'), 'PROXY 127.0.0.1:7897');
+    expect(VelaWindowsProxyDetector.parseProxyServer(
+        'http://proxy.example.com:7897'), null);
+    expect(VelaWindowsProxyDetector.parseProxyServer(
+        'socks5://127.0.0.1:7897'), null);
+  });
+
   test('direct mode bypasses Windows proxy lookup entirely', () async {
     var resolved = false;
     final fetcher = VelaHttpsSubscriptionFetcher(
