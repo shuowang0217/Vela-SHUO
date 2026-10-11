@@ -278,6 +278,12 @@ class VelaSubscriptionController extends ChangeNotifier {
   final VelaSubscriptionFetcher _fetcher;
   final VelaSubscriptionVault _vault;
   String? _source;
+  // The last successful HTTPS URL is RAM-only. Never written to the vault,
+  // settings, diagnostics or core profile; cleared at application shutdown.
+  String? _sessionUrl;
+  DateTime? _lastUpdatedAt;
+  bool get canRefresh => _sessionUrl != null && !loading && !_vaultBusy;
+  DateTime? get lastUpdatedAt => _lastUpdatedAt;
   bool _stored = false;
   bool _vaultBusy = false;
   bool get storedOnDevice => _stored;
@@ -405,6 +411,17 @@ class VelaSubscriptionController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  /// A retry is always user initiated and uses only the in-memory last URL.
+  /// Failed updates keep the existing node list and encrypted snapshot.
+  Future<bool> refreshLastUrl() async {
+    final url = _sessionUrl;
+    if (url == null || _disposed || !canRefresh) return false;
+    return importFromUrl(url);
+  }
+
+  static String _nodeIdentity(VelaSubscriptionNode node) =>
+      node.name + '\u001f' + node.protocol + '\u001f' + node.server;
+
   /// Parses pasted share links or YAML without network, disk or settings I/O.
   Future<bool> importFromText(String source) async {
     if (loading || core.busy || core.isListening || _disposed) {
@@ -412,51 +429,52 @@ class VelaSubscriptionController extends ChangeNotifier {
     }
     _phase = VelaSubscriptionPhase.loading;
     _error = null;
-    _result = null;
-    _preparedProfile = null;
-    _selected = null;
-    _favorites.clear();
-    _source = null;
-    _stored = false;
     final generation = ++_generation;
     _notify();
     try {
       final parsed = VelaSubscriptionParser.parse(source);
-      if (generation != _generation || _disposed) {
-        return false;
-      }
-      _source = source;
-      _stored = false;
+      if (generation != _generation || _disposed) return false;
+      // Only a complete parse can replace a previously usable subscription.
       _result = parsed;
+      _preparedProfile = null;
+      _selected = null;
+      _favorites.clear();
+      _source = source;
+      _sessionUrl = null;
+      _lastUpdatedAt = DateTime.now();
+      _stored = false;
       _phase = VelaSubscriptionPhase.ready;
       _notify();
       return true;
     } on FormatException catch (e) {
-      if (generation != _generation || _disposed) {
-        return false;
-      }
+      if (generation != _generation || _disposed) return false;
       _error = e.message;
     } catch (_) {
-      if (generation != _generation || _disposed) {
-        return false;
-      }
+      if (generation != _generation || _disposed) return false;
       _error = '节点内容无效，请检查格式';
     }
-    _phase = VelaSubscriptionPhase.failed;
+    // Old nodes and favorites survive a malformed replacement.
+    _phase = _result == null
+        ? VelaSubscriptionPhase.failed : VelaSubscriptionPhase.ready;
     _notify();
     return false;
   }
 
   Future<bool> importFromUrl(String url) async {
-    if (loading || core.busy || core.isListening) { return false; }
+    if (loading || core.busy || core.isListening || _disposed) return false;
+    final normalizedUrl = url.trim();
+    final sameSource = _sessionUrl != null &&
+        _sessionUrl == normalizedUrl && _result != null;
+    final previousNodes = nodes;
+    final oldSelected = selected;
+    final previousFavorites = <String>{
+      for (final i in _favorites)
+        if (i >= 0 && i < previousNodes.length)
+          _nodeIdentity(previousNodes[i]),
+    };
+
     _phase = VelaSubscriptionPhase.loading;
     _error = null;
-    _result = null;
-    _preparedProfile = null;
-    _selected = null;
-    _favorites.clear();
-    _source = null;
-    _stored = false;
     final generation = ++_generation;
     _notify();
     try {
@@ -464,24 +482,48 @@ class VelaSubscriptionController extends ChangeNotifier {
           ? VelaHttpsSubscriptionFetcher(mode: previewOnly
               ? VelaSubscriptionDownloadMode.direct : _downloadMode)
           : _fetcher;
-      final raw = await activeFetcher.download(url);
+      final raw = await activeFetcher.download(normalizedUrl);
       final parsed = VelaSubscriptionParser.parse(raw);
-      if (generation != _generation || _disposed) { return false; }
-      _source = raw;
-      _stored = false;
+      if (generation != _generation || _disposed) return false;
+
+      // Commit the new subscription only after both HTTPS fetch and parse.
       _result = parsed;
+      _preparedProfile = null;
+      _selected = null;
+      _favorites.clear();
+      if (sameSource) {
+        for (var i = 0; i < parsed.nodes.length; i++) {
+          if (previousFavorites.contains(_nodeIdentity(parsed.nodes[i]))) {
+            _favorites.add(i);
+          }
+        }
+      }
+      _source = raw;
+      _sessionUrl = normalizedUrl;
+      _lastUpdatedAt = DateTime.now();
+      _stored = false; // Explicit save is required to persist new credentials.
       _phase = VelaSubscriptionPhase.ready;
       _notify();
+
+      // Rebuild the local prepared config for the same named endpoint only.
+      // No Mihomo process, system proxy or Android VPN is started here.
+      if (sameSource && oldSelected != null) {
+        final identity = _nodeIdentity(oldSelected);
+        final index = parsed.nodes.indexWhere(
+            (node) => _nodeIdentity(node) == identity);
+        if (index >= 0) await selectNode(index);
+      }
       return true;
     } on FormatException catch (e) {
-      if (generation != _generation || _disposed) { return false; }
-      // Error text must only be authored by our parser/fetcher.
+      if (generation != _generation || _disposed) return false;
       _error = e.message;
     } catch (_) {
-      if (generation != _generation || _disposed) { return false; }
+      if (generation != _generation || _disposed) return false;
       _error = '订阅导入失败，请检查格式或网络';
     }
-    _phase = VelaSubscriptionPhase.failed;
+    // A temporary outage must not delete a working profile or favorites.
+    _phase = _result == null
+        ? VelaSubscriptionPhase.failed : VelaSubscriptionPhase.ready;
     _notify();
     return false;
   }
@@ -554,6 +596,8 @@ class VelaSubscriptionController extends ChangeNotifier {
         return false;
       }
       _source = raw;
+      _sessionUrl = null;
+      _lastUpdatedAt = null;
       _result = parsed;
       _selected = null;
       _favorites.clear();
@@ -649,6 +693,8 @@ class VelaSubscriptionController extends ChangeNotifier {
     _selected = null;
     _favorites.clear();
     _source = null;
+    _sessionUrl = null;
+    _lastUpdatedAt = null;
     _disposed = true;
     super.dispose();
   }
