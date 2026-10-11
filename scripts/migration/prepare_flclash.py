@@ -78,6 +78,8 @@ def apply_overlay(vela: Path, upstream: Path, *, verify_sha: bool = True) -> Non
     shell_source = vela / "scripts/migration/flclash/vela_shell.dart"
     shell_target = upstream / "lib/vela_shuo/vela_shell.dart"
     shutil.copy2(shell_source, shell_target)
+    original_home = vela / "scripts/migration/flclash/vela_original_home.dart"
+    shutil.copy2(original_home, upstream / "lib/vela_shuo/vela_original_home.dart")
 
     app = upstream / "lib/application.dart"
     app_text = app.read_text(encoding="utf-8")
