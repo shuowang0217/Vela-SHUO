@@ -6,6 +6,22 @@ import 'package:vela_shuo/src/subscription/vela_subscription_parser.dart';
 import 'package:vela_shuo/src/subscription/vela_windows_proxy_detector.dart';
 
 void main() {
+  test('HTTP CONNECT discovery only trusts a real success status', () {
+    expect(VelaWindowsProxyDetector.isHttpConnectSuccess(
+        'HTTP/1.1 200 Connection established\r\n'), true);
+    expect(VelaWindowsProxyDetector.isHttpConnectSuccess(
+        'HTTP/1.0 200\r\n'), true);
+    expect(VelaWindowsProxyDetector.isHttpConnectSuccess(
+        'HTTP/1.1 407 Proxy Authentication Required'), false);
+    expect(VelaWindowsProxyDetector.isHttpConnectSuccess(
+        'HTTP/1.1 403 Forbidden'), false);
+    expect(VelaWindowsProxyDetector.isHttpConnectSuccess(
+        'SOCKS5 200'), false);
+    expect(VelaWindowsProxyDetector.allowedPort(7897), true);
+    expect(VelaWindowsProxyDetector.allowedPort(20808), false);
+    expect(VelaWindowsProxyDetector.allowedPort(20819), false);
+  });
+
   test('Windows registry HTTP(S) proxy parses local single and per-protocol forms', () {
     const enabled = 'ProxyEnable    REG_DWORD    0x1';
     expect(

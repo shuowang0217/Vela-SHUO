@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 /// Only trust localhost HTTP proxies from Windows internet settings.
@@ -55,6 +56,41 @@ class VelaWindowsProxyDetector {
     final host = match.group(1)!.toLowerCase() == 'localhost'
         ? '127.0.0.1' : match.group(1)!;
     return 'PROXY $host:$port';
+  }
+
+  static bool isHttpConnectSuccess(String response) =>
+      RegExp(r'^HTTP/1\.[01] 200(?:\s|$)').hasMatch(response);
+
+  /// Conservative automatic discovery: only fixed, common loopback ports.
+  /// A harmless CONNECT probe is sent to a public hostname BEFORE any
+  /// subscription credential is forwarded. No registry changes or writes.
+  /// If discovery fails, caller still has manual port and offline import.
+  Future<String?> discoverLocalHttpProxy() async {
+    if (!Platform.isWindows) return null;
+    const ports = <int>[7890, 7897, 10809, 7891, 20171];
+    for (final port in ports) {
+      Socket? socket;
+      try {
+        socket = await Socket.connect(
+            InternetAddress.loopbackIPv4, port,
+            timeout: const Duration(milliseconds: 350));
+        socket.write('CONNECT www.microsoft.com:443 HTTP/1.1\r\n'
+            'Host: www.microsoft.com:443\r\n'
+            'Connection: close\r\n\r\n');
+        await socket.flush().timeout(const Duration(seconds: 2));
+        final response = await socket.first.timeout(
+            const Duration(seconds: 2));
+        if (isHttpConnectSuccess(
+            utf8.decode(response.take(256).toList(), allowMalformed: true))) {
+          return 'PROXY 127.0.0.1:$port';
+        }
+      } catch (_) {
+        // Closed port, SOCKS-only listener or unsuccessful CONNECT.
+      } finally {
+        socket?.destroy();
+      }
+    }
+    return null;
   }
 
   Future<String?> detect() async {

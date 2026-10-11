@@ -211,7 +211,8 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     }
     throw const FormatException(
       '本机 DNS 返回不可用地址，安全 DNS 备用解析也未成功；'
-      '请检查网络或在 Windows 中开启可信的本机 HTTP 系统代理');
+      'Windows 可切换为「手动本机 HTTP/Mixed 代理端口」并填写代理软件端口，'
+      '或使用「粘贴节点 / YAML」离线导入');
   }
 
   Future<List<InternetAddress>> _resolveDirect(String host) async {
@@ -292,6 +293,14 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
               .hasMatch(proxy)) {
         proxy = null;
       }
+    }
+    if (mode == VelaSubscriptionDownloadMode.automatic &&
+        proxy == null && proxyLookup == null && Platform.isWindows) {
+      // System proxy may be disabled while Clash/Mihomo still exposes an
+      // active local HTTP/Mixed listener. Probe only known local ports with
+      // a token-free CONNECT request before trying subscription DNS.
+      proxy = await const VelaWindowsProxyDetector()
+          .discoverLocalHttpProxy();
     }
     if (mode == VelaSubscriptionDownloadMode.systemProxy &&
         proxy == null) {
