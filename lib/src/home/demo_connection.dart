@@ -119,7 +119,10 @@ class VelaDemoController extends ChangeNotifier {
   void projectRealState(VelaPhase next, String? name) {
     final inferred = name == null ? null :
         VelaDemoNode.approximateFromName(name);
-    final visible = inferred == null ? VelaPhase.idle : next;
+    // A node label without an identifiable region must never suppress
+    // a genuine connected/connecting VPN animation. Its visual route is
+    // illustrative, not a verified server location.
+    final visible = next;
     if (_realVisual && phase == visible && selected == (inferred ?? selected)
         && _realLabel == name) {
       return;
