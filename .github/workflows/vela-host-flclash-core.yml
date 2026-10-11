@@ -44,7 +44,7 @@ jobs:
           ! grep -R -q 'VelaShell\|WindowHeaderContainer\|FlClash dashboard' lib/src/app.dart
 
   windows:
-    name: Windows x64: Vela UI + FlClash pinned Mihomo source
+    name: 'Windows x64: Vela UI + FlClash pinned Mihomo source'
     needs: vela-ui
     runs-on: windows-2022
     timeout-minutes: 110
@@ -120,7 +120,7 @@ jobs:
           retention-days: 14
 
   android:
-    name: Android ARM64: Vela UI + FlClash Go JNI VPN
+    name: 'Android ARM64: Vela UI + FlClash Go JNI VPN'
     needs: vela-ui
     runs-on: ubuntu-24.04
     timeout-minutes: 120
