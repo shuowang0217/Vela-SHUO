@@ -240,6 +240,7 @@ class VelaSubscriptionController extends ChangeNotifier {
   VelaSubscriptionResult? _result;
   VelaMihomoConfiguration? _preparedProfile;
   int? _selected;
+  final Set<int> _favorites = <int>{};
   String? _error;
   bool _disposed = false;
   int _generation = 0;
@@ -258,6 +259,53 @@ class VelaSubscriptionController extends ChangeNotifier {
   int get skipped => _result?.skipped ?? 0;
   String? get format => _result?.format;
   int? get selectedIndex => _selected;
+  int get favoriteCount => _favorites.length;
+  bool isFavorite(int index) => _favorites.contains(index);
+
+  /// A favorite changes browsing order only. It never changes the selected
+  /// proxy or starts network activity; persistence remains opt-in.
+  bool toggleFavorite(int index) {
+    if (_disposed || loading || index < 0 || index >= nodes.length) {
+      return false;
+    }
+    if (!_favorites.add(index)) _favorites.remove(index);
+    _notify();
+    return true;
+  }
+
+  /// Preserve smart benchmark order within each favorite/nonfavorite group,
+  /// retaining original subscription indices for safe node selection.
+  List<int> visibleNodeIndices({
+    String query = '',
+    bool favoritesOnly = false,
+    List<int>? order,
+  }) {
+    final normalized = query.trim().toLowerCase();
+    final seen = <int>{};
+    final ordered = <int>[];
+    if (order != null) {
+      for (final i in order) {
+        if (i >= 0 && i < nodes.length && seen.add(i)) ordered.add(i);
+      }
+    }
+    for (var i = 0; i < nodes.length; i++) {
+      if (seen.add(i)) ordered.add(i);
+    }
+    final pinned = <int>[];
+    final other = <int>[];
+    for (final i in ordered) {
+      if (favoritesOnly && !_favorites.contains(i)) continue;
+      final node = nodes[i];
+      if (normalized.isNotEmpty &&
+          !node.name.toLowerCase().contains(normalized) &&
+          !node.protocol.toLowerCase().contains(normalized)) {
+        continue;
+      }
+      (_favorites.contains(i) ? pinned : other).add(i);
+    }
+    return <int>[...pinned, ...other];
+  }
+
   String? get error => _error;
   bool get loading => _phase == VelaSubscriptionPhase.loading;
   bool get canSave => _source != null && !loading && !_vaultBusy;
@@ -318,6 +366,7 @@ class VelaSubscriptionController extends ChangeNotifier {
     _result = null;
     _preparedProfile = null;
     _selected = null;
+    _favorites.clear();
     _source = null;
     _stored = false;
     final generation = ++_generation;
@@ -356,6 +405,7 @@ class VelaSubscriptionController extends ChangeNotifier {
     _result = null;
     _preparedProfile = null;
     _selected = null;
+    _favorites.clear();
     _source = null;
     _stored = false;
     final generation = ++_generation;
@@ -440,7 +490,8 @@ class VelaSubscriptionController extends ChangeNotifier {
         _phase = VelaSubscriptionPhase.idle;
         return false;
       }
-      if (utf8.encode(encoded).length > VelaSubscriptionParser.maxBytes + 512) {
+      // Up to 500 small favorite indices in the encrypted snapshot.
+      if (utf8.encode(encoded).length > VelaSubscriptionParser.maxBytes + 4096) {
         throw const FormatException('存档过大');
       }
       final obj = jsonDecode(encoded);
@@ -456,6 +507,18 @@ class VelaSubscriptionController extends ChangeNotifier {
       _source = raw;
       _result = parsed;
       _selected = null;
+      _favorites.clear();
+      // Older v1 snapshots omit favorites. Bad entries cannot escape the
+      // parsed node range and never invalidate an otherwise valid import.
+      final savedFavorites = obj['favorites'];
+      if (savedFavorites is List &&
+          savedFavorites.length <= VelaSubscriptionParser.maxNodes) {
+        for (final value in savedFavorites) {
+          if (value is int && value >= 0 && value < parsed.nodes.length) {
+            _favorites.add(value);
+          }
+        }
+      }
       _phase = VelaSubscriptionPhase.ready;
       _stored = true;
       final index = obj['selected'];
@@ -489,6 +552,7 @@ class VelaSubscriptionController extends ChangeNotifier {
     try {
       final snapshot = jsonEncode(<String, dynamic>{
         'v': 1, 'raw': source, 'selected': _selected,
+        'favorites': _favorites.toList()..sort(),
       });
       await _vault.write(snapshot).timeout(const Duration(seconds: 8));
       if (_disposed) {
@@ -534,6 +598,7 @@ class VelaSubscriptionController extends ChangeNotifier {
     _result = null;
     _preparedProfile = null;
     _selected = null;
+    _favorites.clear();
     _source = null;
     _disposed = true;
     super.dispose();
