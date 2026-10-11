@@ -32,6 +32,13 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
   bool _offlineMode = false;
 
   @override
+  void initState() {
+    super.initState();
+    final port = widget.controller.localHttpProxyPort;
+    if (port != null) _localPort.text = port.toString();
+  }
+
+  @override
   void dispose() {
     _url.clear();
     _url.dispose();
@@ -137,7 +144,9 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                 enabled: !busy,
                 maxLength: 5,
                 keyboardType: TextInputType.number,
-                onChanged: subscription.setLocalHttpProxyPort,
+                onChanged: (value) {
+                  subscription.setLocalHttpProxyPort(value);
+                },
                 decoration: const InputDecoration(
                   labelText: '本机 HTTP / Mixed 端口（例如 7890）',
                   helperText: '从已运行的代理软件中查看 HTTP 或 Mixed 端口；'
