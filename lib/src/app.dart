@@ -1545,6 +1545,23 @@ class _AndroidVpnCard extends StatelessWidget {
         label: Text(vpn.connected ? '安全断开 Android VPN'
             : vpn.busy ? '正在建立 VPN…' : '授权并连接真实 VPN'),
       )),
+      if (vpn.connected) ...[
+        const SizedBox(height: 8),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('vela_android_internet_test'),
+          icon: const Icon(Icons.public),
+          label: const Text('测试 VPN 真实联网'),
+          onPressed: () async {
+            final ok = await vpn.testConnectivity();
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(ok
+                ? 'VPN 内真实 HTTPS 联网测试通过'
+                : 'VPN 内真实 HTTPS 联网测试失败，请检查节点与 DNS'),
+            ));
+          },
+        )),
+      ],
       const SizedBox(height: 8),
       TextButton.icon(onPressed: vpn.active ? null : showNodes,
           icon: const Icon(Icons.route_outlined),
@@ -1699,6 +1716,23 @@ class _RealConnectionCard extends StatelessWidget {
               ),
             ),
           ),
+          if (connection.connected || connection.core.isListening) ...[
+            const SizedBox(height: 8),
+            SizedBox(width: double.infinity, child: OutlinedButton.icon(
+              key: const ValueKey('vela_real_internet_test'),
+              icon: const Icon(Icons.public),
+              label: const Text('测试当前节点联网'),
+              onPressed: connection.busy || connection.core.probing ? null : () async {
+                final ok = await connection.core.verifyRemote();
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(ok
+                    ? '真实 HTTPS 联网测试通过：当前节点可以访问外网'
+                    : '真实 HTTPS 联网测试失败：请检查节点或订阅'),
+                ));
+              },
+            )),
+          ],
         ],
       ),
     );
