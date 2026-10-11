@@ -33,7 +33,7 @@ SLIVER = """                  SliverToBoxAdapter(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                       child: Center(
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(
+                          constraints: BoxConstraints(
                             maxWidth: dashboardMaxGridWidth,
                           ),
                           child: const VelaFlightHeader(),
