@@ -123,6 +123,23 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install Rust Android ARM64 target
         run: rustup target add aarch64-linux-android
+      - name: Provide system libclang to Android NDK bindgen
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y libclang-dev
+          # Flutter supplies NDK r27, but this Android NDK no longer
+          # bundles libclang.so. Upstream rquickjs bindgen requires it
+          # directly under the NDK's lib or lib64 directory.
+          NDK_ROOT="${ANDROID_HOME}/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64"
+          test -x "$NDK_ROOT/bin/clang"
+          LIBCLANG="$(find /usr/lib/llvm-* -type f -name 'libclang.so*' -print | sort -V | tail -n 1)"
+          test -n "$LIBCLANG"
+          sudo mkdir -p "$NDK_ROOT/lib"
+          sudo ln -sf "$LIBCLANG" "$NDK_ROOT/lib/libclang.so"
+          test -f "$NDK_ROOT/lib/libclang.so"
+          echo "Using system libclang for NDK Rust bindgen (no changes to FlClash runtime)"
       - name: Apply Vela visual overlay
         run: python3 vela/scripts/migration/prepare_flclash.py --vela-root vela --upstream-root flclash
       - name: Resolve upstream dependencies
