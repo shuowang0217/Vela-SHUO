@@ -30,7 +30,7 @@ class OverlayTests(unittest.TestCase):
         app.parent.mkdir(parents=True, exist_ok=True)
         app.write_text(
             "import 'pages/pages.dart';\n"
-            "final platformApp = isDesktop\n"
+            "  final platformApp = isDesktop\n"
             "      ? WindowHeaderContainer(child: child)\n"
             "      : VpnManager(child: child);\n"
             "  return AppEnvManager(\n"
