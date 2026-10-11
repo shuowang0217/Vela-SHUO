@@ -44,7 +44,8 @@ jobs:
             echo 'Vela overlay unexpectedly modifies the FlClash network stack' >&2
             exit 1
           fi
-          grep -q 'VelaFlightHeader' flclash/lib/views/dashboard/dashboard.dart
+          grep -q 'child: const VelaShell()' flclash/lib/application.dart
+          grep -q 'VelaFlightHeader' flclash/lib/vela_shuo/vela_shell.dart
           grep -q 'assets/earth/' flclash/pubspec.yaml
           grep -q 'GNU GENERAL PUBLIC LICENSE' flclash/LICENSE
           grep -q 'GNU GENERAL PUBLIC LICENSE' vela/LICENSE
