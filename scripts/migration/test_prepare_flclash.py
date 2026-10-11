@@ -36,6 +36,16 @@ class OverlayTests(unittest.TestCase):
         shell = self.vela / "scripts/migration/flclash/vela_shell.dart"
         shell.parent.mkdir(parents=True, exist_ok=True)
         shell.write_text("class VelaShell {}\n", encoding="utf-8")
+        for rel, value in {
+            "lib/common/constant.dart": "const appName = 'FlClash';",
+            "android/common/src/main/res/values/strings.xml":
+                '<string name="app_name">FlClash</string>',
+            "windows/runner/main.cpp": 'window.Create(L"FlClash",',
+            "windows/runner/Runner.rc": 'VALUE "FileDescription", "FlClash"',
+        }.items():
+            path = self.upstream / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(value, encoding="utf-8")
         (self.upstream / "LICENSE").write_text("GNU GPLv3")
         (self.upstream / "pubspec.yaml").write_text(
             "flutter:\n  assets:\n    - assets/data/\n",
