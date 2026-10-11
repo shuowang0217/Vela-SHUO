@@ -1,76 +1,49 @@
-# Vela-SHUO
+# Vela-SHUO — FlClash network engine, Vela user interface
 
-Windows x64 优先的 Flutter 网络工具，独立原创 UI「一帆越洋，尽览四方。」。
+> This branch is a migration worktree, not a finished public release.
 
-## 默认内核：Mihomo
+## Product boundary
 
-从 2026-10-10 起，Vela-SHUO 的首页真实一键连接、订阅节点配置和智能优选测速**只使用 Mihomo**。Windows ZIP 仅捆绑官方 SHA-256 校验的 Mihomo v1.19.32（`core/mihomo.exe`），不再捆绑或启动 sing-box。旧 Mihomo 实验室入口合并至正式连接路径。现有地球、帆船、主题、导航、按钮与云层视觉保持不变。
+Vela-SHUO is the **only user-facing application**. Every visible screen,
+navigation tab, modal, settings control, theme, globe, sailboat, notification
+label and connection indicator must use Vela-SHUO's design language.
+The FlClash/Mihomo project supplies **internal** subscriptions, proxy groups,
+network routing, DNS, TUN/VPN, core lifecycle and platform integration.
+The original Vela networking implementation is not started or copied.
 
-- 首页连接先以 Mihomo `-t` 自检配置，启动本机 `127.0.0.1:20808` mixed 代理，经真实 HTTPS 验证后才征得用户授权接管 Windows 系统代理。
-- 断开、程序意外退出等情况遵循原 WinINet 代理恢复日志；不擅自覆盖其他程序后来设置的代理。
-- HTTPS 订阅与导入的 Clash/Mihomo YAML、历史 sing-box JSON **节点数据**仍可解析，但运行时始终转换为 Mihomo JSON 配置。只开放已支持的节点协议，不允许订阅定义系统监听/TUN。
-- 智能测试每次启动隔离的临时 Mihomo 进程，完成 HTTPS 测延迟与 1 MiB 采样下载，清理凭据和临时端口。不修改正在使用的系统代理。
-- 本地直连测试不等于远程网络连通；没有可用订阅节点时不会显示真实连接成功。
-- 系统代理仍为显式授权，不提供 TUN 系统级隧道。已经建立的连接不保证在切换节点时保持不中断；节点自动优选目前仅在断开期间执行。
+A FlClash dashboard with one Vela flight card is **not** an acceptable build.
 
-云端构建：`.github/workflows/build.yml` 同时打包 Windows x64 Mihomo 便携版与 Android ARM64 Mihomo **真实 VPN Beta**。Android 通过系统 `VpnService`、内置 Mihomo JNI 原生库和 TUN 进行代理，无需 Root；点击首页按钮后由 Android 系统明确请求 VPN 授权，确认连接前会进行真实 HTTPS 检测。需 Android ARM64 真机与有效订阅线路进一步验证不同设备的实网连接、DNS、后台和移动网络切换。Windows / Android 都支持用户主动加密保存订阅正文与所选节点（其中包含节点凭据，但不保存原始订阅 URL）。参见 `docs/ANDROID_REAL_VPN_BETA.md`。
+## What the migration branch currently does
 
-## 双端实时流量
+- Keeps FlClash pinned to commit `4b59eca853778d4e7be3de26589252889c899bc5`.
+- Builds on the upstream FlClash core and platform managers.
+- Replaces the upstream application home with a Vela-owned four-tab shell.
+- Reuses Vela palette tokens, sail logo, globe and connection animation.
+- Connects the Vela-owned pages to FlClash's Riverpod state and actions for
+  connect/disconnect, proxy group selection, delayed tests, profile import,
+  profile refresh, proxy settings and Android VPN enablement.
+- Preserves the original third-party GPL license and attribution.
 
-Windows + Android 首页均从运行中的 Mihomo 读取累计上传/下载字节数，
-用相邻采样差值计算 Mbps，并显示本次连接时长。Android 通过 JNI 直接读取
-Mihomo 统计；Windows 仅调用固定本机控制端口的已鉴权 `/connections` API。
-无法读取时显示「—」而非缓存过时测速，断开后清除本次统计。此处是当前设备
-经 Mihomo 处理的实际流量，不是线路带宽上限或节点测速成绩。
+## Not yet feature-parity or release ready
 
-## 双端节点搜索与收藏
+The current shell is **not** a verified 1:1 port of Vela's full old interface.
+The original screens must be compared side by side; missing settings screens,
+subscription edit workflows, node favorites, all smart-selection behaviors,
+popups, storage semantics, desktop tray and mobile background UI still need
+adaptation. Latency testing is not the same as Vela's complete smart
+speed-based auto-selection system; never show fake results.
 
-Windows / Android 的「节点」页面和「设置 → 订阅节点管理」共用节点搜索与收藏筛选，
-支持按节点名称或协议搜索、只看收藏以及收藏优先展示。星标只修改列表显示顺序，
-不会后台切换 Mihomo 节点，也不影响当前 VPN；智能测速排序会保留在收藏分组内部。
+Both Windows and Android still require a clean CI build plus physical-device
+testing of subscription import, core start/stop, node changes, traffic,
+Windows proxy recovery and Android VPN lifecycle before any release claim.
 
-收藏属于当前订阅，换订阅时重置，且默认只在内存中保存。用户明确点击
-「加密保存本机」或「更新加密存档」后，收藏索引才随订阅正文进入原有的
-系统加密存档；没有独立的明文收藏数据库，旧版 v1 加密存档仍兼容。
-已连接时 Android 仍要求先断开才能切换节点，收藏本身无需断开。
+The prior Vela-only networking implementation in `main` is historical; the
+migration is done exclusively in `migration/flclash-base`. Do not merge it
+into `main` or publish this branch as the completed product until parity
+and testing are finished.
 
-## 双端订阅 DNS / Fake-IP 恢复与手动更新
+## Licenses and provenance
 
-- **Windows**：获取 HTTPS 订阅时，优先使用 Windows 设置中已开启的可信
-  `127.0.0.1` HTTP 系统代理，由代理完成域名解析；若系统代理未开启，
-  则尝试扫描少量常见本机 HTTP/Mixed 端口，先用不含订阅凭据的
-  `CONNECT` 请求确认其具备 HTTP 代理功能；再不成功时尝试直连。
-  仅使用 SOCKS、PAC 或未开启系统代理的 Windows 配置不视为可信 HTTP 代理。
-- **Windows / Android 直连**：DNS 可能返回 Mihomo 的 `198.18.0.0/15`
-  Fake-IP。允许这种受限的虚拟地址继续进行正常 TLS 校验，同时拒绝真实内网、
-  回环、链路本地等地址。对混合 DNS 结果只连接被检查通过的公网地址或 Fake-IP，
-  使用固定连接目标避免 DNS 二次解析造成绕过。若系统 DNS 只返回内网地址或解析失败，
-  则优先尝试阿里公共 DNS，随后尝试 Cloudflare、Google 的公网 DNS-over-HTTPS 服务（固定公网服务器 IP + 正常 TLS 证书校验），
-  并严格过滤得到的解析结果；仍不直连任何内网地址。依旧要求 HTTPS、验证服务器证书、
-  禁止自动重定向、限制响应大小，并且不打印含令牌的订阅 URL。
-- 两端都可在成功导入 HTTPS 订阅后，点击「**重新获取订阅（仅本次运行）**」。
-  此功能仅在运行期间以 RAM 保留地址，由用户手动触发；不保存 URL 或自动后台更新。
-  下载/解析失败不会清空现有节点、选中节点、收藏与加密存档。
-  同一订阅成功更新后按节点名称、服务器和协议匹配旧选中项及收藏；
-  不会自动启动 Windows 系统代理、Android VPN 或智能优选测速。
-  若要保存更新后的节点数据，需主动点击「更新加密存档」。
-- VPN 运行中以及 Windows Mihomo 内核运行时仍不允许替换订阅配置：
-  请先断开连接，再执行订阅更新。已有智能优选及连接动画保持独立。
-
-## Windows 手动本机代理导入（DNS 无法使用时）
-
-Windows 设置 → 订阅导入中，下载方式选择「手动本机 HTTP/Mixed 代理端口」，
-然后填写电脑上**已经运行的代理软件**设置页中的 HTTP 端口或 Mixed 端口
-（例如 7890、7897、10809，以实际端口为准）。此模式只连接用户指定的
-`127.0.0.1:端口`，由本机代理处理远程域名解析，**不依赖 Windows 的
-DNS 和境外 DNS-over-HTTPS**；不自动修改 Windows 系统代理，不信任
-远程代理地址，不支持仅 SOCKS5 的端口。
-
-若电脑没有可用的本机 HTTP/Mixed 代理且 HTTPS 订阅域名也无法直连，可在
-已有可联网浏览器或其他订阅工具中获取原始 Clash YAML/节点分享链接，
-使用「粘贴节点 / YAML」导入；原有订阅内容验证和 Mihomo 节点选择不变。
-请勿将含凭据的订阅地址或 YAML 发到聊天中。
-
-## 注意事项
-
-本项目的桌面演示节点和动画不应与真实网络测速混淆。Windows 端的 HTTPS 真实代理验证只表明检查目标可达，不代表任意网站均可访问。首次使用应先在设置页导入订阅、选择节点再连接。Mihomo 包含第三方版权，请保留随包的 LICENSE 和第三方 NOTICE。
+FlClash and its bundled upstream components retain their relevant
+licenses; see `LICENSE`, `NOTICE-FlClash.txt` and generated
+`VELA-SHUO-UPSTREAM.txt`. Interface assets retain their own attribution.
