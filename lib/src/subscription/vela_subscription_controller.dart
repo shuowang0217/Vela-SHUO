@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_interpolation_to_compose_strings
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -59,12 +61,16 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
   static bool isPublicIp(InternetAddress address) {
     final bytes = address.rawAddress;
     if (address.type == InternetAddressType.IPv6) {
-      if (bytes.length != 16) return false;
+      if (bytes.length != 16) {
+        return false;
+      }
       // Global unicast only. Reject ULA, link-local, IPv4-mapped, etc.
       return (bytes[0] & 0xe0) == 0x20;
     }
     if (address.type != InternetAddressType.IPv4 ||
-        bytes.length != 4) return false;
+        bytes.length != 4) {
+      return false;
+    }
     final a = bytes[0], b = bytes[1], c = bytes[2];
     return !(a == 0 || a == 10 || a == 127 || a >= 224 ||
         (a == 100 && b >= 64 && b <= 127) ||
@@ -195,10 +201,10 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
 
   Future<String> _fetchViaAddress(
       Uri uri, String route, InternetAddress? pinnedAddress) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 10)
-      ..findProxy = (_) => route
-      ..userAgent = 'Clash.Meta';
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 10);
+    client.findProxy = (_) => route;
+    client.userAgent = 'Clash.Meta';
     if (pinnedAddress != null) {
       client.connectionFactory =
           (Uri target, String? proxyHost, int? proxyPort) {
@@ -434,7 +440,9 @@ class VelaSubscriptionController extends ChangeNotifier {
     _notify();
     try {
       final parsed = VelaSubscriptionParser.parse(source);
-      if (generation != _generation || _disposed) return false;
+      if (generation != _generation || _disposed) {
+      return false;
+    }
       // Only a complete parse can replace a previously usable subscription.
       _result = parsed;
       _preparedProfile = null;
@@ -448,7 +456,9 @@ class VelaSubscriptionController extends ChangeNotifier {
       _notify();
       return true;
     } on FormatException catch (e) {
-      if (generation != _generation || _disposed) return false;
+      if (generation != _generation || _disposed) {
+        return false;
+      }
       _error = e.message;
     } catch (_) {
       if (generation != _generation || _disposed) return false;
@@ -462,7 +472,9 @@ class VelaSubscriptionController extends ChangeNotifier {
   }
 
   Future<bool> importFromUrl(String url) async {
-    if (loading || core.busy || core.isListening || _disposed) return false;
+    if (loading || core.busy || core.isListening || _disposed) {
+      return false;
+    }
     final normalizedUrl = url.trim();
     final sameSource = _sessionUrl != null &&
         _sessionUrl == normalizedUrl && _result != null;
