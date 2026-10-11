@@ -46,18 +46,31 @@ class _VelaShellState extends ConsumerState<VelaShell> {
 
   @override
   Widget build(BuildContext context) {
-    VelaThemeRuntime.select(VelaPalette.byId(paletteId), Theme.of(context).brightness);
+    final palette = VelaPalette.byId(paletteId);
+    // Original Vela defaults to the dark Ocean theme. Do not inherit the
+    // upstream FlClash MaterialApp brightness (which may be light).
+    final brightness = palette.prefersDark ? Brightness.dark : Brightness.light;
+    VelaThemeRuntime.select(palette, brightness);
     final t = VelaThemeRuntime.active;
-    final desktop = MediaQuery.sizeOf(context).width >= 820;
+    final desktop = Platform.isWindows || MediaQuery.sizeOf(context).width >= 820;
     final extended = MediaQuery.sizeOf(context).width >= 1250;
     final pages = [_home(), _nodes(), _smart(), _settings()];
     return Theme(
       data: Theme.of(context).copyWith(
+        useMaterial3: true,
+        brightness: brightness,
         scaffoldBackgroundColor: t.background,
         colorScheme: ColorScheme.fromSeed(
           seedColor: t.accent,
-          brightness: t.dark ? Brightness.dark : Brightness.light,
+          brightness: brightness,
           surface: t.background,
+        ),
+        cardTheme: CardThemeData(
+          elevation: 0,
+          color: t.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
         ),
       ),
       child: Scaffold(
@@ -176,6 +189,8 @@ class _VelaShellState extends ConsumerState<VelaShell> {
 
   // This is the original Vela home composition, not a new dashboard card.
   Widget _home() => VelaOriginalHome(
+    // Pass the full-window layout decision into the original Vela canvas.
+    desktop: Platform.isWindows || MediaQuery.sizeOf(context).width >= 820,
     showNodes: () => setState(() => tab = 1),
     showSmart: () => setState(() => tab = 2),
   );
