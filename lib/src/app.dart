@@ -11,6 +11,7 @@ import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/core/vela_window_exit_guard.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
+import 'package:vela_shuo/src/android/vela_android_vpn.dart';
 import 'package:vela_shuo/src/smart/vela_node_probe.dart';
 import 'package:vela_shuo/src/smart/vela_smart_controller.dart';
 import 'package:vela_shuo/src/smart/vela_smart_panel.dart';
@@ -110,6 +111,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   VelaSubscriptionController? subscription;
   VelaConnectionCoordinator? connection;
   VelaSmartController? smart;
+  VelaAndroidVpnController? androidVpn;
   int tab = 0;
 
   void syncRealGlobe() {
@@ -128,11 +130,15 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    if (Platform.isAndroid) {
+      androidVpn = VelaAndroidVpnController();
+      unawaited(androidVpn!.refresh());
+    }
     if (widget.core != null) {
       subscription = VelaSubscriptionController(
           core: widget.core!, previewOnly: Platform.isAndroid);
       unawaited(subscription!.restoreSaved());
-      if (widget.systemProxy != null) {
+      if (widget.systemProxy != null && !Platform.isAndroid) {
         connection = VelaConnectionCoordinator(
           core: widget.core!, subscription: subscription!,
           proxy: widget.systemProxy!,
@@ -157,6 +163,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       widget.diagnostics?.record(VelaDiagnosticEvent.appResumed);
+      if (androidVpn != null) unawaited(androidVpn!.refresh());
     } else if (state == AppLifecycleState.paused) {
       widget.diagnostics?.record(VelaDiagnosticEvent.appPaused);
     } else if (state == AppLifecycleState.detached) {
@@ -179,6 +186,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     subscription?.removeListener(syncRealGlobe);
     connection?.removeListener(syncRealGlobe);
     smart?.dispose();
+    androidVpn?.dispose();
     widget.windowExitGuard?.shutdownConnection = null;
     // Restore WinINet BEFORE terminating its local endpoint. Never kill
     // the core synchronously while the system proxy still points at it.
@@ -201,7 +209,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
 
   Widget page(bool desktop) => switch (tab) {
     1 => _NodesPage(demo: demo, subscription: subscription,
-      core: widget.core, connection: connection,
+      core: widget.core, connection: connection, androidVpn: androidVpn,
       smart: smart, goHome: () => navigate(0)),
     2 => _SmartPage(demo: demo, smart: smart, subscription: subscription),
     3 => _SettingsPage(
@@ -213,6 +221,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     _ => _HomePage(
       demo: demo, desktop: desktop,
       connection: connection, subscription: subscription, smart: smart,
+      androidVpn: androidVpn,
       showNodes: () => navigate(1), showSmart: () => navigate(2),
     ),
   };
@@ -404,11 +413,13 @@ class _HomePage extends StatelessWidget {
     this.connection,
     this.subscription,
     this.smart,
+    this.androidVpn,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
   final VelaSubscriptionController? subscription;
   final VelaSmartController? smart;
+  final VelaAndroidVpnController? androidVpn;
   final bool desktop;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
@@ -416,7 +427,7 @@ class _HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: Listenable.merge([demo, ?connection,
-      ?subscription, ?smart]),
+      ?subscription, ?smart, ?androidVpn]),
     builder: (context, _) => desktop && !Platform.isAndroid
       ? _DesktopHome(
           demo: demo, connection: connection, subscription: subscription,
@@ -425,7 +436,7 @@ class _HomePage extends StatelessWidget {
         )
       : _MobileHome(
           demo: demo, connection: connection, subscription: subscription,
-          smart: smart,
+          smart: smart, androidVpn: androidVpn,
           showNodes: showNodes, showSmart: showSmart,
         ),
   );
@@ -815,12 +826,13 @@ class _MetricCard extends StatelessWidget {
 class _MobileHome extends StatelessWidget {
   const _MobileHome({
     required this.demo, required this.showNodes, required this.showSmart,
-    this.connection, this.subscription, this.smart,
+    this.connection, this.subscription, this.smart, this.androidVpn,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
   final VelaSubscriptionController? subscription;
   final VelaSmartController? smart;
+  final VelaAndroidVpnController? androidVpn;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
 
@@ -842,7 +854,7 @@ class _MobileHome extends StatelessWidget {
             ),
           ],
         )),
-        Platform.isAndroid ? _AndroidPreviewTag()
+        Platform.isAndroid ? _AndroidVpnTag(vpn: androidVpn!)
             : subscription?.selected != null ? _RealTag(compact: true)
             : _DemoTag(compact: true),
       ]),
@@ -853,8 +865,8 @@ class _MobileHome extends StatelessWidget {
       ),
       SizedBox(height: 8),
       Platform.isAndroid
-          ? _AndroidPreviewCard(
-              selectedName: subscription?.selected?.name,
+          ? _AndroidVpnCard(
+              vpn: androidVpn!, subscription: subscription!,
               showNodes: showNodes)
           : subscription?.selected != null && connection != null
               ? _RealConnectionCard(connection: connection!,
@@ -947,28 +959,29 @@ class _ScreenPadding extends StatelessWidget {
 
 class _NodesPage extends StatelessWidget {
   const _NodesPage({required this.demo, required this.goHome,
-    this.subscription, this.core, this.connection, this.smart});
+    this.subscription, this.core, this.connection, this.androidVpn, this.smart});
   final VelaDemoController demo;
   final VelaSubscriptionController? subscription;
   final VelaCoreController? core;
   final VelaConnectionCoordinator? connection;
+  final VelaAndroidVpnController? androidVpn;
   final VelaSmartController? smart;
   final VoidCallback goHome;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: Listenable.merge([demo,
-      ?subscription, ?core, ?connection, ?smart]),
+      ?subscription, ?core, ?connection, ?androidVpn, ?smart]),
     builder: (context, _) => _ScreenPadding(child: ListView(children: [
       _ScreenHeading('节点', subscription?.nodes.isNotEmpty == true
           ? connection?.connected == true
               ? '在线选择 Mihomo 节点 · 验证成功后返回首页'
               : Platform.isAndroid
-                  ? 'Android 预览：仅浏览和选择节点，尚无 VPN 功能'
+                  ? 'Android Mihomo VPN · 切换前请先安全断开'
                   : '来自订阅的真实节点 · 点击选择后返回首页'
           : '尚未导入订阅 · 以下是地图演示节点'),
       SizedBox(height: 18),
-      Platform.isAndroid ? _AndroidPreviewTag() :
+      Platform.isAndroid ? _AndroidVpnTag(vpn: androidVpn!) :
           subscription?.nodes.isNotEmpty == true ? _RealTag() : _DemoTag(),
       SizedBox(height: 24),
       if (subscription?.nodes.isNotEmpty == true) ...[
@@ -1013,7 +1026,7 @@ class _NodesPage extends StatelessWidget {
                 trailing: subscription!.selectedIndex == i
                     ? Icon(Icons.check_circle, color: _mint)
                     : Icon(Icons.chevron_right, color: _blue),
-                onTap: connection?.busy == true ||
+                onTap: androidVpn?.active == true || connection?.busy == true ||
                     (core?.isListening == true &&
                         connection?.connected != true) ? null : () async {
                   final ok = connection?.connected == true
@@ -1075,12 +1088,12 @@ class _SmartPage extends StatelessWidget {
   Widget build(BuildContext context) {
     if (Platform.isAndroid) {
       return _ScreenPadding(child: ListView(children: [
-        _ScreenHeading('智能优选', 'Android 预览版暂不支持线路测速'),
+        _ScreenHeading('智能优选', 'Android VPN Beta · 线路测速待接入'),
         const SizedBox(height: 18),
-        _AndroidPreviewTag(),
+        const Text('Android Mihomo VPN · Beta'),
         const SizedBox(height: 20),
         _GlassCard(child: Text(
-          'Android VpnService 和 Mihomo 原生运行层尚未接入。'
+          'Android VpnService 和 Mihomo 原生运行层已接入。'
           '本页不会进行虚假的延迟测速、速度测试或自动节点切换。',
           style: TextStyle(color: _muted, height: 1.55),
         )),
@@ -1160,7 +1173,7 @@ class _SettingsPage extends StatelessWidget {
     child: ListView(children: [
       _ScreenHeading('设置', '为 Vela-SHUO 定义你的使用方式'),
       SizedBox(height: 18),
-      Platform.isAndroid ? _AndroidPreviewTag() :
+      Platform.isAndroid ? const Text('Android Mihomo VPN · Beta') :
           subscription?.selected != null ? _RealTag() : _DemoTag(),
       SizedBox(height: 24),
       if (core != null) ...[
@@ -1200,10 +1213,10 @@ class _SettingsPage extends StatelessWidget {
         Divider(height: 1, color: _line),
         ListTile(
           leading: Icon(Icons.info_outline, color: _blue),
-          title: Text(Platform.isAndroid ? 'Vela-SHUO · Android Preview'
+          title: Text(Platform.isAndroid ? 'Vela-SHUO · Android VPN Beta'
               : 'Vela-SHUO · Windows Beta'),
           subtitle: Text(Platform.isAndroid
-              ? '支持节点解析与界面浏览 · 不提供 VPN 或系统代理'
+              ? '可授权 Android 系统 VPN；真实连接以服务状态为准'
               : '真实系统代理连接测试 · 尚非 TUN/VPN 全局代理'),
         ),
       ])),
@@ -1413,7 +1426,9 @@ class _PaletteOption extends StatelessWidget {
   );
 }
 
-class _AndroidPreviewTag extends StatelessWidget {
+class _AndroidVpnTag extends StatelessWidget {
+  const _AndroidVpnTag({required this.vpn});
+  final VelaAndroidVpnController vpn;
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
@@ -1422,14 +1437,17 @@ class _AndroidPreviewTag extends StatelessWidget {
       color: _blue.withValues(alpha: .13),
       border: Border.all(color: _blue.withValues(alpha: .35)),
     ),
-    child: const Text('Android 预览 · 无 VPN', style: TextStyle(fontSize: 10)),
+    child: Text(vpn.connected ? 'Android Mihomo VPN · 已连接'
+        : 'Android Mihomo VPN · Beta',
+        style: const TextStyle(fontSize: 10)),
   );
 }
 
-class _AndroidPreviewCard extends StatelessWidget {
-  const _AndroidPreviewCard({required this.selectedName,
+class _AndroidVpnCard extends StatelessWidget {
+  const _AndroidVpnCard({required this.vpn, required this.subscription,
       required this.showNodes});
-  final String? selectedName;
+  final VelaAndroidVpnController vpn;
+  final VelaSubscriptionController subscription;
   final VoidCallback showNodes;
 
   @override
@@ -1437,30 +1455,52 @@ class _AndroidPreviewCard extends StatelessWidget {
     padding: const EdgeInsets.all(17),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.android_rounded, color: _blue, size: 30),
+        Icon(Icons.vpn_lock_rounded,
+            color: vpn.connected ? _mint : _blue, size: 30),
         const SizedBox(width: 12),
         Expanded(child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Android 预览版 · 未连接',
-                style: TextStyle(color: _foreground,
-                    fontSize: 18, fontWeight: FontWeight.w700)),
-            Text('尚未接入 Android VpnService 和 Mihomo 运行层',
+            Text(vpn.phaseText, style: TextStyle(color: _foreground,
+                fontSize: 18, fontWeight: FontWeight.w700)),
+            Text('Mihomo · Android VpnService · TUN',
                 style: TextStyle(color: _muted, fontSize: 11)),
           ],
         )),
       ]),
       const SizedBox(height: 12),
-      Text(selectedName == null
-          ? '可在设置页导入订阅、浏览协议和节点；不会改变设备网络。'
-          : '当前预览选择：$selectedName（尚不能代理设备流量）',
+      Text(subscription.selected == null
+          ? '请先在设置导入订阅并选择真实节点。'
+          : '已选择：${subscription.selected!.name}',
           style: TextStyle(color: _muted, fontSize: 12)),
+      if (vpn.error != null) Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(vpn.error!, style: const TextStyle(
+            color: Color(0xFFE78986), fontSize: 12)),
+      ),
       const SizedBox(height: 12),
-      SizedBox(width: double.infinity, child: OutlinedButton.icon(
-        onPressed: showNodes,
-        icon: const Icon(Icons.route_outlined),
-        label: const Text('浏览订阅节点'),
+      SizedBox(width: double.infinity, child: FilledButton.icon(
+        key: const ValueKey('android_vpn_button'),
+        onPressed: vpn.busy || (!vpn.active &&
+            subscription.selected == null) ? null : () async {
+          if (vpn.connected) {
+            await vpn.stop();
+          } else {
+            await vpn.start(subscription);
+          }
+        },
+        icon: Icon(vpn.connected ? Icons.power_settings_new_rounded
+            : Icons.vpn_key_rounded),
+        label: Text(vpn.connected ? '安全断开 Android VPN'
+            : vpn.busy ? '正在建立 VPN…' : '授权并连接真实 VPN'),
       )),
+      const SizedBox(height: 8),
+      TextButton.icon(onPressed: vpn.active ? null : showNodes,
+          icon: const Icon(Icons.route_outlined),
+          label: const Text('选择线路')),
+      Text('Beta：首次连接需要 Android VPN 授权，'
+          '系统状态由原生服务和 HTTPS 验证更新。',
+          style: TextStyle(color: _muted, fontSize: 11)),
     ]),
   );
 }
