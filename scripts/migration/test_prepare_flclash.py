@@ -30,7 +30,7 @@ class OverlayTests(unittest.TestCase):
         app.parent.mkdir(parents=True, exist_ok=True)
         app.write_text(
             "import 'pages/pages.dart';\n"
-            "return MaterialApp(title: appName, child: const HomePage());\n",
+            "return MaterialApp(title: appName, child: const HomePage(),);\n",
             encoding="utf-8",
         )
         shell = self.vela / "scripts/migration/flclash/vela_shell.dart"
