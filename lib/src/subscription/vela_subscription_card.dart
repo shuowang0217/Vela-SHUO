@@ -27,6 +27,7 @@ class VelaSubscriptionCard extends StatefulWidget {
 
 class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
   final TextEditingController _url = TextEditingController();
+  final TextEditingController _localPort = TextEditingController();
   bool _showUrl = false;
   bool _offlineMode = false;
 
@@ -34,6 +35,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
   void dispose() {
     _url.clear();
     _url.dispose();
+    _localPort.dispose();
     super.dispose();
   }
 
@@ -117,10 +119,39 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                       value: VelaSubscriptionDownloadMode.direct,
                       child: Text('仅直连'),
                     ),
+                    DropdownMenuItem(
+                      value: VelaSubscriptionDownloadMode.localHttp,
+                      child: Text('手动本机 HTTP/Mixed 代理端口'),
+                    ),
                   ],
                 ),
               ],
             ),
+            if (!_offlineMode && Platform.isWindows &&
+                subscription.downloadMode ==
+                    VelaSubscriptionDownloadMode.localHttp) ...[
+              const SizedBox(height: 10),
+              TextField(
+                key: const ValueKey('subscription_local_proxy_port'),
+                controller: _localPort,
+                enabled: !busy,
+                maxLength: 5,
+                keyboardType: TextInputType.number,
+                onChanged: subscription.setLocalHttpProxyPort,
+                decoration: const InputDecoration(
+                  labelText: '本机 HTTP / Mixed 端口（例如 7890）',
+                  helperText: '从已运行的代理软件中查看 HTTP 或 Mixed 端口；'
+                      '仅 SOCKS5 端口不支持。不会修改 Windows 系统代理。',
+                  border: OutlineInputBorder(),
+                  counterText: '',
+                ),
+              ),
+              if (!subscription.localHttpProxyValid)
+                Text('请输入有效端口，如 7890、7897、10809；'
+                    '不能使用 Vela 自身端口。',
+                  style: TextStyle(color: colors.muted, fontSize: 11)),
+              const SizedBox(height: 9),
+            ],
             TextField(
               key: const ValueKey('subscription_url_input'),
               controller: _url,

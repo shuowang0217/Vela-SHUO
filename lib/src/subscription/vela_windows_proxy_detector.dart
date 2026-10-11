@@ -9,6 +9,11 @@ class VelaWindowsProxyDetector {
   static const String registryKey =
       r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings';
 
+  /// Never proxy subscription tokens through Vela's own Mihomo mixed/API
+  /// listener or an invalid local TCP port.
+  static bool allowedPort(int? port) => port != null &&
+      port >= 1 && port <= 65535 && port != 20808 && port != 20819;
+
   static String? parseRegistryOutput(
       String enabledOutput, String serverOutput) {
     if (!RegExp(r'ProxyEnable\s+REG_DWORD\s+0x0*1\b',

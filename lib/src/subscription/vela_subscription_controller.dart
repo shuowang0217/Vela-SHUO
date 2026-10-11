@@ -20,7 +20,7 @@ abstract class VelaSubscriptionFetcher {
   Future<String> download(String source);
 }
 
-enum VelaSubscriptionDownloadMode { automatic, systemProxy, direct }
+enum VelaSubscriptionDownloadMode { automatic, systemProxy, direct, localHttp }
 
 class _VelaSubscriptionTransportFailure implements Exception {
   const _VelaSubscriptionTransportFailure(this.reason);
@@ -35,9 +35,12 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     this.dnsCheck,
     this.dnsLookup,
     this.secureDnsLookup,
+    this.localHttpProxyPort,
   });
 
   final VelaSubscriptionDownloadMode mode;
+  /// Explicit user-chosen loopback HTTP CONNECT / Mihomo mixed port.
+  final int? localHttpProxyPort;
   final Future<String?> Function()? proxyLookup;
   final Future<String> Function(Uri, String)? fetchTransport;
   final Future<void> Function(String)? dnsCheck;
@@ -261,7 +264,26 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     _validateUrl(uri);
 
     String? proxy;
-    if (mode != VelaSubscriptionDownloadMode.direct) {
+    if (mode == VelaSubscriptionDownloadMode.localHttp) {
+      if (!VelaWindowsProxyDetector.allowedPort(localHttpProxyPort)) {
+        throw const FormatException('请填写有效的本机 HTTP/Mixed 代理端口（1~65535）');
+      }
+      proxy = 'PROXY 127.0.0.1:$localHttpProxyPort';
+      if (fetchTransport == null) {
+        // Fail immediately and explain the cause instead of falling into
+        // more system-DNS retries. Do not send the subscription token here.
+        try {
+          final socket = await Socket.connect(
+              InternetAddress.loopbackIPv4, localHttpProxyPort!,
+              timeout: const Duration(seconds: 2));
+          socket.destroy();
+        } catch (_) {
+          throw FormatException(
+              '127.0.0.1:$localHttpProxyPort 没有可连接的本机服务；'
+              '请在代理软件中开启 HTTP 或 Mixed 端口');
+        }
+      }
+    } else if (mode != VelaSubscriptionDownloadMode.direct) {
       proxy = proxyLookup == null
           ? await const VelaWindowsProxyDetector().detect()
           : await proxyLookup!();
@@ -282,7 +304,8 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
     // and pin the socket IP to prevent a DNS-rebinding TOCTOU.
     final routes = <String>[
       ?proxy,
-      if (mode != VelaSubscriptionDownloadMode.systemProxy) 'DIRECT',
+      if (mode != VelaSubscriptionDownloadMode.systemProxy &&
+          mode != VelaSubscriptionDownloadMode.localHttp) 'DIRECT',
     ];
     String? lastReason;
     for (final route in routes) {
@@ -322,7 +345,10 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
         lastReason = 'HTTPS 证书验证失败';
       }
     }
-    final hint = proxy != null && routes.length == 2
+    final hint = mode == VelaSubscriptionDownloadMode.localHttp
+        ? '本机 HTTP/Mixed 代理 127.0.0.1:$localHttpProxyPort 请求失败'
+          '（请确认该端口是 HTTP 或 Mixed，不是仅 SOCKS5）'
+        : proxy != null && routes.length == 2
         ? '已尝试 Windows 本机系统代理和直连'
         : proxy != null ? '本机系统代理请求失败' : '直连请求失败';
     throw FormatException(hint + '：' + (lastReason ?? '网络不可达'));
@@ -455,6 +481,23 @@ class VelaSubscriptionController extends ChangeNotifier {
   VelaSubscriptionDownloadMode _downloadMode =
       VelaSubscriptionDownloadMode.automatic;
   VelaSubscriptionDownloadMode get downloadMode => _downloadMode;
+  int? _localHttpProxyPort;
+  int? get localHttpProxyPort => _localHttpProxyPort;
+  bool get localHttpProxyValid =>
+      VelaWindowsProxyDetector.allowedPort(_localHttpProxyPort);
+
+  /// Port is not a credential; never store any subscription URL with it.
+  /// Only a user action changes the download route, not the live connection.
+  bool setLocalHttpProxyPort(String value) {
+    if (_disposed || loading || core.busy || core.isListening) {
+      return false;
+    }
+    final port = int.tryParse(value.trim());
+    _localHttpProxyPort = VelaWindowsProxyDetector.allowedPort(port)
+        ? port : null;
+    _notify();
+    return _localHttpProxyPort != null;
+  }
 
   void setDownloadMode(VelaSubscriptionDownloadMode next) {
     if (loading || core.busy || core.isListening) {
@@ -648,8 +691,10 @@ class VelaSubscriptionController extends ChangeNotifier {
     _notify();
     try {
       final activeFetcher = _fetcher is VelaHttpsSubscriptionFetcher
-          ? VelaHttpsSubscriptionFetcher(mode: previewOnly
-              ? VelaSubscriptionDownloadMode.direct : _downloadMode)
+          ? VelaHttpsSubscriptionFetcher(
+              mode: previewOnly
+                  ? VelaSubscriptionDownloadMode.direct : _downloadMode,
+              localHttpProxyPort: _localHttpProxyPort)
           : _fetcher;
       final raw = await activeFetcher.download(normalizedUrl);
       final parsed = VelaSubscriptionParser.parse(raw);

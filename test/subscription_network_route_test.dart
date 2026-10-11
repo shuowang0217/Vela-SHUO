@@ -93,6 +93,53 @@ void main() {
         'socks5://127.0.0.1:7897'), null);
   });
 
+  test('explicit loopback HTTP port never uses system DNS or proxy registry',
+      () async {
+    var systemLookups = 0;
+    var dnsLookups = 0;
+    final fetcher = VelaHttpsSubscriptionFetcher(
+      mode: VelaSubscriptionDownloadMode.localHttp,
+      localHttpProxyPort: 7897,
+      proxyLookup: () async {
+        systemLookups++;
+        return null;
+      },
+      dnsLookup: (_) async {
+        dnsLookups++;
+        return [InternetAddress('192.168.1.25')];
+      },
+      fetchTransport: (uri, route) async {
+        expect(route, 'PROXY 127.0.0.1:7897');
+        expect(uri.scheme, 'https');
+        return 'subscription response';
+      },
+    );
+    expect(await fetcher.download(
+        'https://provider.example/sub?token=do-not-log'),
+        'subscription response');
+    expect(systemLookups, 0);
+    expect(dnsLookups, 0);
+  });
+
+  test('invalid or Vela-owned local proxy port is rejected before token I/O',
+      () async {
+    for (final port in [null, 0, -1, 65536, 20808, 20819]) {
+      var forwarded = false;
+      final fetcher = VelaHttpsSubscriptionFetcher(
+        mode: VelaSubscriptionDownloadMode.localHttp,
+        localHttpProxyPort: port,
+        fetchTransport: (_, route) async {
+          forwarded = true;
+          return 'unsafe';
+        },
+      );
+      await expectLater(
+          fetcher.download('https://provider.example/sub?token=secret'),
+          throwsFormatException);
+      expect(forwarded, false);
+    }
+  });
+
   test('direct mode bypasses Windows proxy lookup entirely', () async {
     var resolved = false;
     final fetcher = VelaHttpsSubscriptionFetcher(
