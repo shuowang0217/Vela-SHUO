@@ -36,6 +36,8 @@ class OverlayTests(unittest.TestCase):
         shell = self.vela / "scripts/migration/flclash/vela_shell.dart"
         shell.parent.mkdir(parents=True, exist_ok=True)
         shell.write_text("class VelaShell {}\n", encoding="utf-8")
+        original_home = self.vela / "scripts/migration/flclash/vela_original_home.dart"
+        original_home.write_text("class VelaOriginalHome {}\n", encoding="utf-8")
         for rel, value in {
             "lib/common/constant.dart": "const appName = 'FlClash';",
             "android/common/src/main/res/values/strings.xml":
@@ -59,6 +61,7 @@ class OverlayTests(unittest.TestCase):
         self.assertNotIn("child: const HomePage()", app)
         self.assertIn("title: 'Vela-SHUO'", app)
         self.assertTrue((self.upstream / "lib/vela_shuo/vela_shell.dart").exists())
+        self.assertTrue((self.upstream / "lib/vela_shuo/vela_original_home.dart").exists())
         pubspec = (self.upstream / "pubspec.yaml").read_text()
         self.assertIn("assets/earth/", pubspec)
         self.assertIn("assets/maps/", pubspec)
