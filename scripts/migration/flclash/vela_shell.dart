@@ -5,7 +5,7 @@ import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/vela_shuo/theme/vela_palettes.dart';
-import 'vela_flight_header.dart';
+import 'vela_original_home.dart';
 
 /// The user-facing application. FlClash owns the backend through Riverpod.
 /// No FlClash view, scaffold, navigator or settings screen is mounted here.
@@ -172,51 +172,11 @@ class _VelaShellState extends ConsumerState<VelaShell> {
   Widget _subtitle(String text) => Text(text, style:
     TextStyle(fontSize: 13, color: VelaThemeRuntime.active.muted));
 
-  Widget _home() {
-    final t = VelaThemeRuntime.active;
-    final running = ref.watch(isStartProvider);
-    final status = ref.watch(coreStatusProvider);
-    final profile = ref.watch(currentProfileProvider);
-    final suspended = ref.watch(suspendProvider);
-    final label = !running ? '等待启航' : suspended ? '已暂停'
-      : status == CoreStatus.connected ? '已连接'
-      : status == CoreStatus.connecting ? '正在连接' : '连接异常';
-    return _page('一帆越洋，尽览四方。', [
-      const VelaFlightHeader(),
-      const SizedBox(height: 18),
-      _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: TextStyle(color: t.accent,
-          fontWeight: FontWeight.bold, fontSize: 23)),
-        const SizedBox(height: 8),
-        _subtitle(profile == null ? '请先在设置中导入订阅' : '当前订阅：' + profile.realLabel),
-        const SizedBox(height: 18),
-        SizedBox(width: double.infinity, height: 48,
-          child: FilledButton.icon(
-            key: const ValueKey('vela_real_connect'),
-            onPressed: profile == null ? null
-              : () => ref.read(commonActionProvider.notifier).toggleRunning(),
-            icon: Icon(running ? Icons.power_settings_new : Icons.sailing),
-            label: Text(running ? '断开连接' : '启航连接'),
-          ),
-        ),
-      ])),
-      Row(children: [
-        Expanded(child: _card(Column(crossAxisAlignment: CrossAxisAlignment.start,
-          children: [Icon(Icons.language, color: t.accent),
-            const SizedBox(height: 9), _subtitle('节点管理'),
-            const SizedBox(height: 6),
-            TextButton(onPressed: () => setState(() => tab = 1),
-              child: const Text('选择节点 →'))]))),
-        const SizedBox(width: 12),
-        Expanded(child: _card(Column(crossAxisAlignment: CrossAxisAlignment.start,
-          children: [Icon(Icons.tune, color: t.accent),
-            const SizedBox(height: 9), _subtitle('订阅和设置'),
-            const SizedBox(height: 6),
-            TextButton(onPressed: () => setState(() => tab = 3),
-              child: const Text('前往设置 →'))]))),
-      ]),
-    ]);
-  }
+  // This is the original Vela home composition, not a new dashboard card.
+  Widget _home() => VelaOriginalHome(
+    showNodes: () => setState(() => tab = 1),
+    showSmart: () => setState(() => tab = 2),
+  );
 
   Widget _nodes() {
     final t = VelaThemeRuntime.active;
