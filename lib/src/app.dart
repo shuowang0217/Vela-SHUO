@@ -148,9 +148,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    traffic = VelaTrafficMonitor(reader: () async => Platform.isAndroid
-        ? androidVpn?.readTrafficCounters()
-        : widget.core?.readTrafficCounters());
+    traffic = VelaTrafficMonitor(reader: () async {
+      if (Platform.isAndroid) {
+        return await androidVpn?.readTrafficCounters();
+      }
+      return await widget.core?.readTrafficCounters();
+    });
     if (Platform.isAndroid) {
       androidVpn = VelaAndroidVpnController();
       unawaited(androidVpn!.refresh());
@@ -533,8 +536,7 @@ class _DesktopHome extends StatelessWidget {
                   left: 12, right: 12, bottom: 18,
                   child: _Stats(demo: demo, showSmart: showSmart,
                     real: subscription?.selected != null,
-                    smart: smart, traffic: traffic,
-                    selectedIndex: subscription?.selectedIndex),
+                    smart: smart, traffic: traffic),
                 ),
               ]),
             ),
@@ -755,13 +757,12 @@ class _ConnectionCard extends StatelessWidget {
 
 class _Stats extends StatelessWidget {
   const _Stats({required this.demo, required this.showSmart,
-    this.real = false, this.smart, this.traffic, this.selectedIndex});
+    this.real = false, this.smart, this.traffic});
   final VelaDemoController demo;
   final VoidCallback showSmart;
   final bool real;
   final VelaSmartController? smart;
   final VelaTrafficMonitor? traffic;
-  final int? selectedIndex;
 
   @override
   Widget build(BuildContext context) => Row(children: [
