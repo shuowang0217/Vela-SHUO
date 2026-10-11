@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -317,6 +318,52 @@ class VelaCoreController extends ChangeNotifier {
       _phase == VelaCorePhase.starting ||
       _phase == VelaCorePhase.stopping;
   bool get isListening => _phase == VelaCorePhase.listening;
+
+  /// Authenticated, bounded loopback-only Mihomo /connections totals.
+  /// Does not expose the API secret or per-connection metadata to widgets.
+  Future<(int, int)?> readTrafficCounters() async {
+    final config = _config;
+    if (_disposed || !isListening || !_remoteVerified ||
+        config?.apiPort == null || config?.apiSecret == null) {
+      return null;
+    }
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 2)
+      ..findProxy = (_) => 'DIRECT';
+    try {
+      final uri = Uri.parse(
+          'http://127.0.0.1:${config!.apiPort}/connections');
+      final req = await client.getUrl(uri)
+          .timeout(const Duration(seconds: 3));
+      req.followRedirects = false;
+      req.headers.set(HttpHeaders.authorizationHeader,
+          'Bearer ${config.apiSecret}');
+      final res = await req.close().timeout(const Duration(seconds: 3));
+      if (res.statusCode != HttpStatus.ok || res.isRedirect ||
+          res.contentLength > 2 * 1024 * 1024) {
+        return null;
+      }
+      final bytes = <int>[];
+      await for (final chunk in res.timeout(const Duration(seconds: 3))) {
+        if (bytes.length + chunk.length > 2 * 1024 * 1024) {
+          return null;
+        }
+        bytes.addAll(chunk);
+      }
+      final json = jsonDecode(utf8.decode(bytes));
+      if (json is! Map) return null;
+      final up = json['uploadTotal'];
+      final down = json['downloadTotal'];
+      if (up is! int || down is! int || up < 0 || down < 0) {
+        return null;
+      }
+      return (up, down);
+    } catch (_) {
+      return null;
+    } finally {
+      client.close(force: true);
+    }
+  }
   int? get localPort => _config?.localPort;
   String get localAddress =>
       _config == null ? '—' : '127.0.0.1:${_config!.localPort}';

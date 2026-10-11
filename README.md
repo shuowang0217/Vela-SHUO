@@ -15,6 +15,14 @@ Windows x64 优先的 Flutter 网络工具，独立原创 UI「一帆越洋，�
 
 云端构建：`.github/workflows/build.yml` 同时打包 Windows x64 Mihomo 便携版与 Android ARM64 Mihomo **真实 VPN Beta**。Android 通过系统 `VpnService`、内置 Mihomo JNI 原生库和 TUN 进行代理，无需 Root；点击首页按钮后由 Android 系统明确请求 VPN 授权，确认连接前会进行真实 HTTPS 检测。需 Android ARM64 真机与有效订阅线路进一步验证不同设备的实网连接、DNS、后台和移动网络切换。Windows / Android 都支持用户主动加密保存订阅正文与所选节点（其中包含节点凭据，但不保存原始订阅 URL）。参见 `docs/ANDROID_REAL_VPN_BETA.md`。
 
+## 双端实时流量
+
+Windows + Android 首页均从运行中的 Mihomo 读取累计上传/下载字节数，
+用相邻采样差值计算 Mbps，并显示本次连接时长。Android 通过 JNI 直接读取
+Mihomo 统计；Windows 仅调用固定本机控制端口的已鉴权 `/connections` API。
+无法读取时显示「—」而非缓存过时测速，断开后清除本次统计。此处是当前设备
+经 Mihomo 处理的实际流量，不是线路带宽上限或节点测速成绩。
+
 ## 注意事项
 
 本项目的桌面演示节点和动画不应与真实网络测速混淆。Windows 端的 HTTPS 真实代理验证只表明检查目标可达，不代表任意网站均可访问。首次使用应先在设置页导入订阅、选择节点再连接。Mihomo 包含第三方版权，请保留随包的 LICENSE 和第三方 NOTICE。

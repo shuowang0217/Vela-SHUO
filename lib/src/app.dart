@@ -12,6 +12,7 @@ import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/core/vela_window_exit_guard.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
 import 'package:vela_shuo/src/android/vela_android_vpn.dart';
+import 'package:vela_shuo/src/traffic/vela_traffic_monitor.dart';
 import 'package:vela_shuo/src/smart/vela_node_probe.dart';
 import 'package:vela_shuo/src/smart/vela_smart_controller.dart';
 import 'package:vela_shuo/src/smart/vela_smart_panel.dart';
@@ -112,9 +113,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   VelaConnectionCoordinator? connection;
   VelaSmartController? smart;
   VelaAndroidVpnController? androidVpn;
+  VelaTrafficMonitor? traffic;
   int tab = 0;
 
   void syncRealGlobe() {
+    traffic?.sync(Platform.isAndroid
+        ? androidVpn?.connected == true : connection?.connected == true);
     final sub = subscription;
     final vpn = androidVpn;
     if (Platform.isAndroid && vpn != null) {
@@ -144,6 +148,9 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    traffic = VelaTrafficMonitor(reader: () async => Platform.isAndroid
+        ? androidVpn?.readTrafficCounters()
+        : widget.core?.readTrafficCounters());
     if (Platform.isAndroid) {
       androidVpn = VelaAndroidVpnController();
       unawaited(androidVpn!.refresh());
@@ -209,6 +216,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     smart?.dispose();
     androidVpn?.removeListener(syncRealGlobe);
     androidVpn?.dispose();
+    traffic?.dispose();
     widget.windowExitGuard?.shutdownConnection = null;
     // Restore WinINet BEFORE terminating its local endpoint. Never kill
     // the core synchronously while the system proxy still points at it.
@@ -243,7 +251,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     _ => _HomePage(
       demo: demo, desktop: desktop,
       connection: connection, subscription: subscription, smart: smart,
-      androidVpn: androidVpn,
+      androidVpn: androidVpn, traffic: traffic,
       showNodes: () => navigate(1), showSmart: () => navigate(2),
     ),
   };
@@ -436,12 +444,14 @@ class _HomePage extends StatelessWidget {
     this.subscription,
     this.smart,
     this.androidVpn,
+    this.traffic,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
   final VelaSubscriptionController? subscription;
   final VelaSmartController? smart;
   final VelaAndroidVpnController? androidVpn;
+  final VelaTrafficMonitor? traffic;
   final bool desktop;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
@@ -449,16 +459,16 @@ class _HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: Listenable.merge([demo, ?connection,
-      ?subscription, ?smart, ?androidVpn]),
+      ?subscription, ?smart, ?androidVpn, ?traffic]),
     builder: (context, _) => desktop && !Platform.isAndroid
       ? _DesktopHome(
           demo: demo, connection: connection, subscription: subscription,
-          smart: smart,
+          smart: smart, traffic: traffic,
           showNodes: showNodes, showSmart: showSmart,
         )
       : _MobileHome(
           demo: demo, connection: connection, subscription: subscription,
-          smart: smart, androidVpn: androidVpn,
+          smart: smart, androidVpn: androidVpn, traffic: traffic,
           showNodes: showNodes, showSmart: showSmart,
         ),
   );
@@ -467,12 +477,13 @@ class _HomePage extends StatelessWidget {
 class _DesktopHome extends StatelessWidget {
   const _DesktopHome({
     required this.demo, required this.showNodes, required this.showSmart,
-    this.connection, this.subscription, this.smart,
+    this.connection, this.subscription, this.smart, this.traffic,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
   final VelaSubscriptionController? subscription;
   final VelaSmartController? smart;
+  final VelaTrafficMonitor? traffic;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
 
@@ -522,7 +533,8 @@ class _DesktopHome extends StatelessWidget {
                   left: 12, right: 12, bottom: 18,
                   child: _Stats(demo: demo, showSmart: showSmart,
                     real: subscription?.selected != null,
-                    smart: smart, selectedIndex: subscription?.selectedIndex),
+                    smart: smart, traffic: traffic,
+                    selectedIndex: subscription?.selectedIndex),
                 ),
               ]),
             ),
@@ -743,23 +755,25 @@ class _ConnectionCard extends StatelessWidget {
 
 class _Stats extends StatelessWidget {
   const _Stats({required this.demo, required this.showSmart,
-    this.real = false, this.smart, this.selectedIndex});
+    this.real = false, this.smart, this.traffic, this.selectedIndex});
   final VelaDemoController demo;
   final VoidCallback showSmart;
   final bool real;
   final VelaSmartController? smart;
+  final VelaTrafficMonitor? traffic;
   final int? selectedIndex;
 
   @override
   Widget build(BuildContext context) => Row(children: [
     Expanded(child: _MetricCard(
       icon: Icons.bolt_outlined,
-      label: '网络延迟',
+      label: real ? '上传速度' : '网络延迟',
       value: real
-          ? (selectedIndex == null ? '—' :
-              (smart?.resultAt(selectedIndex!)?.lastMs?.toString() ?? '—'))
+          ? VelaTrafficMonitor.rateMbps(traffic?.uploadBytesPerSecond)
           : (demo.isConnected ? demo.selected.latency.toString() : '—'),
-      unit: 'ms', caption: real ? '最近 HTTPS 实测' : '示意数据 · 非真实测速',
+      unit: real ? 'Mbps' : 'ms',
+      caption: real ? '累计上传 ${VelaTrafficMonitor.totalLabel(traffic?.uploadedBytes)}'
+          : '示意数据 · 非真实测速',
       highlight: _mint,
     )),
     SizedBox(width: 11),
@@ -767,10 +781,10 @@ class _Stats extends StatelessWidget {
       icon: Icons.download_outlined,
       label: '下载速度',
       value: real
-          ? (selectedIndex == null ? '—'
-              : (smart?.downloadAt(selectedIndex!)?.mbps?.toStringAsFixed(1) ?? '—'))
+          ? VelaTrafficMonitor.rateMbps(traffic?.downloadBytesPerSecond)
           : (demo.isConnected ? demo.selected.downloadMbps.toStringAsFixed(0) : '—'),
-      unit: 'Mbps', caption: real ? '按需 HTTPS 1 MiB 样本'
+      unit: 'Mbps', caption: real
+          ? '累计下载 ${VelaTrafficMonitor.totalLabel(traffic?.downloadedBytes)}'
           : '示意数据 · 非真实测速', highlight: _blue,
     )),
     SizedBox(width: 11),
@@ -786,7 +800,8 @@ class _Stats extends StatelessWidget {
     SizedBox(width: 11),
     Expanded(child: _MetricCard(
       icon: Icons.schedule_outlined, label: '连接时长',
-      value: '—', unit: '', caption: '真实连接后显示计时',
+      value: real ? (traffic?.elapsedLabel ?? '—') : '—', unit: '',
+      caption: real ? '本次连接时长' : '演示连接不计时',
       highlight: _muted,
     )),
   ]);
@@ -849,12 +864,14 @@ class _MobileHome extends StatelessWidget {
   const _MobileHome({
     required this.demo, required this.showNodes, required this.showSmart,
     this.connection, this.subscription, this.smart, this.androidVpn,
+    this.traffic,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
   final VelaSubscriptionController? subscription;
   final VelaSmartController? smart;
   final VelaAndroidVpnController? androidVpn;
+  final VelaTrafficMonitor? traffic;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
 
@@ -897,27 +914,19 @@ class _MobileHome extends StatelessWidget {
       SizedBox(height: 12),
       Row(children: [
         Expanded(child: _MetricCard(
-          icon: Icons.bolt_outlined, label: '网络延迟',
-          value: Platform.isAndroid ? '—' :
-              subscription?.selected != null
-              ? (subscription?.selectedIndex == null ? '—'
-                  : (smart?.resultAt(subscription!.selectedIndex!)?.lastMs?.toString() ?? '—'))
-              : (demo.isConnected ? demo.selected.latency.toString() : '—'),
-          unit: 'ms', caption: Platform.isAndroid ? '尚未接入移动端测速' :
-              subscription?.selected != null
-                  ? '最近 HTTPS 实测' : '示意数据', highlight: _mint,
+          icon: Icons.upload_outlined, label: '上传速度',
+          value: VelaTrafficMonitor.rateMbps(traffic?.uploadBytesPerSecond),
+          unit: 'Mbps',
+          caption: '累计上传 ${VelaTrafficMonitor.totalLabel(traffic?.uploadedBytes)}',
+          highlight: _mint,
         )),
         SizedBox(width: 10),
         Expanded(child: _MetricCard(
           icon: Icons.download_outlined, label: '下载速度',
-          value: Platform.isAndroid ? '—' :
-              subscription?.selected != null
-              ? (subscription?.selectedIndex == null ? '—'
-                  : (smart?.downloadAt(subscription!.selectedIndex!)?.mbps?.toStringAsFixed(1) ?? '—'))
-              : (demo.isConnected ? demo.selected.downloadMbps.toStringAsFixed(0) : '—'),
-          unit: 'Mbps', caption: Platform.isAndroid ? '尚未接入移动端测速' :
-              subscription?.selected != null
-                  ? '按需 HTTPS 1 MiB 样本' : '示意数据', highlight: _blue,
+          value: VelaTrafficMonitor.rateMbps(traffic?.downloadBytesPerSecond),
+          unit: 'Mbps',
+          caption: '累计下载 ${VelaTrafficMonitor.totalLabel(traffic?.downloadedBytes)}',
+          highlight: _blue,
         )),
       ]),
       SizedBox(height: 10),
@@ -936,7 +945,8 @@ class _MobileHome extends StatelessWidget {
         SizedBox(width: 10),
         Expanded(child: _MetricCard(
           icon: Icons.schedule_outlined, label: '连接时长',
-          value: '—', unit: '', caption: '后续版本开放',
+          value: traffic?.elapsedLabel ?? '—', unit: '',
+          caption: '本次连接时长',
           highlight: _muted,
         )),
       ]),

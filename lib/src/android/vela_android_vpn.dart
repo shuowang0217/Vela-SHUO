@@ -58,6 +58,23 @@ class VelaAndroidVpnController extends ChangeNotifier {
     _ => VelaAndroidVpnPhase.disconnected,
   };
 
+  /// Mihomo native process counters; disabled unless the VPN is verified.
+  Future<(int, int)?> readTrafficCounters() async {
+    if (!Platform.isAndroid || _disposed || !connected) return null;
+    try {
+      final values = await _channel.invokeMapMethod<String, dynamic>('traffic')
+          .timeout(const Duration(seconds: 3));
+      final up = values?['up'];
+      final down = values?['down'];
+      if (up is! int || down is! int || up < 0 || down < 0) {
+        return null;
+      }
+      return (up, down);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> refresh() async {
     if (!Platform.isAndroid || _disposed) return;
     try {

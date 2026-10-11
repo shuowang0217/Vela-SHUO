@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
 import androidx.core.content.ContextCompat
+import io.github.oviron.libmihomo.Clash
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -29,6 +30,21 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "status" -> result.success(mapOf("state" to VelaVpnState.state,
                     "error" to VelaVpnState.error))
+                "traffic" -> {
+                    if (VelaVpnState.state != "connected" || !Clash.isLoaded()) {
+                        result.success(null)
+                    } else {
+                        try {
+                            val data = org.json.JSONObject(Clash.getTotalTraffic())
+                            val up = data.optLong("up", -1)
+                            val down = data.optLong("down", -1)
+                            result.success(if (up >= 0 && down >= 0)
+                                mapOf("up" to up, "down" to down) else null)
+                        } catch (_: Exception) {
+                            result.success(null)
+                        }
+                    }
+                }
                 "start" -> {
                     if (pendingResult != null ||
                         VelaVpnState.state == "connected" ||
