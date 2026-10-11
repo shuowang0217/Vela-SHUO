@@ -19,9 +19,16 @@ class VelaShell extends ConsumerStatefulWidget {
 class _VelaShellState extends ConsumerState<VelaShell> {
   int tab = 0;
   String query = '';
+  final TextEditingController _nodeSearch = TextEditingController();
   bool favoritesOnly = false;
   final Set<String> favoriteNames = <String>{};
   String paletteId = VelaPalette.defaultId;
+
+  @override
+  void dispose() {
+    _nodeSearch.dispose();
+    super.dispose();
+  }
 
   static const labels = ['首页', '节点', '智能优选', '设置'];
   static const normalIcons = [
@@ -188,6 +195,7 @@ class _VelaShellState extends ConsumerState<VelaShell> {
     return _page('节点', [
       TextField(
         key: const ValueKey('node_search_input'),
+        controller: _nodeSearch,
         maxLength: 80,
         textInputAction: TextInputAction.search,
         onChanged: (value) => setState(() => query = value),
@@ -200,7 +208,7 @@ class _VelaShellState extends ConsumerState<VelaShell> {
           suffixIcon: query.isEmpty ? null : IconButton(
             key: const ValueKey('node_search_clear'),
             tooltip: '清除搜索',
-            onPressed: () => setState(() => query = ''),
+            onPressed: () { _nodeSearch.clear(); setState(() => query = ''); },
             icon: const Icon(Icons.close_rounded),
           ),
         ),
@@ -294,28 +302,76 @@ class _VelaShellState extends ConsumerState<VelaShell> {
     final t = VelaThemeRuntime.active;
     final groups = ref.watch(visibleGroupsStateProvider).value;
     final running = ref.watch(isStartProvider);
+    final profile = ref.watch(currentProfileProvider);
+    final names = profile?.selectedMap.values;
+    final selected = names != null && names.isNotEmpty ? names.first : '未选择';
+    final nodes = groups.expand((g) => g.all).toList();
     return _page('智能优选', [
       _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('节点延迟检测', style: TextStyle(color: t.text,
-          fontSize: 19, fontWeight: FontWeight.w600)),
+        Text('SHUO Smart · 节点优选', style: TextStyle(
+          color: t.text, fontWeight: FontWeight.w600, fontSize: 17)),
         const SizedBox(height: 8),
-        _subtitle('对真实节点执行延迟测试，不展示模拟成绩。'),
-        const SizedBox(height: 16),
+        Text('当前节点：' + selected + '  ·  下载速度：—',
+          style: TextStyle(color: t.muted, fontSize: 12)),
+        const SizedBox(height: 10),
+        SwitchListTile.adaptive(
+          key: const ValueKey('smart_auto_pick'),
+          contentPadding: EdgeInsets.zero,
+          value: false,
+          title: Text('启用智能优选', style: TextStyle(color: t.text)),
+          subtitle: Text('自动测速和切换尚未适配到底层服务',
+            style: TextStyle(color: t.muted, fontSize: 11)),
+          onChanged: null,
+        ),
+        SwitchListTile.adaptive(
+          key: const ValueKey('smart_ai_mode'),
+          contentPadding: EdgeInsets.zero,
+          value: false,
+          title: Text('AI 模式 · 单国家优选',
+            style: TextStyle(color: t.text)),
+          subtitle: Text('国家优选尚未完成适配',
+            style: TextStyle(color: t.muted, fontSize: 11)),
+          onChanged: null,
+        ),
+        const SizedBox(height: 12),
         SizedBox(width: double.infinity, child: FilledButton.icon(
+          key: const ValueKey('smart_measure_all'),
           onPressed: !running || groups.isEmpty ? null
             : () => ref.read(proxiesActionProvider.notifier).delayTestGroups(groups),
-          icon: const Icon(Icons.bolt),
-          label: const Text('检测所有节点'),
+          icon: const Icon(Icons.speed_rounded, size: 19),
+          label: const Text('一键测速 · 全节点延迟'),
         )),
-        const SizedBox(height: 8),
-        _subtitle('旧 Vela 独立测速器不再运行。'),
-      ])),
-      _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('优选状态', style: TextStyle(color: t.text,
-          fontSize: 18, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 9),
-        _subtitle('自动速度优选、定时切换须在 FlClash 数据层完成适配，'
-          '在实现前不会伪装成已启用。'),
+        const SizedBox(height: 12),
+        Text('本版调用内核真实延迟探测；未实现下载测速与自动选线。',
+          style: TextStyle(color: t.muted, fontSize: 12)),
+        const SizedBox(height: 14),
+        Divider(color: t.line),
+        const SizedBox(height: 6),
+        Row(children: [
+          Expanded(child: Text('节点排行榜', style: TextStyle(
+            color: t.text, fontWeight: FontWeight.w600))),
+          Text('延迟 ms', style: TextStyle(color: t.muted, fontSize: 11)),
+        ]),
+        const SizedBox(height: 6),
+        for (final proxy in nodes.take(40))
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Consumer(builder: (context, ref, _) {
+              final delay = ref.watch(delayProvider(proxyName: proxy.name));
+              return Row(children: [
+                Expanded(child: Text(proxy.name, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: t.text, fontSize: 12))),
+                const SizedBox(width: 8),
+                Text(delay == null ? '未测试' : delay.toString() + ' ms',
+                  style: TextStyle(color: delay == null ? t.muted : t.accent,
+                    fontSize: 11)),
+              ]);
+            }),
+          ),
+        if (nodes.length > 40)
+          Text('首批展示 40 个节点；完整节点列表请到「节点」页面。',
+            style: TextStyle(color: t.muted, fontSize: 11)),
       ])),
     ]);
   }
