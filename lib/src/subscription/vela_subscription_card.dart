@@ -165,6 +165,27 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               label: Text(subscription.loading ? '正在导入…' :
                   _offlineMode ? '解析节点' : '导入订阅'),
             ),
+            if (subscription.hasSessionUrl) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                key: const ValueKey('subscription_manual_refresh'),
+                onPressed: busy || !subscription.canRefresh ? null : () async {
+                  final ok = await subscription.refreshLastUrl();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(ok
+                        ? '订阅更新成功，已尽量恢复原节点与收藏；需要时请更新加密存档'
+                        : subscription.error ?? '订阅更新失败，原节点列表仍保留'),
+                  ));
+                },
+                icon: const Icon(Icons.refresh_rounded, size: 19),
+                label: const Text('重新获取订阅（仅本次运行）'),
+              ),
+              const SizedBox(height: 5),
+              Text('仅在本次启动期间保留上次成功导入的 HTTPS 地址；'
+                  '不写入本地存档、不自动更新，也不会自动启动代理或 VPN。',
+                style: TextStyle(color: colors.muted, fontSize: 11)),
+            ],
             if (subscription.error != null) Padding(
               padding: const EdgeInsets.only(top: 10),
               child: Text(subscription.error!,
