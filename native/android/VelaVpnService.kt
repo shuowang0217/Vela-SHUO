@@ -42,7 +42,7 @@ class VelaVpnService : VpnService(), TunInterface {
 
     private fun showForeground() {
         val open = PendingIntent.getActivity(
-            this, 0, packageManager.getLaunchIntentForPackage(packageName),
+            this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 1,
             Intent(this, VelaVpnService::class.java).setAction(ACTION_STOP),
