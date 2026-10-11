@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_clash/enum/enum.dart';
@@ -298,7 +299,54 @@ class _VelaShellState extends ConsumerState<VelaShell> {
   Widget _settings() {
     final t = VelaThemeRuntime.active;
     final state = ref.watch(profilesStateProvider);
+    final proxy = ref.watch(networkSettingProvider);
+    final vpn = ref.watch(vpnSettingProvider);
+    final mode = ref.watch(patchClashConfigProvider).mode;
     return _page('设置', [
+      _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('连接与代理', style: TextStyle(color: t.text,
+          fontSize: 19, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 10),
+        _subtitle('工作模式'),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, children: [
+          for (final item in const [
+            (Mode.rule, '规则'),
+            (Mode.global, '全局'),
+            (Mode.direct, '直连'),
+          ])
+            ChoiceChip(
+              label: Text(item.$2),
+              selected: mode == item.$1,
+              onSelected: (enabled) {
+                if (!enabled) return;
+                final config = ref.read(patchClashConfigProvider);
+                ref.read(patchClashConfigProvider.notifier).value =
+                  config.copyWith(mode: item.$1);
+              },
+            ),
+        ]),
+        if (Platform.isWindows) SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('系统代理'),
+          subtitle: _subtitle('开启连接时由后台服务管理系统代理'),
+          value: proxy.systemProxy,
+          onChanged: (enabled) {
+            ref.read(networkSettingProvider.notifier).value =
+              proxy.copyWith(systemProxy: enabled);
+          },
+        ),
+        if (Platform.isAndroid) SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('VPN 服务'),
+          subtitle: _subtitle('通过 Android 系统授权开启 VPN'),
+          value: vpn.enable,
+          onChanged: (enabled) {
+            ref.read(vpnSettingProvider.notifier).value =
+              vpn.copyWith(enable: enabled);
+          },
+        ),
+      ])),
       _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text('订阅管理', style: TextStyle(
