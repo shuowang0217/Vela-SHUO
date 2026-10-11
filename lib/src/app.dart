@@ -18,6 +18,7 @@ import 'package:vela_shuo/src/smart/vela_smart_controller.dart';
 import 'package:vela_shuo/src/smart/vela_smart_panel.dart';
 import 'package:vela_shuo/src/core/vela_core_settings_card.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_card.dart';
+import 'package:vela_shuo/src/subscription/vela_node_filter_panel.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/globe.dart';
@@ -1038,14 +1039,25 @@ class _NodesPage extends StatelessWidget {
             child: Text('当前本地代理仍在运行，请先停止手动代理。',
                 style: TextStyle(color: _muted)),
           ),
-        for (final i in smart?.sortedIndices ??
-            List<int>.generate(subscription!.nodes.length, (i) => i))
+        VelaNodeFilterPanel(
+          controller: subscription!,
+          order: smart?.sortedIndices,
+          builder: (context, indices) => Column(children: [
+            for (final i in indices)
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: _GlassCard(
               padding: EdgeInsets.zero,
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                leading: IconButton(
+                  key: ValueKey('node_favorite_$i'),
+                  tooltip: subscription!.isFavorite(i) ? '取消收藏' : '收藏节点',
+                  onPressed: () => subscription!.toggleFavorite(i),
+                  icon: Icon(subscription!.isFavorite(i)
+                      ? Icons.star_rounded : Icons.star_border_rounded,
+                    color: subscription!.isFavorite(i) ? _mint : _muted),
+                ),
                 title: Text(subscription!.nodes[i].name,
                     style: TextStyle(color: _foreground)),
                 subtitle: Text(
@@ -1078,6 +1090,8 @@ class _NodesPage extends StatelessWidget {
               ),
             ),
           ),
+          ]),
+        ),
       ] else ...[
         for (final node in VelaDemoNode.samples)
           Padding(
