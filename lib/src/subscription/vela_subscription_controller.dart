@@ -263,6 +263,30 @@ class VelaSubscriptionController extends ChangeNotifier {
   bool get canSave => _source != null && !loading && !_vaultBusy;
   String? configuredNameFor(int index) => _preparedProfile?.nameFor(index);
 
+  /// Mihomo Android gets only an allowlisted, app-generated profile.
+  /// VpnService sets up TUN: subscription data cannot enable custom TUN
+  /// listeners, user-provided rules, or remote API control.
+  String? get androidVpnProfile {
+    if (!previewOnly || selected == null || _preparedProfile == null) {
+      return null;
+    }
+    final profile = jsonDecode(_preparedProfile!.configText);
+    if (profile is! Map<String, dynamic>) return null;
+    profile.remove('external-controller');
+    profile.remove('secret');
+    profile['mixed-port'] = 0;
+    profile['dns'] = <String, dynamic>{
+      'enable': true,
+      'ipv6': false,
+      'enhanced-mode': 'fake-ip',
+      'fake-ip-range': '198.18.0.1/16',
+      'nameserver': <String>['1.1.1.1', '8.8.8.8'],
+      'default-nameserver': <String>['1.1.1.1', '8.8.8.8'],
+    };
+    return jsonEncode(profile);
+  }
+
+
   /// The coordinator calls this only after the live API confirms the
   /// selected node and the remote HTTPS probe passes.
   bool confirmRunningSelection(int index) {
