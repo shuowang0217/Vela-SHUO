@@ -112,7 +112,7 @@ class VelaVpnService : VpnService(), TunInterface {
                 val home = dir.canonicalPath
                 // Avoid JSON injection from filesystem path.
                 val initJson = org.json.JSONObject()
-                    .put("homeDir", home)
+                    .put("home-dir", home)
                     .put("version", Build.VERSION.SDK_INT).toString()
                 Clash.quickSetup(initJson, "{}") { message ->
                     if (ticket != generation.get()) return@quickSetup
