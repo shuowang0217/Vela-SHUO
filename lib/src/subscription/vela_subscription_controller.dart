@@ -157,15 +157,23 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
           final bytes = <int>[];
           await for (final chunk in response.timeout(
               const Duration(seconds: 4))) {
-            if (bytes.length + chunk.length > 32768) break;
+            if (bytes.length + chunk.length > 32768) {
+              break;
+            }
             bytes.addAll(chunk);
           }
-          if (bytes.isEmpty || bytes.length > 32768) continue;
+          if (bytes.isEmpty || bytes.length > 32768) {
+            continue;
+          }
           final result = jsonDecode(utf8.decode(bytes));
-          if (result is! Map || result['Status'] != 0) continue;
+          if (result is! Map || result['Status'] != 0) {
+            continue;
+          }
           succeeded = true;
           final answers = result['Answer'];
-          if (answers is! List) continue;
+          if (answers is! List) {
+            continue;
+          }
           for (final value in answers) {
             if (value is! Map || value['type'] != (type == 'A' ? 1 : 28) ||
                 value['data'] is! String) {
@@ -208,7 +216,9 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
           .timeout(const Duration(seconds: 6));
       if (addresses.isNotEmpty) {
         final safe = checkedAddresses(addresses);
-        if (safe.isNotEmpty) return safe;
+        if (safe.isNotEmpty) {
+          return safe;
+        }
       }
     } on FormatException {
       // System DNS was poisoned/rewritten to a private or reserved address.
@@ -219,6 +229,10 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
       // Likewise for a blocked or nonresponsive system resolver.
     }
 
+    return _resolveSecureDns(host);
+  }
+
+  Future<List<InternetAddress>> _resolveSecureDns(String host) async {
     final secure = await (secureDnsLookup?.call(host) ??
         _lookupViaDoh(host)).timeout(const Duration(seconds: 24),
         onTimeout: () => throw const FormatException(
@@ -266,9 +280,27 @@ class VelaHttpsSubscriptionFetcher implements VelaSubscriptionFetcher {
       try {
         final addresses = route == 'DIRECT'
             ? await _resolveDirect(uri.host) : null;
-        return await (fetchTransport == null
-            ? _fetchVia(uri, route, addresses)
-            : fetchTransport!(uri, route));
+        if (fetchTransport != null) {
+          return await fetchTransport!(uri, route);
+        }
+        try {
+          return await _fetchVia(uri, route, addresses);
+        } on _VelaSubscriptionTransportFailure {
+          // A system resolver may return a syntactically safe but stale
+          // address (including unreachable Fake-IP). Retry once against
+          // independently verified DoH, without relaxing HTTPS checks.
+          if (route != 'DIRECT' || addresses == null) {
+            rethrow;
+          }
+          final secure = await _resolveSecureDns(uri.host);
+          final retried = secure.where(
+              (ip) => !addresses.any((old) => old.address == ip.address))
+              .toList();
+          if (retried.isEmpty) {
+            rethrow;
+          }
+          return await _fetchVia(uri, route, retried);
+        }
       } on FormatException {
         rethrow;
       } on _VelaSubscriptionTransportFailure catch (e) {

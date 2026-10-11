@@ -64,7 +64,9 @@ class VelaWindowsProxyDetector {
       if (queries.every((r) => r.exitCode == 0)) {
         final detected = parseRegistryOutput(queries[0].stdout.toString(),
             queries[1].stdout.toString());
-        if (detected != null) return detected;
+        if (detected != null) {
+          return detected;
+        }
       }
       return _environmentProxy();
     } catch (_) {
@@ -78,9 +80,13 @@ class VelaWindowsProxyDetector {
     for (final key in ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY',
         'http_proxy']) {
       final value = Platform.environment[key];
-      if (value == null) continue;
+      if (value == null) {
+        continue;
+      }
       final proxy = parseProxyServer(value);
-      if (proxy != null) return proxy;
+      if (proxy != null) {
+        return proxy;
+      }
     }
     return null;
   }
