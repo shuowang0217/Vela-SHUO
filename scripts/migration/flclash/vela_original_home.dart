@@ -97,8 +97,8 @@ class _HeroIdentity extends StatelessWidget {
 }
 
 
-class _GlassCard extends StatelessWidget {
-  const _GlassCard({
+class VelaGlassCard extends StatelessWidget {
+  const VelaGlassCard({
     required this.child, this.padding = const EdgeInsets.all(18),
   });
   final Widget child;
@@ -138,7 +138,7 @@ class _MetricCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => _GlassCard(
+  Widget build(BuildContext context) => VelaGlassCard(
     padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 14),
     child: InkWell(
       onTap: onTap,
@@ -177,8 +177,8 @@ class _MetricCard extends StatelessWidget {
 }
 
 
-class _ScreenHeading extends StatelessWidget {
-  const _ScreenHeading(this.title, this.subtitle);
+class VelaScreenHeading extends StatelessWidget {
+  const VelaScreenHeading(this.title, this.subtitle);
   final String title;
   final String subtitle;
 
@@ -195,8 +195,8 @@ class _ScreenHeading extends StatelessWidget {
   );
 }
 
-class _ScreenPadding extends StatelessWidget {
-  const _ScreenPadding({required this.child});
+class VelaScreenPadding extends StatelessWidget {
+  const VelaScreenPadding({required this.child});
   final Widget child;
 
   @override
@@ -377,7 +377,7 @@ class _FlClashConnectionCard extends ConsumerWidget {
       : status == CoreStatus.connecting ? '正在连接…'
       : '连接异常';
     final approximate = VelaDemoNode.approximateFromName(name);
-    return _GlassCard(
+    return VelaGlassCard(
       padding: EdgeInsets.all(compact ? 16 : 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -508,3 +508,113 @@ class _MetricsPair extends ConsumerWidget {
     ]);
   }
 }
+
+// Vela's exact palette swatch grid, ported from the original settings page.
+class VelaPaletteGrid extends StatelessWidget {
+  const VelaPaletteGrid({super.key, required this.paletteId, required this.onSelected});
+  final String paletteId;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) => VelaGlassCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Icon(Icons.palette_outlined, color: _blue, size: 22),
+          SizedBox(width: 10),
+          Text('主题配色', style: TextStyle(
+            fontSize: 18, fontWeight: FontWeight.w600,
+            color: _foreground,
+          )),
+          Spacer(),
+          Text('8 套', style: TextStyle(color: _muted, fontSize: 12)),
+        ]),
+        SizedBox(height: 7),
+        Text('Color Hunt · Popular / All time 前 8 套配色',
+          style: TextStyle(fontSize: 12, color: _muted),
+        ),
+        SizedBox(height: 18),
+        LayoutBuilder(builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 680 ? 4 : 2;
+          final spacing = 12.0;
+          final width = (constraints.maxWidth - spacing * (columns - 1))
+              / columns;
+          return Wrap(
+            spacing: spacing,
+            runSpacing: 12,
+            children: [
+              for (final palette in VelaPalette.all)
+                SizedBox(
+                  width: width,
+                  child: VelaPaletteOption(
+                    palette: palette,
+                    selected: paletteId == palette.id,
+                    onTap: () => onSelected(palette.id),
+                  ),
+                ),
+            ],
+          );
+        }),
+      ],
+    ),
+  );
+}
+
+class VelaPaletteOption extends StatelessWidget {
+  const VelaPaletteOption({
+    required this.palette,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final VelaPalette palette;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: selected
+        ? _blue.withValues(alpha: .14) : _panel.withValues(alpha: .50),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+      side: BorderSide(
+        color: selected ? _blue : _line,
+        width: selected ? 2 : 1,
+      ),
+    ),
+    child: InkWell(
+      key: ValueKey('palette_${palette.id}'),
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.all(7),
+        child: Column(children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Stack(children: [
+              Column(children: [
+                for (final swatch in palette.swatches)
+                  Container(height: 20, color: swatch),
+              ]),
+              if (selected)
+                Positioned(
+                  top: 5, right: 6,
+                  child: Icon(Icons.check_circle, color: _foreground, size: 18,
+                    shadows: [Shadow(color: Colors.black, blurRadius: 6)]),
+                ),
+            ]),
+          ),
+          SizedBox(height: 8),
+          Text(palette.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12, fontWeight:
+                  selected ? FontWeight.w700 : FontWeight.w500,
+              color: selected ? _blue : _foreground,
+            )),
+        ]),
+      ),
+    ),
+  );
+}
+
