@@ -40,7 +40,149 @@ jobs:
         run: |
           set -euo pipefail
           git -C flclash diff --name-only | tee /tmp/vela-frontend-diff.txt
-          if grep -E '^(lib/core/|lib/providers/|android/app/|windows/|lib/common/http.dart)' /tmp/vela-frontend-diff.txt; then
+          if grep -E '^(lib/core/|lib/providers/|android/app/|windows/|lib/common/http.dart)' /tmp/vela-frontend-diff.txt \
+            | grep -Ev '^(windows/runner/main.cpp|windows/runner/Runner.rc)
+            echo 'Vela overlay unexpectedly modifies the FlClash network stack' >&2
+            exit 1
+          fi
+          grep -q 'child: const VelaShell()' flclash/lib/application.dart
+          grep -q 'VelaFlightHeader' flclash/lib/vela_shuo/vela_shell.dart
+          grep -q 'assets/earth/' flclash/pubspec.yaml
+          grep -q 'GNU GENERAL PUBLIC LICENSE' flclash/LICENSE
+          grep -q 'GNU GENERAL PUBLIC LICENSE' vela/LICENSE
+
+  windows-preview:
+    name: Windows x64 FlClash-based Vela preview
+    runs-on: windows-2022
+    needs: verify-overlay
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: vela
+      - uses: actions/checkout@v4
+        with:
+          repository: chen08209/FlClash
+          ref: ${{ env.FLCLASH_SHA }}
+          submodules: recursive
+          path: flclash
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: master
+          cache: true
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Apply Vela visual overlay
+        run: python vela/scripts/migration/prepare_flclash.py --vela-root vela --upstream-root flclash
+      - name: Resolve upstream dependencies
+        working-directory: flclash
+        run: flutter pub get
+      - name: Package upstream FlClash engine and Vela UI
+        working-directory: flclash
+        run: dart setup.dart windows --env pre --targets zip
+      - name: Include GPL source attribution
+        shell: pwsh
+        run: |
+          Copy-Item vela/NOTICE-FlClash.txt flclash/dist/NOTICE-Vela-SHUO.txt
+          Copy-Item flclash/LICENSE flclash/dist/LICENSE-GPL-3.0.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Vela-SHUO-FlClash-Windows-x64-Migration-Preview
+          path: flclash/dist/**
+          if-no-files-found: error
+          retention-days: 14
+
+  android-preview:
+    name: Android ARM64 FlClash-based Vela VPN preview
+    runs-on: ubuntu-24.04
+    needs: verify-overlay
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: vela
+      - uses: actions/checkout@v4
+        with:
+          repository: chen08209/FlClash
+          ref: ${{ env.FLCLASH_SHA }}
+          submodules: recursive
+          path: flclash
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: master
+          cache: true
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Reclaim runner disk before Android native toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'Disk space before cleanup:'
+          df -h /
+          # Android packaging does not require these preinstalled SDKs.
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/powershell
+          sudo rm -rf /usr/local/lib/android/sdk/ndk
+          sudo apt-get clean
+          echo 'Disk space after cleanup:'
+          df -h /
+          available_kb="$(df -Pk / | awk 'NR==2 {print $4}')"
+          if (( available_kb < 8 * 1024 * 1024 )); then
+            echo "::error::Less than 8 GiB free before Android NDK and native build"
+            exit 1
+          fi
+      - name: Install Rust Android ARM64 target
+        run: rustup target add aarch64-linux-android
+      - name: Provide system libclang to Android NDK bindgen
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y libclang-dev
+          # On clean GitHub runners Flutter/Gradle install the required NDK
+          # on their first build. Provision it before the bindgen shim.
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" --install "ndk;27.3.13750724"
+          # Flutter supplies NDK r27, but this Android NDK no longer
+          # bundles libclang.so. Upstream rquickjs bindgen requires it
+          # directly under the NDK's lib or lib64 directory.
+          NDK_ROOT="${ANDROID_HOME}/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64"
+          test -x "$NDK_ROOT/bin/clang"
+          LIBCLANG="$(find /usr/lib/llvm-* -name 'libclang.so*' -print | sort -V | tail -n 1)"
+          test -n "$LIBCLANG"
+          sudo mkdir -p "$NDK_ROOT/lib"
+          sudo ln -sf "$LIBCLANG" "$NDK_ROOT/lib/libclang.so"
+          test -f "$NDK_ROOT/lib/libclang.so"
+          echo "Using system libclang for NDK Rust bindgen (no changes to FlClash runtime)"
+      - name: Apply Vela visual overlay
+        run: python3 vela/scripts/migration/prepare_flclash.py --vela-root vela --upstream-root flclash
+      - name: Resolve upstream dependencies
+        working-directory: flclash
+        run: flutter pub get
+      - name: Package upstream FlClash Android VPN and Vela UI
+        working-directory: flclash
+        run: dart setup.dart android --env pre --arch arm64 --targets apk
+      - name: Include GPL source attribution
+        run: |
+          cp vela/NOTICE-FlClash.txt flclash/dist/NOTICE-Vela-SHUO.txt
+          cp flclash/LICENSE flclash/dist/LICENSE-GPL-3.0.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Vela-SHUO-FlClash-Android-arm64-Migration-Preview
+          path: flclash/dist/**
+          if-no-files-found: error
+          retention-days: 14
+; then
             echo 'Vela overlay unexpectedly modifies the FlClash network stack' >&2
             exit 1
           fi
