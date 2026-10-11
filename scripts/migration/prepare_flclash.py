@@ -99,7 +99,65 @@ def apply_overlay(vela: Path, upstream: Path, *, verify_sha: bool = True) -> Non
         app_text, "title: appName,", "title: 'Vela-SHUO',",
         "application.dart:title",
     )
+    # Vela is also responsible for all *visible window chrome*. Retain
+    # FlClash's network, VPN, tray, lifecycle and hotkey managers, but do not
+    # stack the upstream Flutter title bar or PRE banner above Vela.
+    app_text = replace_once(
+        app_text,
+        "  final platformApp = isDesktop\n"
+        "      ? WindowHeaderContainer(child: child)\n"
+        "      : VpnManager(child: child);",
+        "  final platformApp = isDesktop\n"
+        "      ? child\n"
+        "      : VpnManager(child: child);",
+        "application.dart:desktop_chrome",
+    )
+    app_text = replace_once(
+        app_text,
+        "  return AppEnvManager(\n"
+        "    child: LocaleManager(\n"
+        "      child: StatusManager(child: ThemeManager(child: platformState)),\n"
+        "    ),\n"
+        "  );",
+        "  return LocaleManager(\n"
+        "    child: StatusManager(child: ThemeManager(child: platformState)),\n"
+        "  );",
+        "application.dart:preview_banner",
+    )
     app.write_text(app_text, encoding="utf-8")
+
+    # The upstream default desktop window is just 680x580 logical pixels;
+    # at 125% display scaling it looks like a phone layout on Windows.
+    # Restore Windows native caption and Vela's useful desktop canvas size.
+    window = upstream / "lib/common/window.dart"
+    window_text = window.read_text(encoding="utf-8")
+    window_text = replace_once(
+        window_text,
+        "    if (!system.isMacOS || version > 10) {\n"
+        "      await desktopWindow.setTitleBarStyle(TitleBarStyle.hidden);\n"
+        "    }\n"
+        "    await desktopWindow.setSize(props.size);\n"
+        "    await desktopWindow.setMinimumSize(const Size(380, 400));\n"
+        "    await _windowPosition(props);",
+        "    if (system.isWindows) {\n"
+        "      await desktopWindow.setTitleBarStyle(TitleBarStyle.normal);\n"
+        "    } else if (!system.isMacOS || version > 10) {\n"
+        "      await desktopWindow.setTitleBarStyle(TitleBarStyle.hidden);\n"
+        "    }\n"
+        "    final size = props.size;\n"
+        "    final restoredSize = system.isWindows\n"
+        "        ? Size(size.width < 1120 ? 1120 : size.width,\n"
+        "            size.height < 760 ? 760 : size.height)\n"
+        "        : size;\n"
+        "    await desktopWindow.setSize(restoredSize);\n"
+        "    await desktopWindow.setMinimumSize(system.isWindows\n"
+        "        ? const Size(980, 660) : const Size(380, 400));\n"
+        "    await _windowPosition(system.isWindows\n"
+        "        ? props.copyWith(width: restoredSize.width,\n"
+        "            height: restoredSize.height) : props);",
+        "window.dart:original_desktop_geometry",
+    )
+    window.write_text(window_text, encoding="utf-8")
     # Brand only platform-visible app names. Do not rename private IPC,
     # VPN service classes, Android application IDs or background engine paths.
     cosmetic_names = (
