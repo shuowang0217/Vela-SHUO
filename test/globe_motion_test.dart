@@ -25,6 +25,31 @@ void main() {
     );
   });
 
+  testWidgets('real Android VPN state sails even for unknown node names',
+      (tester) async {
+    final demo = VelaDemoController();
+    await tester.pumpWidget(MaterialApp(home: SizedBox(
+      width: 400, height: 400, child: VelaGlobe(demo: demo),
+    )));
+    demo.projectRealState(VelaPhase.connecting, 'My Private Node');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(demo.phase, VelaPhase.connecting);
+    expect(_sailProgress(tester), greaterThan(0));
+
+    demo.projectRealState(VelaPhase.connected, 'My Private Node');
+    await tester.pump();
+    expect(demo.phase, VelaPhase.connected);
+
+    demo.projectRealState(VelaPhase.idle, 'My Private Node');
+    await tester.pump();
+    expect(demo.phase, VelaPhase.idle);
+    expect(_visiblePhase(tester), VelaPhase.switching);
+    await tester.pumpWidget(const SizedBox.shrink());
+    demo.dispose();
+  });
+
   testWidgets('connection status never teleports the sailing marker',
       (tester) async {
     final demo = VelaDemoController();
