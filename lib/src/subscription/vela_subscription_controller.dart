@@ -282,6 +282,7 @@ class VelaSubscriptionController extends ChangeNotifier {
   // settings, diagnostics or core profile; cleared at application shutdown.
   String? _sessionUrl;
   DateTime? _lastUpdatedAt;
+  bool get hasSessionUrl => _sessionUrl != null;
   bool get canRefresh => _sessionUrl != null && !loading && !_vaultBusy;
   DateTime? get lastUpdatedAt => _lastUpdatedAt;
   bool _stored = false;
