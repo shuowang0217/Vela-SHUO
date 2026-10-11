@@ -40,8 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           git -C flclash diff --name-only | tee /tmp/vela-frontend-diff.txt
-          if grep -E '^(lib/core/|lib/providers/|android/app/|windows/|lib/common/http.dart)' /tmp/vela-frontend-diff.txt \
-            | grep -Ev '^(windows/runner/main.cpp|windows/runner/Runner.rc)
+          if grep -E '^(lib/core/|lib/providers/|android/app/|lib/common/http.dart)' /tmp/vela-frontend-diff.txt; then
             echo 'Vela overlay unexpectedly modifies the FlClash network stack' >&2
             exit 1
           fi
