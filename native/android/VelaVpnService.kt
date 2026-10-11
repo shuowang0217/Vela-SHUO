@@ -21,7 +21,7 @@ import javax.net.ssl.HttpsURLConnection
 /** Real Android VPN: VpnService TUN descriptor -> embedded Mihomo JNI.
  * No tun2socks secondary core, no root, no simulated connection state.
  */
-class VelaVpnService : VpnService(), TunInterface {
+class VelaVpnService : VpnService() {
     companion object {
         const val ACTION_START = "com.shuowang.vela.START_VPN"
         const val ACTION_STOP = "com.shuowang.vela.STOP_VPN"
@@ -33,6 +33,16 @@ class VelaVpnService : VpnService(), TunInterface {
     private var vpnDevice: ParcelFileDescriptor? = null
     @Volatile private var nativeStarted = false
     @Volatile private var failed = false
+    // VpnService.protect(Int) returns Boolean; JNI TunInterface.protect
+    // returns Unit. Use an adapter to avoid an impossible override.
+    private val tunCallback = object : TunInterface {
+        override fun protect(fd: Int) {
+            this@VelaVpnService.protect(fd)
+        }
+        override fun resolverProcess(
+            protocol: Int, source: String, target: String, uid: Int
+        ): String = ""
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -143,7 +153,7 @@ class VelaVpnService : VpnService(), TunInterface {
                         // original ParcelFileDescriptor for independent cleanup.
                         val goFd = ParcelFileDescriptor.dup(tun.fileDescriptor)
                             .detachFd()
-                        Clash.startTUN(goFd, this, "vela-tun",
+                        Clash.startTUN(goFd, tunCallback, "vela-tun",
                             "mixed", "172.19.0.1/30,fd80:19::1/126",
                             "198.18.0.2", 1400)
                         nativeStarted = true
@@ -191,14 +201,6 @@ class VelaVpnService : VpnService(), TunInterface {
         }
         return false
     }
-
-    override fun protect(fd: Int) {
-        super.protect(fd)
-    }
-
-    override fun resolverProcess(
-        protocol: Int, source: String, target: String, uid: Int
-    ): String = ""
 
     private fun fail(reason: String) {
         failed = true
