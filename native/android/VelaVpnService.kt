@@ -32,6 +32,7 @@ class VelaVpnService : VpnService(), TunInterface {
     private val generation = AtomicInteger(0)
     private var vpnDevice: ParcelFileDescriptor? = null
     @Volatile private var nativeStarted = false
+    @Volatile private var failed = false
 
     override fun onCreate() {
         super.onCreate()
@@ -89,6 +90,7 @@ class VelaVpnService : VpnService(), TunInterface {
     }
 
     private fun startVpn() {
+        failed = false
         val ticket = generation.incrementAndGet()
         if (VpnService.prepare(this) != null) {
             fail("VPN 权限已失效，请重新授权")
@@ -137,7 +139,11 @@ class VelaVpnService : VpnService(), TunInterface {
                         // Library owns the Go sing-tun listener. Protect
                         // outgoing sockets to prevent routing them back
                         // through the app's own VPN.
-                        Clash.startTUN(tun.fd, this, "vela-tun",
+                        // A duplicate FD is owned by Go; Android retains the
+                        // original ParcelFileDescriptor for independent cleanup.
+                        val goFd = ParcelFileDescriptor.dup(tun.fileDescriptor)
+                            .detachFd()
+                        Clash.startTUN(goFd, this, "vela-tun",
                             "mixed", "172.19.0.1/30,fd80:19::1/126",
                             "198.18.0.2", 1400)
                         nativeStarted = true
@@ -195,6 +201,7 @@ class VelaVpnService : VpnService(), TunInterface {
     ): String = ""
 
     private fun fail(reason: String) {
+        failed = true
         shutdown()
         VelaVpnState.report("error", reason)
         stopSelf()
@@ -213,7 +220,7 @@ class VelaVpnService : VpnService(), TunInterface {
         } catch (_: Exception) {}
         vpnDevice = null
         File(cacheDir, "vela-vpn/config.yaml").delete()
-        VelaVpnState.report("disconnected")
+        if (!failed) VelaVpnState.report("disconnected")
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
