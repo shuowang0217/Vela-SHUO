@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_clash/enum/enum.dart';
+import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/vela_shuo/theme/vela_palettes.dart';
 import 'vela_flight_header.dart';
@@ -98,7 +99,7 @@ class _VelaShellState extends ConsumerState<VelaShell> {
       ),
       child: Column(children: [
         const SizedBox(height: 30),
-        Icon(Icons.sailing_rounded, size: 55, color: t.accent),
+        const VelaBrandLogo(size: 68),
         if (extended) ...[
           const SizedBox(height: 8),
           Text('VELA', style: TextStyle(color: t.text, fontSize: 21,
@@ -402,4 +403,47 @@ class _VelaShellState extends ConsumerState<VelaShell> {
       ref.read(profilesActionProvider.notifier).deleteProfile(id);
     }
   }
+}
+
+
+/// Ported from Vela-SHUO's original interface: same sail silhouette and hull.
+class VelaBrandLogo extends StatelessWidget {
+  const VelaBrandLogo({super.key, this.size = 65});
+  final double size;
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    size: Size(size, size * .75),
+    painter: const _VelaSailLogoPainter(),
+  );
+}
+
+class _VelaSailLogoPainter extends CustomPainter {
+  const _VelaSailLogoPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    final left = Path()
+      ..moveTo(w * .52, h * .02)
+      ..lineTo(w * .14, h * .77)
+      ..lineTo(w * .52, h * .77)..close();
+    final right = Path()
+      ..moveTo(w * .59, h * .21)
+      ..lineTo(w * .91, h * .77)
+      ..lineTo(w * .59, h * .77)..close();
+    canvas.drawPath(left, Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFFB7E7FF), Color(0xFF448DBF)],
+      ).createShader(Offset.zero & size));
+    canvas.drawPath(right, Paint()..color = const Color(0xFF8DBCD8));
+    final hull = Path()
+      ..moveTo(w * .1, h * .88)
+      ..quadraticBezierTo(w * .52, h * 1.03, w * .94, h * .88);
+    canvas.drawPath(hull, Paint()
+      ..color = const Color(0xFFB7E7FF)
+      ..strokeWidth = w * .026
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke);
+  }
+  @override
+  bool shouldRepaint(_VelaSailLogoPainter oldDelegate) => false;
 }
