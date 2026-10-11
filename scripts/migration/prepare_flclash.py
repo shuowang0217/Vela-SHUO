@@ -98,6 +98,25 @@ def apply_overlay(vela: Path, upstream: Path, *, verify_sha: bool = True) -> Non
         "application.dart:title",
     )
     app.write_text(app_text, encoding="utf-8")
+    # Brand only platform-visible app names. Do not rename private IPC,
+    # VPN service classes, Android application IDs or background engine paths.
+    cosmetic_names = (
+        ("lib/common/constant.dart", "const appName = 'FlClash';",
+         "const appName = 'Vela-SHUO';"),
+        ("android/common/src/main/res/values/strings.xml",
+         '<string name="app_name">FlClash</string>',
+         '<string name="app_name">Vela-SHUO</string>'),
+        ("windows/runner/main.cpp", 'window.Create(L"FlClash",',
+         'window.Create(L"Vela-SHUO",'),
+        ("windows/runner/Runner.rc", 'VALUE "FileDescription", "FlClash"',
+         'VALUE "FileDescription", "Vela-SHUO"'),
+    )
+    for rel, old, new in cosmetic_names:
+        path = upstream / rel
+        path.write_text(
+            replace_once(path.read_text(encoding="utf-8"), old, new, rel),
+            encoding="utf-8",
+        )
 
     pubspec = upstream / "pubspec.yaml"
     yaml_text = pubspec.read_text(encoding="utf-8")
