@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 
 VELA_APP = Path("android/app")
-FLCLASH = Path("flclash")
+FLCLASH = Path("../flclash")
 ABI = "arm64-v8a"
 
 
@@ -149,7 +149,7 @@ android {
     (VELA_APP / "src/main/kotlin/com/shuowang/vela_shuo/VelaVpnService.kt"
      ).write_text(src, encoding="utf-8")
 
-    # The entire Flutter UI remains under vela/lib/src/, unchanged.
+    # The entire Flutter UI remains in this app's lib/src/, unchanged.
     for expected in (
         VELA_APP / f"src/main/jniLibs/{ABI}/libclash.so",
         target_cpp / f"includes/{ABI}/libclash.h",
