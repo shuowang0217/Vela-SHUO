@@ -121,6 +121,23 @@ jobs:
         with:
           go-version: '1.26'
       - uses: dtolnay/rust-toolchain@stable
+      - name: Reclaim runner disk before Android native toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'Disk space before cleanup:'
+          df -h /
+          # Android packaging does not require these preinstalled SDKs.
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/powershell
+          sudo rm -rf /usr/local/lib/android/sdk/ndk
+          sudo apt-get clean
+          echo 'Disk space after cleanup:'
+          df -h /
+          available_kb="$(df -Pk / | awk 'NR==2 {print $4}')"
+          if (( available_kb < 8 * 1024 * 1024 )); then
+            echo "::error::Less than 8 GiB free before Android NDK and native build"
+            exit 1
+          fi
       - name: Install Rust Android ARM64 target
         run: rustup target add aarch64-linux-android
       - name: Provide system libclang to Android NDK bindgen
