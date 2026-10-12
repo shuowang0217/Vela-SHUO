@@ -2,6 +2,8 @@
 """Windows CI: test real FlClash Go RPC binary without internet credentials."""
 import json
 import os
+import hmac
+import socket
 from pathlib import Path
 import queue
 import struct
@@ -17,8 +19,38 @@ if not binary.is_file():
 data = queue.Queue()
 diagnostics = deque(maxlen=80)
 with tempfile.TemporaryDirectory(prefix="vela-flclash-core-") as home:
-    proc = subprocess.Popen([str(binary), "--vela-stdio"], stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # FlClash's original 4-byte little-endian frames travel through this
+    # private TCP socket. Console logs can never corrupt the RPC stream.
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    listener.settimeout(15)
+    token = os.urandom(32)
+    endpoint = "127.0.0.1:%d" % listener.getsockname()[1]
+    proc = subprocess.Popen(
+        [str(binary), "--vela-loopback=%s@%s" % (token.hex(), endpoint)],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+
+    conn, remote = listener.accept()
+    listener.close()
+    conn.settimeout(15)
+
+    def recv_exact(size):
+        result = bytearray()
+        while len(result) < size:
+            block = conn.recv(size - len(result))
+            if not block:
+                raise EOFError("FlClash RPC stream closed")
+            result.extend(block)
+        return bytes(result)
+
+    if not hmac.compare_digest(recv_exact(32), token):
+        conn.close()
+        proc.kill()
+        raise RuntimeError("FlClash RPC authentication failed")
+    conn.settimeout(None)
 
     stderr_done = threading.Event()
     def capture_diagnostics():
@@ -35,15 +67,11 @@ with tempfile.TemporaryDirectory(prefix="vela-flclash-core-") as home:
     def read_messages():
         try:
             while True:
-                head = proc.stdout.read(4)
-                if len(head) != 4:
-                    return
+                head = recv_exact(4)
                 size = struct.unpack("<I", head)[0]
                 if size == 0 or size > 16*1024*1024:
                     raise RuntimeError("Invalid FlClash RPC frame")
-                message = proc.stdout.read(size)
-                if len(message) != size:
-                    return
+                message = recv_exact(size)
                 body = json.loads(message)
                 if "id" in body:
                     data.put(body)
@@ -60,9 +88,7 @@ with tempfile.TemporaryDirectory(prefix="vela-flclash-core-") as home:
         key = str(seq)
         msg = json.dumps({"id": key, "method": method,
                           "arguments": arguments}).encode()
-        assert proc.stdin
-        proc.stdin.write(struct.pack("<I", len(msg)) + msg)
-        proc.stdin.flush()
+        conn.sendall(struct.pack("<I", len(msg)) + msg)
         while True:
             response = data.get(timeout=timeout)
             if response.get("transport_error"):
@@ -119,6 +145,7 @@ rules:
             print(line[:500], file=sys.stderr)
         raise
     finally:
+        conn.close()
         proc.terminate()
         try:
             proc.wait(timeout=8)
