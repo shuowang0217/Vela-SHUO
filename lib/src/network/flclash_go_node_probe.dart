@@ -28,14 +28,18 @@ class FlClashGoNodeProbe
     try {
       final result = await backend.api.invoke('velaTestDownload',
           arguments: {'proxy-name': node.name},
-          timeout: const Duration(seconds: 45));
+          timeout: const Duration(seconds: 55));
       if (result is! Map || result['ok'] != true ||
           result['mbps'] is! num || result['bytes'] is! num) {
         return const VelaDownloadSample(ok: false);
       }
       final mbps = (result['mbps'] as num).toDouble();
       final bytes = (result['bytes'] as num).toInt();
-      if (!mbps.isFinite || mbps <= 0 || bytes != 1024 * 1024) {
+      // FlClash Go may sample alternate CDN files when Cloudflare is
+      // unreachable; validate actual downloaded bytes instead of requiring
+      // every provider to return exactly one MiB.
+      if (!mbps.isFinite || mbps <= 0 ||
+          bytes < 256 * 1024 || bytes > 1024 * 1024) {
         return const VelaDownloadSample(ok: false);
       }
       return VelaDownloadSample(ok: true, mbps: mbps, bytes: bytes);
