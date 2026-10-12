@@ -11,6 +11,7 @@ import '../core/vela_core_controller.dart';
 import '../network/flclash_core_api.dart';
 import '../mihomo/vela_mihomo_config.dart';
 import 'vela_subscription_parser.dart';
+import 'flclash_profile_downloader.dart';
 import 'vela_subscription_vault.dart';
 import 'vela_windows_proxy_detector.dart';
 
@@ -465,7 +466,7 @@ class VelaSubscriptionController extends ChangeNotifier {
     this.previewOnly = false,
     VelaSubscriptionVault? vault,
   }) : _vault = vault ?? VelaDeviceSubscriptionVault(),
-       _fetcher = fetcher ?? const VelaHttpsSubscriptionFetcher();
+       _fetcher = fetcher ?? const FlClashProfileDownloader();
 
   final VelaSubscriptionFetcher _fetcher;
   final VelaSubscriptionVault _vault;
@@ -729,7 +730,12 @@ class VelaSubscriptionController extends ChangeNotifier {
     final generation = ++_generation;
     _notify();
     try {
-      final activeFetcher = _fetcher is VelaHttpsSubscriptionFetcher
+      final activeFetcher = _fetcher is FlClashProfileDownloader
+          ? FlClashProfileDownloader(
+              mode: previewOnly
+                  ? VelaSubscriptionDownloadMode.direct : _downloadMode,
+              localHttpProxyPort: _localHttpProxyPort)
+          : _fetcher is VelaHttpsSubscriptionFetcher
           ? VelaHttpsSubscriptionFetcher(
               mode: previewOnly
                   ? VelaSubscriptionDownloadMode.direct : _downloadMode,
