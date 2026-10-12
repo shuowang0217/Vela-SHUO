@@ -3,6 +3,8 @@
 import json
 import os
 import hmac
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import socket
 from pathlib import Path
 import queue
@@ -134,6 +136,44 @@ rules:
         actual = call("getProxies")
         assert actual["proxies"]["GLOBAL"]["now"] == "Example SS", (
             "Mihomo did not route GLOBAL mode through the selected node")
+
+        # Actual RPC latency verification with a deterministic local 204
+        # endpoint. No public network / credential is needed for this test.
+        class Local204(BaseHTTPRequestHandler):
+            def do_GET(self):
+                time.sleep(.045)  # ensure nonzero delay even on fast CI
+                self.send_response(204)
+                self.end_headers()
+
+            def log_message(self, fmt, *args):
+                pass
+
+        endpoint_204 = ThreadingHTTPServer(("127.0.0.1", 0), Local204)
+        threading.Thread(target=endpoint_204.serve_forever, daemon=True).start()
+        try:
+            url_204 = "http://127.0.0.1:%d/generate_204" % (
+                endpoint_204.server_port)
+            # DIRECT is a built-in Mihomo outbound, not the unreachable
+            # example SS; this checks the REAL Go URLTest RPC execution.
+            delay = call("asyncTestDelay", {
+                "proxy-name": "DIRECT", "test-url": url_204,
+                "timeout": 8000,
+            }, timeout=30)
+            assert isinstance(delay, dict), "FlClash delay RPC returned no object"
+            assert delay["name"] == "DIRECT"
+            assert delay["value"] > 0, (
+                "Original Mihomo URLTest could not access local HTTP 204")
+            result = call("probe", {
+                "url": url_204, "proxy-name": "DIRECT",
+                "timeout": 8000, "max-body": 0, "headers": {},
+            }, timeout=30)
+            assert result["status-code"] == 204
+            assert result["delay"] > 0
+            assert not result.get("error")
+        finally:
+            endpoint_204.shutdown()
+            endpoint_204.server_close()
+
         assert call("startListener") is True
         # startListener returning true is not sufficient: prove the actual
         # FlClash/Mihomo MixedPort is accepting local proxy connections.
