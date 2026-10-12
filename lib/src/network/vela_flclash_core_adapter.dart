@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../core/vela_core_controller.dart';
 import 'flclash_windows_backend.dart';
+import 'flclash_android_backend.dart';
 
 /// Vela UI-facing compatibility surface. Every network operation delegates
 /// directly to FlClash Go core; VelaNativeCoreRunner is NEVER started.
@@ -178,7 +179,11 @@ class VelaFlClashCoreController extends VelaCoreController {
 
   @override
   void dispose() {
-    unawaited(backend.shutdown());
+    // A foreground Android VpnService owns the Go TUN after Flutter detaches.
+    // Shutting the Go core down with the UI would strand a running VPN.
+    if (backend is! FlClashAndroidBackend) {
+      unawaited(backend.shutdown());
+    }
     super.dispose();
   }
 }
