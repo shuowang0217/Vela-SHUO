@@ -11,12 +11,14 @@ import 'flclash_windows_transport.dart';
 /// parser, no routing engine and no node testing algorithm: the upstream
 /// FlClash Go handlers do ALL of those operations.
 class FlClashWindowsBackend {
-  FlClashWindowsBackend({FlClashCoreTransport? transport})
+  FlClashWindowsBackend({FlClashCoreTransport? transport, this.homeDir})
       : transport = transport ?? FlClashWindowsTransport() {
     api = FlClashCoreApi(this.transport);
   }
 
   final FlClashCoreTransport transport;
+  // Injectable only for backend tests; normal Windows uses LOCALAPPDATA.
+  final String? homeDir;
   late final FlClashCoreApi api;
   bool ready = false;
   bool imported = false;
@@ -35,10 +37,10 @@ class FlClashWindowsBackend {
       throw UnsupportedError('Windows Go core is only available on Windows');
     }
     final local = Platform.environment['LOCALAPPDATA'];
-    if (local == null || local.isEmpty) {
+    if (homeDir == null && (local == null || local.isEmpty)) {
       throw StateError('Windows profile directory unavailable');
     }
-    final path = '$local${Platform.pathSeparator}Vela-SHUO'
+    final path = homeDir ?? '$local${Platform.pathSeparator}Vela-SHUO'
         '${Platform.pathSeparator}FlClash-Core';
     await Directory(path).create(recursive: true);
     if (!await api.initialize(path)) {
