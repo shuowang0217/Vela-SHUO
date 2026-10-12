@@ -187,7 +187,8 @@ final class FlClashCoreApi {
   }
 
   Future<String> updateExternalProvider(String name) async =>
-      await invoke('updateExternalProvider', arguments: name) as String? ?? '';
+      await invoke('updateExternalProvider', arguments: name,
+          timeout: const Duration(minutes: 2)) as String? ?? '';
 
   Future<String> sideLoadExternalProvider(String providerName, String data) async =>
       await invoke('sideLoadExternalProvider', arguments: {
