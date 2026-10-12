@@ -11,6 +11,8 @@ class _GoCoreFake implements FlClashCoreTransport {
   String? changedGroup;
   String? probedName;
   bool wrongRoute = false;
+  bool primary204Blocked = false;
+  final testedUrls = <String>[];
   bool started = false;
 
   @override
@@ -63,7 +65,16 @@ class _GoCoreFake implements FlClashCoreTransport {
           'chains': [wrongRoute ? 'DIRECT' : active],
         };
       case 'asyncTestDelay':
-        result = {'name': 'JP-VLESS', 'value': 126, 'url': 'https://example.org'};
+        final params = data['arguments'] as Map;
+        final url = params['test-url'] as String;
+        testedUrls.add(url);
+        expect(params['timeout'], 8000);
+        result = {
+          'name': params['proxy-name'],
+          'value': primary204Blocked && url.contains('gstatic.com')
+              ? -1 : 126,
+          'url': url,
+        };
       case 'getTotalTraffic':
         result = {'up': 214, 'down': 897};
       case 'shutdown':
@@ -111,6 +122,12 @@ proxy-providers:
     fake.wrongRoute = false;
     expect(await backend.verifyInternet(), true);
     expect(await backend.delay('JP-VLESS'), 126);
+    fake.primary204Blocked = true;
+    expect(await backend.delay('JP-VLESS'), 126);
+    expect(fake.testedUrls, containsAll([
+      'https://www.gstatic.com/generate_204',
+      'https://cp.cloudflare.com/generate_204',
+    ]));
     expect(await backend.traffic(), (214, 897));
     await backend.stop();
     expect(fake.started, false);
