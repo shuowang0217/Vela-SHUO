@@ -76,28 +76,7 @@ class VelaCoreSettingsCard extends StatelessWidget {
               icon: const Icon(Icons.memory_rounded, size: 17),
               label: Text(controller.hasCore ? '已选择内核 ✓' : '选择 mihomo.exe'),
             ),
-            OutlinedButton.icon(
-              key: const ValueKey('choose_json'),
-              onPressed: canChange && controller.supported ? () async {
-                try {
-                  final file = await openFile(acceptedTypeGroups: [
-                    const XTypeGroup(label:'JSON 配置', extensions:['json']),
-                  ]);
-                  if (file != null) {
-                    await controller.chooseConfig(file.path);
-                  }
-                } catch (_) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('无法打开配置文件选择窗口'),
-                    ));
-                  }
-                }
-              } : null,
-              icon: const Icon(Icons.description_outlined, size: 17),
-              label: Text(controller.hasConfig
-                  ? '导入其他 JSON' : '导入自己的线路配置'),
-            ),
+
           ]),
           const SizedBox(height: 10),
           OutlinedButton.icon(
@@ -173,9 +152,8 @@ class VelaCoreSettingsCard extends StatelessWidget {
           ],
           const SizedBox(height: 10),
           Text(
-            '本功能不自动接管浏览器或系统流量。'
-            '即使本地端口启动成功，也不等于具备海外线路；'
-            '后续将提供订阅导入与真正的一键连接。',
+            '节点与订阅请在「配置」页管理，测速和切换在「代理」页进行。'
+            'Windows 系统代理由主界面的连接操作统一协调。',
             style: TextStyle(fontSize: 11, height: 1.55, color: theme.muted),
           ),
         ]),
