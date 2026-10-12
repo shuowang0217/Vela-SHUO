@@ -235,6 +235,11 @@ jobs:
           flutter create --project-name vela_shuo --org com.shuowang --platforms android .
           python3 scripts/configure_android_vpn.py
           python3 scripts/migration/attach_flclash_android_core.py
+          mkdir -p assets/flclash
+          for geo in GEOIP.metadb GEOIP.dat GEOSITE.dat ASN.mmdb; do
+            cp "../flclash/assets/data/$geo" "assets/flclash/$geo"
+          done
+          python3 scripts/migration/attach_flclash_android_geodata.py
           grep -q 'home: _Shell(settings: settings' lib/src/app.dart
           grep -q 'import com.follow.clash.core.Core' android/app/src/main/kotlin/com/shuowang/vela_shuo/VelaVpnService.kt
           flutter pub get
