@@ -8,6 +8,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../core/vela_core_controller.dart';
+import '../network/flclash_core_api.dart';
 import '../mihomo/vela_mihomo_config.dart';
 import 'vela_subscription_parser.dart';
 import 'vela_subscription_vault.dart';
@@ -778,6 +779,25 @@ class VelaSubscriptionController extends ChangeNotifier {
       _error = '所选节点不兼容 Mihomo，请换一个节点';
       _notify();
       return false;
+    }
+    // FlClash's Go/Mihomo proxy parser has final say on Android. Vela only
+    // presents the node list; it must not invent protocol compatibility.
+    if (Platform.isAndroid) {
+      try {
+        final entry = prepared.entries.firstWhere((e) => e.index == index);
+        final result = await FlClashCoreApi(
+          const FlClashAndroidTransport(),
+        ).validateProxies([Map<String, Object?>.from(entry.proxy)]);
+        if (result.length != 1 || result.single.isNotEmpty) {
+          _error = 'FlClash 内核不支持此节点配置，请检查协议参数';
+          _notify();
+          return false;
+        }
+      } catch (_) {
+        _error = 'FlClash 内核校验失败，请检查 VPN 内核安装';
+        _notify();
+        return false;
+      }
     }
     // Android preview updates in-memory selection only. No native core,
     // listener, VPN service or Windows proxy state is ever changed.
