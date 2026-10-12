@@ -71,6 +71,16 @@ class _BothProbe implements VelaFullNodeProbe {
   }
 }
 
+class _DownloadBlockedProbe implements VelaFullNodeProbe {
+  @override
+  Future<VelaFullNodeSample> measureBoth(VelaSubscriptionNode node) async =>
+      const VelaFullNodeSample(
+        latency: VelaLatencySample(
+            ok: true, elapsed: Duration(milliseconds: 96)),
+        download: VelaDownloadSample(ok: false),
+      );
+}
+
 class _ProxyBackend implements VelaWindowsProxyBackend {
   VelaProxySnapshot snapshot =
       const VelaProxySnapshot(enabled: 0, server: null);
@@ -545,6 +555,31 @@ void main() {
     } finally {
       smart.dispose(); link.dispose(); sub.dispose();
       core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+  test('download CDN failure does not mark valid FlClash delay failed',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 3);
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link,
+      probe: _Probe(), fullProbe: _DownloadBlockedProbe(),
+    );
+    try {
+      await smart.testAllNodes();
+      expect(smart.scanned, 3);
+      expect(smart.successful, 3);
+      expect(smart.failed, 0);
+      expect(smart.resultAt(1)?.lastMs, 96);
+      expect(smart.downloadAt(1)?.ok, false);
+      expect(smart.status, contains('下载成功 0'));
+    } finally {
+      smart.dispose();
+      link.dispose();
+      sub.dispose();
+      core.dispose();
+      proxy.dispose();
       await folder.delete(recursive: true);
     }
   });
