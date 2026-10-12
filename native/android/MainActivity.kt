@@ -31,9 +31,37 @@ class MainActivity : FlutterActivity() {
         bridge.setMethodCallHandler { call, result ->
             when (call.method) {
                 "coreHomeDir" -> {
-                    val dir = File(filesDir, "FlClash-Core")
-                    result.success(if (dir.isDirectory || dir.mkdirs())
-                        dir.canonicalPath else null)
+                    // Match FlClash CoreController.initGeo: all geodata live
+                    // beside config.yaml in the same Go constant.HomeDir.
+                    // Copy on a worker, never block Flutter's platform thread.
+                    Thread({
+                        try {
+                            val dir = File(filesDir, "FlClash-Core")
+                            check(dir.isDirectory || dir.mkdirs())
+                            val names = listOf(
+                                "GEOIP.metadb", "GEOIP.dat",
+                                "GEOSITE.dat", "ASN.mmdb")
+                            for (name in names) {
+                                val output = File(dir, name)
+                                if (output.isFile && output.length() > 0L) continue
+                                val staged = File(dir, "$name.tmp")
+                                assets.open("flutter_assets/assets/flclash/$name")
+                                    .use { input ->
+                                        staged.outputStream().use { target ->
+                                            input.copyTo(target)
+                                        }
+                                    }
+                                check(staged.length() > 0L)
+                                check(staged.renameTo(output))
+                            }
+                            val home = dir.canonicalPath
+                            runOnUiThread { result.success(home) }
+                        } catch (_: Exception) {
+                            runOnUiThread {
+                                result.error("GEO", "FlClash 地理数据库初始化失败", null)
+                            }
+                        }
+                    }, "flclash-geo-init").start()
                 }
                 "status" -> result.success(mapOf("state" to VelaVpnState.state,
                     "error" to VelaVpnState.error))
