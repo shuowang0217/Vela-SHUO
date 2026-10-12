@@ -13,9 +13,9 @@ class _Vault implements VelaSubscriptionVault {
   @override
   Future<String?> read() async => payload;
   @override
-  Future<void> write(String data) async => payload = data;
+  Future<void> write(String data) async { payload = data; }
   @override
-  Future<void> delete() async => payload = null;
+  Future<void> delete() async { payload = null; }
 }
 
 class _NativeFlClash implements FlClashCoreTransport {
