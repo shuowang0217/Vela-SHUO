@@ -540,8 +540,10 @@ class VelaSmartController extends ChangeNotifier {
         _results[index] = previous == null
             ? VelaNodeHealth.first(index, sample, _clock())
             : previous.add(sample, _clock());
-        if (sample.ok && sample.milliseconds != null &&
-            (speed == null || speed.ok)) {
+        // Latency and download samples have independent success semantics.
+        // An unreachable CDN must not turn a reachable FlClash node into
+        // "latency failed", which previously hid every healthy delay score.
+        if (sample.ok && sample.milliseconds != null) {
           _successful++;
         } else {
           _failed++;
@@ -570,8 +572,10 @@ class VelaSmartController extends ChangeNotifier {
                   ? (automatic && count > 50 && _fullProbe != null
                       ? '自动检测按50 MiB单轮流量上限完成前50个节点；'
                           '手动一键测速可测全部节点。'
-                      : '延迟和下载速度检测完成：成功 $_successful，'
-                          '失败 $_failed，共 $_total 个。')
+                      : 'FlClash 节点测速完成：延迟成功 $_successful，'
+                          '延迟失败 $_failed，'
+                          '下载成功 ${_downloads.values.where((s) => s.ok).length}，'
+                          '共 $_total 个。')
                   : '本批次完成：成功 $_successful，失败 $_failed，共 $_total 个。';
         } else if (run == _generation) {
           _status = '测速已停止：完成 $_finished / $_total，剩余节点未测。';
