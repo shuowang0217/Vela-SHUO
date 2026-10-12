@@ -118,7 +118,9 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   @override
   Future<bool> selectNode(int index) async {
     if (_closed || loading || backend.listenerStarted ||
-        index < 0 || index >= nodes.length) return false;
+        index < 0 || index >= nodes.length) {
+      return false;
+    }
     final accepted = await backend.selectNode(nodes[index].name);
     if (accepted) {
       _selection = index;
@@ -134,7 +136,9 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   bool confirmRunningSelection(int index) {
     if (_closed || !backend.listenerStarted ||
         index < 0 || index >= nodes.length ||
-        backend.activeName != nodes[index].name) return false;
+        backend.activeName != nodes[index].name) {
+      return false;
+    }
     _selection = index;
     _emit();
     return true;
