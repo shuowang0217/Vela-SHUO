@@ -113,7 +113,8 @@ class MainActivity : FlutterActivity() {
                         val method = request.optString("method")
                         val allowed = setOf(
                             "initClash", "getIsInit", "velaLoadProfile",
-                            "velaTestDownload", "validateConfig",
+                            "velaTestDownload", "velaTestLatencies",
+                            "validateConfig",
                             "validateProxies", "updateConfig", "getConfig",
                             "getProxies", "changeProxy", "getTraffic",
                             "getTotalTraffic", "asyncTestDelay", "probe",
