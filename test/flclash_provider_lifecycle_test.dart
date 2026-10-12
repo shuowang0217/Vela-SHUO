@@ -42,11 +42,17 @@ class _NativeFlClash implements FlClashCoreTransport {
             {'name': 'Japan', 'server': 'jp.test', 'type': 'vless'},
             {'name': 'USA', 'server': 'us.test', 'type': 'ss'},
           ],
-          'proxies': {
-            'GLOBAL': {'type': 'Selector'},
-            'Japan': {'type': 'VLESS'},
-            'USA': {'type': 'Shadowsocks'},
-          },
+          'proxies': updated
+              ? {
+                  'GLOBAL': {'type': 'Selector'},
+                  'USA': {'type': 'Shadowsocks'},
+                  'Japan': {'type': 'VLESS'},
+                }
+              : {
+                  'GLOBAL': {'type': 'Selector'},
+                  'Japan': {'type': 'VLESS'},
+                  'USA': {'type': 'Shadowsocks'},
+                },
         };
       case 'getExternalProviders':
         result = [
@@ -172,8 +178,11 @@ void main() {
     final after = VelaFlClashSubscriptionController(
         backend: nextBackend, core: nextCore, vault: vault);
     expect(await after.restoreSaved(), true);
+    expect(after.nodes.map((node) => node.name), ['USA', 'Japan']);
     expect(after.selected?.name, 'Japan');
-    expect(after.isFavorite(1), true);
+    expect(after.selectedIndex, 1);
+    expect(after.isFavorite(0), true);
+    expect(after.isFavorite(1), false);
     expect(after.favoriteCount, 1);
     expect(after.storedOnDevice, true);
     after.dispose();
