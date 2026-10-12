@@ -132,6 +132,29 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     return accepted;
   }
 
+  /// The Android VPN Activity receives only the selected map. The real
+  /// Mihomo config has already been parsed and installed by the FlClash Go
+  /// backend; it is never reconstructed by Vela.
+  @override
+  String? get androidVpnProfile {
+    final group = backend.activeGroup;
+    final node = selected;
+    if (group == null || node == null) return null;
+    return jsonEncode({
+      'selected-map': {group: node.name},
+      'test-url': 'https://www.gstatic.com/generate_204',
+    });
+  }
+
+  @override
+  bool confirmVpnSelection(int index) {
+    if (_closed || index < 0 || index >= nodes.length) return false;
+    backend.activeName = nodes[index].name;
+    _selection = index;
+    _emit();
+    return true;
+  }
+
   @override
   bool confirmRunningSelection(int index) {
     if (_closed || !backend.listenerStarted ||
