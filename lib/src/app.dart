@@ -225,8 +225,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     (Icons.home_outlined, Icons.home_rounded, '首页'),
     (Icons.language_outlined, Icons.language_rounded, '代理'),
     (Icons.auto_graph_outlined, Icons.auto_graph_rounded, '智能优选'),
-    (Icons.layers_outlined, Icons.layers_rounded, '配置'),
     (Icons.settings_outlined, Icons.settings_rounded, '设置'),
+    (Icons.layers_outlined, Icons.layers_rounded, '配置'),
   ];
 
   @override
@@ -258,16 +258,20 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
 
   void navigate(int i) => setState(() => tab = i);
 
+  // Keep tab 3 as Settings for existing theme workflows and test IDs.
+  // Display order puts Config next to Proxy without changing tab identity.
+  static const navOrder = <int>[0, 1, 4, 2, 3];
+
   Widget page(bool desktop) => switch (tab) {
     1 => VelaStellarProxyPage(
       demo: demo, subscription: subscription,
       connection: connection, androidVpn: androidVpn,
-      smart: smart, traffic: traffic, openConfig: () => navigate(3)),
+      smart: smart, traffic: traffic, openConfig: () => navigate(4)),
     2 => _SmartPage(demo: demo, smart: smart, subscription: subscription),
-    3 => VelaStellarConfigPage(
+    4 => VelaStellarConfigPage(
       demo: demo, subscription: subscription, core: widget.core,
       connection: connection, androidVpn: androidVpn),
-    4 => _SettingsPage(
+    3 => _SettingsPage(
       demo: demo, settings: widget.settings,
       diagnostics: widget.diagnostics, core: widget.core,
       subscription: subscription, connection: connection,
@@ -321,15 +325,16 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
             height: 68,
             backgroundColor: Colors.transparent,
             indicatorColor: _blue.withValues(alpha: .15),
-            selectedIndex: tab,
-            onDestinationSelected: navigate,
+            selectedIndex: navOrder.indexOf(tab),
+            onDestinationSelected: (position) =>
+                navigate(navOrder[position]),
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             destinations: [
-              for (final (outline, filled, label) in destinations)
+              for (final index in navOrder)
                 NavigationDestination(
-                  icon: Icon(outline, color: _muted),
-                  selectedIcon: Icon(filled, color: _blue),
-                  label: label,
+                  icon: Icon(destinations[index].$1, color: _muted),
+                  selectedIcon: Icon(destinations[index].$2, color: _blue),
+                  label: destinations[index].$3,
                 ),
             ],
           ),
@@ -364,7 +369,7 @@ class _DesktopNav extends StatelessWidget {
       )),
      ],
     SizedBox(height: 46),
-    for (var i = 0; i < _ShellState.destinations.length; i++)
+    for (final i in _ShellState.navOrder)
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         child: Material(
