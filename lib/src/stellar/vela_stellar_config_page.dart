@@ -82,7 +82,9 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
 
   Future<void> _refresh() async {
     if (_busy || widget.connection?.connected == true ||
-        widget.androidVpn?.active == true) return;
+        widget.androidVpn?.active == true) {
+      return;
+    }
     final sub = widget.subscription;
     if (sub == null) return;
     setState(() => _busy = true);
