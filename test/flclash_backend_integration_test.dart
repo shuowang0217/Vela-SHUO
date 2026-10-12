@@ -8,6 +8,9 @@ import 'package:vela_shuo/src/network/flclash_windows_backend.dart';
 class _GoCoreFake implements FlClashCoreTransport {
   final methods = <String>[];
   String? active;
+  String? changedGroup;
+  String? probedName;
+  bool wrongRoute = false;
   bool started = false;
 
   @override
@@ -36,8 +39,16 @@ class _GoCoreFake implements FlClashCoreTransport {
           },
         };
       case 'changeProxy':
+        changedGroup = (data['arguments'] as Map)['group-name'] as String;
         active = (data['arguments'] as Map)['proxy-name'] as String;
         result = {'message': '', 'changed': true};
+      case 'getProxies':
+        result = {
+          'proxies': {
+            'GLOBAL': {'type': 'Selector', 'now': active},
+          },
+          'all': ['GLOBAL', 'VELA_SELECT'],
+        };
       case 'startListener':
         started = true;
         result = true;
@@ -45,7 +56,12 @@ class _GoCoreFake implements FlClashCoreTransport {
         started = false;
         result = true;
       case 'probe':
-        result = {'status-code': 204, 'error': ''};
+        probedName = (data['arguments'] as Map)['proxy-name'] as String;
+        result = {
+          'status-code': 204,
+          'error': '',
+          'chains': [wrongRoute ? 'DIRECT' : active],
+        };
       case 'asyncTestDelay':
         result = {'name': 'JP-VLESS', 'value': 126, 'url': 'https://example.org'};
       case 'getTotalTraffic':
@@ -82,8 +98,17 @@ proxy-providers:
     expect(backend.groups, contains('VELA_SELECT'));
     expect(await backend.selectNode('US-TUIC'), true);
     expect(backend.activeName, 'US-TUIC');
+    expect(backend.activeGroup, 'GLOBAL');
+    expect(fake.changedGroup, 'GLOBAL');
     await backend.start();
     expect(backend.listenerStarted, true);
+    expect(await backend.verifyInternet(), true);
+    expect(fake.probedName, isEmpty,
+        reason: 'Routing probe must not bypass Mihomo by naming a node');
+    fake.wrongRoute = true;
+    expect(await backend.verifyInternet(), false,
+        reason: 'A DIRECT bypass must never be reported connected');
+    fake.wrongRoute = false;
     expect(await backend.verifyInternet(), true);
     expect(await backend.delay('JP-VLESS'), 126);
     expect(await backend.traffic(), (214, 897));
@@ -92,6 +117,7 @@ proxy-providers:
     await backend.shutdown();
     expect(fake.methods, containsAll([
       'initClash', 'velaLoadProfile', 'changeProxy',
+      'getProxies',
       'startListener', 'probe', 'asyncTestDelay',
       'getTotalTraffic', 'stopListener', 'shutdown',
     ]));
