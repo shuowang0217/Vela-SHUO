@@ -129,7 +129,7 @@ with tempfile.TemporaryDirectory(prefix="vela-flclash-core-") as home:
                 if version != 5:
                     return
                 read_exact(methods)
-                peer.sendall(b"\\x05\\x00")
+                peer.sendall(b"\x05\x00")
                 version, cmd, _, family = read_exact(4)
                 if version != 5 or cmd != 1:
                     return
@@ -147,7 +147,7 @@ with tempfile.TemporaryDirectory(prefix="vela-flclash-core-") as home:
                     return
                 with socket.create_connection((address, port), timeout=5) as dest:
                     dest.settimeout(8)
-                    peer.sendall(b"\\x05\\x00\\x00\\x01\\x7f\\x00\\x00\\x01\\x00\\x00")
+                    peer.sendall(b"\x05\x00\x00\x01\x7f\x00\x00\x01\x00\x00")
                     while True:
                         ready, _, _ = select.select([peer, dest], [], [], 8)
                         if not ready:
