@@ -25,4 +25,8 @@ shutil.copy2(
     "scripts/migration/flclash_native/vela_stdio_windows.go",
     root / "vela_stdio_windows.go",
 )
+shutil.copy2(
+    "scripts/migration/flclash_native/vela_profile_windows.go",
+    root / "vela_profile_windows.go",
+)
 print("FlClash Go RPC stdio transport installed without changing its handlers")
