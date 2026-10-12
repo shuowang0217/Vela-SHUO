@@ -166,7 +166,9 @@ class VelaSubscriptionParser {
         continue;
       }
       try {
-        final node = _fromClash(candidate) ?? _fromNativeClash(candidate);
+        // Share links require explicit parameter-aware decoding. Never accept
+        // an unknown transport by discarding its query parameters.
+        final node = _fromClash(candidate);
         if (node == null) {
           skipped++;
         } else {
