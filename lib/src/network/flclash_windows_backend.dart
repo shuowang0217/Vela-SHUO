@@ -150,7 +150,8 @@ class FlClashWindowsBackend {
   List<VelaSubscriptionNode> _nodesFromMihomo(
       Map proxies, List<String> groupNames, {Object? rawProxies}) {
     final reserved = <String>{
-      'DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE',
+      'DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'PASS-RULE',
+      'PASS_RULE', 'COMPATIBLE',
       ...groupNames,
     };
     // Imported raw entries are valid only for the import where Go parsed
@@ -168,12 +169,16 @@ class FlClashWindowsBackend {
     final found = <VelaSubscriptionNode>[];
     for (final entry in proxies.entries) {
       final name = entry.key.toString();
-      if (reserved.contains(name) || entry.value is! Map) continue;
+      if (reserved.contains(name) || entry.value is! Map ||
+          _isSubscriptionNotice(name)) {
+        continue;
+      }
       final metadata = Map<String, dynamic>.from(entry.value as Map);
       final protocol = (metadata['type'] ?? '').toString().toLowerCase();
       if (protocol.isEmpty || const {
         'selector', 'urltest', 'fallback', 'loadbalance', 'relay',
         'direct', 'reject', 'rejectdrop', 'compatible', 'pass',
+        'passrule', 'pass-rule', 'pass_rule',
       }.contains(protocol)) {
         continue;
       }
@@ -187,6 +192,18 @@ class FlClashWindowsBackend {
       ));
     }
     return found;
+  }
+
+  /// Some subscription vendors embed human-readable quota/expiry cards as
+  /// fake proxy entries. They are not usable transports and must not be
+  /// passed to FlClash latency testing. The real quota comes from the HTTP
+  /// subscription-userinfo header, not from these fake node names.
+  static bool _isSubscriptionNotice(String name) {
+    return RegExp(
+      r'^(?:剩余流量|套餐到期|到期时间|过期时间|流量重置|剩余天数|订阅到期|官网地址|'
+      r'套餐信息|已用流量|有效期)\\s*[:：]',
+      caseSensitive: false,
+    ).hasMatch(name.trim());
   }
 
   Map<String, List<String>> _readGroupMembers(
