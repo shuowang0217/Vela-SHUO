@@ -6,7 +6,7 @@ import '../core/vela_core_controller.dart';
 import '../home/demo_connection.dart';
 import '../home/globe.dart';
 import '../network/vela_flclash_subscription_adapter.dart';
-import '../subscription/vela_subscription_card.dart';
+import 'vela_stellar_import_dialog.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../theme/vela_palettes.dart';
 import 'stellar_design.dart';
@@ -130,59 +130,15 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
       _notify('为保护当前连接，请先断开再切换配置');
       return;
     }
-    // Currently the native host holds a single selected profile. Importing
-    // another replaces it. Tell the user instead of claiming multi-profile
-    // storage or silently overwriting the live configuration.
-    if (controller.nodes.isNotEmpty) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('导入新的 FlClash 配置'),
-          content: const Text(
-            '当前版本的后台一次只保存一份活动配置。'
-            '导入新的订阅将替换当前活动配置；原加密存档可在重新保存前保留。'
-            '请先确认旧订阅已有备份。'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消')),
-            FilledButton(onPressed: () => Navigator.pop(context, true),
-              child: const Text('继续导入')),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-    }
-    await showModalBottomSheet<void>(
+    final imported = await showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: VelaThemeRuntime.active.background,
-      showDragHandle: true,
-      builder: (context) {
-        final media = MediaQuery.sizeOf(context);
-        return SizedBox(
-          height: media.height * .86,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                StellarSectionHeading('航线配置',
-                  '原生 FlClash 订阅导入 · 保持密钥加密存储'),
-                const SizedBox(height: 17),
-                VelaSubscriptionCard(controller: controller,
-                  core: core, androidVpn: widget.androidVpn),
-                const SizedBox(height: 18),
-                Center(child: TextButton.icon(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text('完成'),
-                )),
-              ],
-            ),
-          ),
-        );
-      },
+      barrierDismissible: false,
+      builder: (_) => VelaStellarImportDialog(controller: controller),
     );
+    if (!mounted) return;
+    if (imported == true) {
+      _notify('FlClash 已成功导入配置，${controller.nodes.length} 个节点');
+    }
   }
 
   Future<void> _showManagement() async {
@@ -427,7 +383,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('当前配置', style: TextStyle(color: t.text,
+              Text(_native?.profileName ?? '当前配置', style: TextStyle(color: t.text,
                 fontWeight: FontWeight.bold, fontSize: 19)),
               const SizedBox(height: 4),
               StellarLabel(online ? '● 正在连接' : '● 已载入 FlClash 核心',
