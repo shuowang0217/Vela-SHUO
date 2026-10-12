@@ -20,6 +20,7 @@ with tempfile.TemporaryDirectory(prefix="vela-flclash-core-") as home:
     proc = subprocess.Popen([str(binary), "--vela-stdio"], stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+    stderr_done = threading.Event()
     def capture_diagnostics():
         # CI uses a synthetic example profile, never a customer's subscription.
         # Keep only a bounded redacted tail and print it ONLY upon failure.
@@ -28,6 +29,7 @@ with tempfile.TemporaryDirectory(prefix="vela-flclash-core-") as home:
             line = line.replace("abc123", "[TEST_SECRET]")
             line = line.replace("proxy.example.test", "[TEST_HOST]")
             diagnostics.append(line)
+        stderr_done.set()
     threading.Thread(target=capture_diagnostics, daemon=True).start()
 
     def read_messages():
@@ -45,6 +47,8 @@ with tempfile.TemporaryDirectory(prefix="vela-flclash-core-") as home:
                 body = json.loads(message)
                 if "id" in body:
                     data.put(body)
+        except Exception as exc:
+            data.put({"transport_error": type(exc).__name__})
         finally:
             data.put({"transport_dead": True})
     threading.Thread(target=read_messages, daemon=True).start()
@@ -61,6 +65,8 @@ with tempfile.TemporaryDirectory(prefix="vela-flclash-core-") as home:
         proc.stdin.flush()
         while True:
             response = data.get(timeout=timeout)
+            if response.get("transport_error"):
+                raise RuntimeError("FlClash RPC reader: " + response["transport_error"])
             if response.get("transport_dead"):
                 raise RuntimeError("FlClash core closed before RPC reply")
             if response.get("id") != key:
@@ -100,7 +106,14 @@ rules:
         assert call("stopListener") is True
         print("PASS: FlClash GO config parser, selector, nodes and RPC IPC")
     except Exception:
-        print("FlClash Go exited=%s" % proc.poll(), file=sys.stderr)
+        # The Go stderr reader races with the RPC EOF reader; allow native
+        # panic/fatal output to drain before showing the diagnostic tail.
+        try:
+            exit_code = proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            exit_code = "still-running"
+        stderr_done.wait(timeout=2)
+        print("FlClash Go exited=%s" % exit_code, file=sys.stderr)
         print("FlClash synthetic profile diagnostic tail:", file=sys.stderr)
         for line in list(diagnostics)[-50:]:
             print(line[:500], file=sys.stderr)
