@@ -20,7 +20,6 @@ import 'package:vela_shuo/src/smart/vela_node_probe.dart';
 import 'package:vela_shuo/src/smart/vela_smart_controller.dart';
 import 'package:vela_shuo/src/smart/vela_smart_panel.dart';
 import 'package:vela_shuo/src/core/vela_core_settings_card.dart';
-import 'package:vela_shuo/src/subscription/vela_subscription_card.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/globe.dart';
@@ -1117,11 +1116,6 @@ class _SettingsPage extends StatelessWidget {
           subscription?.selected != null ? _RealTag() : _DemoTag(),
       SizedBox(height: 24),
       if (core != null) ...[
-        if (subscription != null) ...[
-          VelaSubscriptionCard(controller: subscription!, core: core!,
-              androidVpn: androidVpn),
-          SizedBox(height: 16),
-        ],
         if (!Platform.isAndroid) ...[
           VelaCoreSettingsCard(controller: core!,
             connection: connection),
@@ -1413,7 +1407,7 @@ class _AndroidVpnCard extends StatelessWidget {
       ]),
       const SizedBox(height: 12),
       Text(subscription.selected == null
-          ? '请先在设置导入订阅并选择真实节点。'
+          ? '请先在「配置」页面导入订阅，再于「代理」页面选择节点。'
           : '已选择：${subscription.selected!.name}',
           style: TextStyle(color: _muted, fontSize: 12)),
       if (vpn.error != null) Padding(
@@ -1502,7 +1496,7 @@ class _RealConnectionCard extends StatelessWidget {
     }
     if (!connection.available) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先在设置中导入订阅并选择真实节点')),
+        const SnackBar(content: Text('请先在「配置」中导入订阅，并在「代理」中选择节点')),
       );
       return;
     }
