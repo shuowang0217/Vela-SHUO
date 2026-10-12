@@ -13,6 +13,7 @@ import (
 
     "github.com/metacubex/mihomo/config"
     "github.com/metacubex/mihomo/constant"
+    T "github.com/metacubex/mihomo/tunnel"
 )
 
 // A Vela-specific IPC entry point, delegating ALL interpretation and network
@@ -47,6 +48,11 @@ func init() {
                 // the local client into an externally reachable proxy server.
                 raw.Port, raw.SocksPort, raw.RedirPort, raw.TProxyPort = 0, 0, 0, 0
                 raw.MixedPort = 20808
+                // Vela's single-node Connect action corresponds to FlClash
+                // GLOBAL mode, NOT the imported subscription's RULE mode.
+                // Otherwise a selected proxy can be ignored by MATCH,DIRECT.
+                // FlClash/Mihomo itself still owns every routing decision.
+                raw.Mode = T.Global
                 raw.AllowLan = false
                 raw.BindAddress = "127.0.0.1"
                 raw.ExternalController = ""
@@ -117,6 +123,10 @@ func init() {
                 fmt.Fprintln(os.Stderr, "VELA_DIAG stage=get-proxies-enter")
                 views := handleGetProxies()
                 fmt.Fprintln(os.Stderr, "VELA_DIAG stage=get-proxies-return")
+                if _, exists := views.Proxies["GLOBAL"]; !exists {
+                    response.failure("no_global", "Mihomo global selector missing", nil)
+                    return
+                }
                 if len(views.Proxies) == 0 {
                     response.failure("no_proxies", "FlClash core returned no proxies", nil)
                     return
