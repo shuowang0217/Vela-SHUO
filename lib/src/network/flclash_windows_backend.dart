@@ -90,7 +90,9 @@ class FlClashWindowsBackend {
       final protocol = (info['type'] ?? '').toString().toLowerCase();
       if (protocol.isEmpty || const {
         'selector', 'urltest', 'fallback', 'loadbalance', 'relay',
-      }.contains(protocol)) continue;
+      }.contains(protocol)) {
+        continue;
+      }
       final full = originals[name];
       importedNodes.add(VelaSubscriptionNode(
         name: name,
