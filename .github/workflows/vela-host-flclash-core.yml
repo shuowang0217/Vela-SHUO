@@ -133,6 +133,13 @@ jobs:
           New-Item -Path $coreDir -ItemType Directory -Force | Out-Null
           Copy-Item "$env:RUNNER_TEMP/mihomo.exe" (Join-Path $coreDir 'mihomo.exe')
           Copy-Item "$env:RUNNER_TEMP/FlClashCore.exe" (Join-Path $coreDir 'FlClashCore.exe')
+          $geoDir = Join-Path $coreDir 'geodata'
+          New-Item -ItemType Directory -Path $geoDir -Force | Out-Null
+          foreach ($geo in @('GEOIP.metadb', 'GEOIP.dat', 'GEOSITE.dat', 'ASN.mmdb')) {
+            $sourceGeo = Join-Path 'flclash/assets/data' $geo
+            if (-not (Test-Path $sourceGeo)) { throw "Missing original FlClash Geo file: $geo" }
+            Copy-Item $sourceGeo (Join-Path $geoDir $geo)
+          }
           Copy-Item 'flclash/core/Clash.Meta/LICENSE' (Join-Path $coreDir 'LICENSE-mihomo.txt')
           Copy-Item 'flclash/LICENSE' (Join-Path $coreDir 'LICENSE-FlClash-GPL-3.0.txt')
           Rename-Item (Join-Path $release.FullName 'vela_shuo.exe') 'Vela-SHUO.exe'
