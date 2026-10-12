@@ -6,6 +6,8 @@ import hmac
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import socket
+import select
+import socketserver
 from pathlib import Path
 import queue
 import struct
@@ -105,6 +107,64 @@ with tempfile.TemporaryDirectory(prefix="vela-flclash-core-") as home:
                     (method, response["error"].get("code")))
             return response.get("result")
 
+    # A synthetic SOCKS5 exit tests an actual Mihomo proxy adapter, not
+    # just the built-in DIRECT route. It only forwards to the local CI 204
+    # fixture; no third-party network or user subscription is involved.
+    class LocalSocks5(socketserver.BaseRequestHandler):
+        def handle(self):
+            peer = self.request
+            peer.settimeout(8)
+
+            def read_exact(count):
+                data = b""
+                while len(data) < count:
+                    chunk = peer.recv(count - len(data))
+                    if not chunk:
+                        raise EOFError("synthetic SOCKS connection closed")
+                    data += chunk
+                return data
+
+            try:
+                version, methods = read_exact(2)
+                if version != 5:
+                    return
+                read_exact(methods)
+                peer.sendall(b"\\x05\\x00")
+                version, cmd, _, family = read_exact(4)
+                if version != 5 or cmd != 1:
+                    return
+                if family == 1:
+                    address = socket.inet_ntoa(read_exact(4))
+                elif family == 3:
+                    count = read_exact(1)[0]
+                    address = read_exact(count).decode("ascii")
+                elif family == 4:
+                    address = socket.inet_ntop(socket.AF_INET6, read_exact(16))
+                else:
+                    return
+                port = struct.unpack("!H", read_exact(2))[0]
+                if address not in ("127.0.0.1", "localhost", "::1"):
+                    return
+                with socket.create_connection((address, port), timeout=5) as dest:
+                    dest.settimeout(8)
+                    peer.sendall(b"\\x05\\x00\\x00\\x01\\x7f\\x00\\x00\\x01\\x00\\x00")
+                    while True:
+                        ready, _, _ = select.select([peer, dest], [], [], 8)
+                        if not ready:
+                            return
+                        for current in ready:
+                            payload = current.recv(16384)
+                            if not payload:
+                                return
+                            (dest if current is peer else peer).sendall(payload)
+            except (OSError, EOFError):
+                return
+
+    socks_server = socketserver.ThreadingTCPServer(
+        ("127.0.0.1", 0), LocalSocks5)
+    socks_server.daemon_threads = True
+    threading.Thread(target=socks_server.serve_forever, daemon=True).start()
+
     try:
         assert call("initClash", {"home-dir": home, "version": 0}) is True
         yaml = """
@@ -115,6 +175,10 @@ proxies:
     port: 443
     cipher: aes-128-gcm
     password: abc123
+  - name: Local Socks Test
+    type: socks5
+    server: 127.0.0.1
+    port: SOCKS_LISTEN_PORT
 proxy-groups:
   - name: VELA_SELECT
     type: select
@@ -123,7 +187,10 @@ proxy-groups:
 rules:
   - MATCH,VELA_SELECT
 """
+        yaml = yaml.replace(
+            "SOCKS_LISTEN_PORT", str(socks_server.server_address[1]))
         res = call("velaLoadProfile", {"content": yaml})
+        assert "Local Socks Test" in res["proxies"]
         assert "Example SS" in res["proxies"], "Node missing from actual Mihomo"
         assert "GLOBAL" in res["groups"], "Built-in GLOBAL mode is missing"
         config = call("getConfig", os.path.join(home, "config.yaml"))
@@ -175,14 +242,16 @@ rules:
             # Check two legitimate measurements and one missing node without
             # requiring a public proxy or leaking real subscription tokens.
             batch = call("velaTestLatencies", {
-                "names": ["DIRECT", "DIRECT", "NOT_CONFIGURED"],
+                "names": ["DIRECT", "Local Socks Test", "NOT_CONFIGURED"],
                 "test-url": url_204,
             }, timeout=45)
             assert isinstance(batch, list) and len(batch) == 3
             assert [row["name"] for row in batch] == [
-                "DIRECT", "DIRECT", "NOT_CONFIGURED",
+                "DIRECT", "Local Socks Test", "NOT_CONFIGURED",
             ]
-            assert batch[0]["value"] > 0 and batch[1]["value"] > 0
+            assert batch[0]["value"] > 0, "FlClash DIRECT latency failed"
+            assert batch[1]["value"] > 0, (
+                "Real Mihomo SOCKS5 proxy outbound latency failed")
             assert batch[2]["value"] == -1
             assert batch[2]["reason"] == "missing"
         finally:
@@ -210,6 +279,8 @@ rules:
             print(line[:500], file=sys.stderr)
         raise
     finally:
+        socks_server.shutdown()
+        socks_server.server_close()
         conn.close()
         proc.terminate()
         try:
