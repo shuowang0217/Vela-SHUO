@@ -11,6 +11,7 @@ import (
     "path/filepath"
     "time"
     "sync"
+    "strings"
 
     "github.com/metacubex/mihomo/config"
     "github.com/metacubex/mihomo/constant"
@@ -210,6 +211,7 @@ func init() {
 // Mihomo URLTest or FlClash's built-in probe, never a Dart stopwatch.
 type velaLatencyBatchArgs struct {
     Names []string `json:"names"`
+    TestURL string `json:"test-url"`
 }
 type velaLatencyBatchRow struct {
     Name string `json:"name"`
@@ -230,6 +232,21 @@ func init() {
                     return
                 }
 
+                // Local-only override exists for a deterministic CI
+                // test using a 204 fixture. Production always uses the
+                // original public HTTPS probes; remote hosts are forbidden.
+                if params.TestURL != "" &&
+                    !strings.HasPrefix(params.TestURL, "http://127.0.0.1:") {
+                    response.failure("invalid_arguments", "Invalid test endpoint", nil)
+                    return
+                }
+                urls := []string{
+                    "https://www.gstatic.com/generate_204",
+                    "https://cp.cloudflare.com/generate_204",
+                }
+                if params.TestURL != "" {
+                    urls = []string{params.TestURL}
+                }
                 rows := make([]velaLatencyBatchRow, len(params.Names))
                 jobs := make(chan int)
                 var workers sync.WaitGroup
@@ -248,10 +265,7 @@ func init() {
                                 rows[index] = result
                                 continue
                             }
-                            for _, url := range []string{
-                                "https://www.gstatic.com/generate_204",
-                                "https://cp.cloudflare.com/generate_204",
-                            } {
+                            for _, url := range urls {
                                 delay := handleTestDelay(&TestDelayParams{
                                     ProxyName: name, TestUrl: url, Timeout: 6000,
                                 })
@@ -264,8 +278,10 @@ func init() {
                             if result.Value < 0 {
                                 // Same FlClash Go probeDialer, with no extra
                                 // proxy configuration and NO guessed latency.
+                                probeURL := "https://cp.cloudflare.com/generate_204"
+                                if params.TestURL != "" { probeURL = params.TestURL }
                                 probe := handleProbe(&ProbeParams{
-                                    Url: "https://cp.cloudflare.com/generate_204",
+                                    Url: probeURL,
                                     ProxyName: name, Timeout: 6000,
                                     MaxBody: 0,
                                     Headers: map[string]string{},
