@@ -460,7 +460,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
         FilledButton.icon(
           key: const ValueKey('stellar_latency_test'),
           onPressed: running ? smart!.cancelScan
-            : smart?.canTestAll == true ? () => smart!.testAllNodes() : null,
+            : smart?.canTestAll == true
+                ? () => smart!.testAllLatencies() : null,
           icon: Icon(running ? Icons.stop_rounded : Icons.bolt_rounded, size: 17),
           label: Text(running ? '停止' : '延迟测试'),
         ),
