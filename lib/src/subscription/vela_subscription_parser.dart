@@ -42,15 +42,15 @@ class VelaSubscriptionResult {
 /// sing-box JSON outbounds. Do NOT drop unsupported transport/security
 /// options and pretend those nodes are valid.
 class VelaSubscriptionParser {
-  static const maxBytes = 2 * 1024 * 1024;
-  static const maxNodes = 500;
+  static const maxBytes = 8 * 1024 * 1024;
+  static const maxNodes = 4096;
   static const supported = {
     'ss', 'shadowsocks', 'vmess', 'vless', 'trojan', 'hysteria2',
   };
 
   static VelaSubscriptionResult parse(String raw) {
     if (utf8.encode(raw).length > maxBytes) {
-      throw const FormatException('订阅内容超过 2 MB');
+      throw const FormatException('订阅内容超过 8 MB');
     }
     final source = raw.replaceFirst('\uFEFF', '').trim();
     if (source.isEmpty) throw const FormatException('订阅内容为空');
@@ -119,7 +119,7 @@ class VelaSubscriptionParser {
     }
     final format = isClash ? 'Clash/Mihomo YAML' : 'sing-box JSON';
     if (candidates.length > maxNodes) {
-      throw const FormatException('单份订阅最多支持 500 个节点');
+      throw const FormatException('单份订阅最多支持 4096 个节点');
     }
     final nodes = <VelaSubscriptionNode>[];
     var skipped = 0;
