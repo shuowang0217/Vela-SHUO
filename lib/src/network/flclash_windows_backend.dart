@@ -35,6 +35,7 @@ class FlClashWindowsBackend {
   // Names are presentation metadata only; subscription credentials stay native.
   List<String> remoteProviderNames = const [];
   int providerCount = 0;
+  List<Map<String, dynamic>> providerSnapshots = const [];
 
   Future<void> initialize() async {
     if (ready) return;
@@ -194,6 +195,10 @@ class FlClashWindowsBackend {
   Future<List<String>> loadRemoteProviders() async {
     if (!ready || !imported) return const [];
     final providers = await api.getExternalProviders();
+    providerSnapshots = List.unmodifiable([
+      for (final value in providers)
+        if (value is Map) Map<String, dynamic>.from(value),
+    ]);
     remoteProviderNames = List.unmodifiable([
       for (final value in providers)
         if (value is Map &&
