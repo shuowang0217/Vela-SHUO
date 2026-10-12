@@ -67,6 +67,16 @@ class _GoCoreFake implements FlClashCoreTransport {
           'error': blockEveryProbe ? 'timeout' : '',
           'chains': [wrongRoute ? 'DIRECT' : active],
         };
+      case 'velaTestLatencies':
+        final request = data['arguments'] as Map;
+        result = [
+          for (final value in request['names'] as List)
+            {
+              'name': value,
+              'value': value == 'JP-VLESS' ? 142 : -1,
+              if (value != 'JP-VLESS') 'reason': 'timeout',
+            },
+        ];
       case 'asyncTestDelay':
         final params = data['arguments'] as Map;
         final url = params['test-url'] as String;
@@ -125,6 +135,11 @@ proxy-providers:
         reason: 'A DIRECT bypass must never be reported connected');
     fake.wrongRoute = false;
     expect(await backend.verifyInternet(), true);
+    final batch = await backend.testLatencies(['JP-VLESS', 'US-TUIC']);
+    expect(batch['JP-VLESS'], 142);
+    expect(batch['US-TUIC'], isNull);
+    expect(backend.delayFailureFor('US-TUIC'), '节点响应超时');
+    expect(fake.methods, contains('velaTestLatencies'));
     expect(await backend.delay('JP-VLESS'), 126);
     fake.blockEveryUrlTest = true;
     expect(await backend.delay('JP-VLESS'), 184,
