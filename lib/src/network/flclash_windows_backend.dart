@@ -30,6 +30,10 @@ class FlClashWindowsBackend {
   List<String> groups = const [];
   String? activeName;
   String? activeGroup;
+  // Provider downloads/updates belong to the upstream FlClash Go runtime.
+  // Names are presentation metadata only; subscription credentials stay native.
+  List<String> remoteProviderNames = const [];
+  int providerCount = 0;
 
   Future<void> initialize() async {
     if (ready) return;
@@ -100,39 +104,8 @@ class FlClashWindowsBackend {
           'no_global', 'Mihomo GLOBAL selector is missing');
     }
     const groupName = 'GLOBAL';
-    final reserved = <String>{
-      'DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE',
-      ...groupNames,
-    };
-    final originals = <String, Map<String, dynamic>>{};
-    if (nativeProxies is List) {
-      for (final item in nativeProxies) {
-        if (item is Map && item['name'] is String) {
-          originals[item['name'] as String] =
-              Map<String, dynamic>.from(item);
-        }
-      }
-    }
-    final importedNodes = <VelaSubscriptionNode>[];
-    for (final entry in proxies.entries) {
-      final name = entry.key.toString();
-      if (reserved.contains(name) || entry.value is! Map) continue;
-      final info = Map<String, dynamic>.from(entry.value as Map);
-      final protocol = (info['type'] ?? '').toString().toLowerCase();
-      if (protocol.isEmpty || const {
-        'selector', 'urltest', 'fallback', 'loadbalance', 'relay',
-      }.contains(protocol)) {
-        continue;
-      }
-      final full = originals[name];
-      importedNodes.add(VelaSubscriptionNode(
-        name: name,
-        protocol: protocol,
-        server: (full?['server'] ?? '').toString(),
-        outbound: const <String, dynamic>{},
-        clashProxy: full,
-      ));
-    }
+    final importedNodes = _nodesFromMihomo(
+        proxies, groupNames, rawProxies: nativeProxies);
     if (importedNodes.isEmpty) {
       throw const FlClashCoreFailure('empty_profile',
           'FlClash core loaded no usable nodes');
@@ -143,6 +116,115 @@ class FlClashWindowsBackend {
     groups = List.unmodifiable(groupNames);
     activeGroup = groupName;
     activeName = null;
+    internetVerified = false;
+    providerCount = result['provider-count'] is int
+        ? result['provider-count'] as int : 0;
+    // Provider metadata failure must not discard an otherwise usable profile.
+    remoteProviderNames = const [];
+    if (providerCount > 0) {
+      try {
+        await loadRemoteProviders();
+      } catch (_) {
+        // The user can retry provider discovery later.
+      }
+    }
+    return nodes;
+  }
+
+  /// FlClash's getProxies is the single source of truth for imported
+  /// outbounds, including proxies injected by HTTP proxy-providers.
+  /// This only maps core metadata to Vela list tiles; it never decodes
+  /// protocols, alters proxy credentials, or generates Mihomo config.
+  List<VelaSubscriptionNode> _nodesFromMihomo(
+      Map proxies, List<String> groupNames, {Object? rawProxies}) {
+    final reserved = <String>{
+      'DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE',
+      ...groupNames,
+    };
+    final originals = <String, Map<String, dynamic>>{
+      for (final node in nodes)
+        if (node.clashProxy != null) node.name: node.clashProxy!,
+    };
+    if (rawProxies is List) {
+      for (final entry in rawProxies) {
+        if (entry is Map && entry['name'] is String) {
+          originals[entry['name'] as String] =
+              Map<String, dynamic>.from(entry);
+        }
+      }
+    }
+    final found = <VelaSubscriptionNode>[];
+    for (final entry in proxies.entries) {
+      final name = entry.key.toString();
+      if (reserved.contains(name) || entry.value is! Map) continue;
+      final metadata = Map<String, dynamic>.from(entry.value as Map);
+      final protocol = (metadata['type'] ?? '').toString().toLowerCase();
+      if (protocol.isEmpty || const {
+        'selector', 'urltest', 'fallback', 'loadbalance', 'relay',
+        'direct', 'reject', 'rejectdrop', 'compatible', 'pass',
+      }.contains(protocol)) {
+        continue;
+      }
+      final original = originals[name];
+      found.add(VelaSubscriptionNode(
+        name: name,
+        protocol: protocol,
+        server: (original?['server'] ?? metadata['server'] ?? '').toString(),
+        outbound: const <String, dynamic>{},
+        clashProxy: original,
+      ));
+    }
+    return found;
+  }
+
+  /// Reads FlClash's native provider registry; only HTTP providers can be
+  /// explicitly updated by the network client (file providers remain local).
+  Future<List<String>> loadRemoteProviders() async {
+    if (!ready || !imported) return const [];
+    final providers = await api.getExternalProviders();
+    remoteProviderNames = List.unmodifiable([
+      for (final value in providers)
+        if (value is Map &&
+            value['name'] is String &&
+            (value['vehicle-type']?.toString().toLowerCase() == 'http'))
+          value['name'] as String,
+    ]);
+    providerCount = providers.length;
+    return remoteProviderNames;
+  }
+
+  /// Invoke upstream FlClash provider.Update(), then query Mihomo's live
+  /// proxy registry. A failed update never clears the previous node list.
+  /// Disconnected-only: updating active outbound sets requires special care.
+  Future<List<VelaSubscriptionNode>> refreshRemoteProviders() async {
+    if (!ready || !imported || listenerStarted) {
+      throw StateError('请先断开连接再更新 FlClash 节点提供者');
+    }
+    final names = await loadRemoteProviders();
+    if (names.isEmpty) {
+      throw StateError('当前配置没有可在线更新的 HTTP 节点提供者');
+    }
+    for (final name in names) {
+      final message = await api.updateExternalProvider(name);
+      if (message.isNotEmpty) {
+        throw StateError('FlClash 节点提供者更新失败');
+      }
+    }
+    final latest = await api.getProxies();
+    final proxies = latest['proxies'];
+    final all = latest['all'];
+    if (proxies is! Map || all is! List) {
+      throw StateError('FlClash 核心返回的节点列表不完整');
+    }
+    final updated = _nodesFromMihomo(proxies, all.whereType<String>().toList());
+    if (updated.isEmpty) {
+      throw StateError('提供者更新后 FlClash 未返回有效节点');
+    }
+    nodes = List.unmodifiable(updated);
+    groups = List.unmodifiable(all.whereType<String>());
+    if (activeName != null && !updated.any((n) => n.name == activeName)) {
+      activeName = null;
+    }
     internetVerified = false;
     return nodes;
   }
