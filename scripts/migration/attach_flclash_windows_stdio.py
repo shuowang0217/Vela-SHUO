@@ -14,7 +14,7 @@ old = """\tgo exitOnTermination()
 \tstartServer(args[1])"""
 new = """\tgo exitOnTermination()
 \tif args[1] == "--vela-stdio" {
-\t\tserve(&velaStdioConn{})
+\t\tvelaServeStdio()
 \t\treturn
 \t}
 \tstartServer(args[1])"""
