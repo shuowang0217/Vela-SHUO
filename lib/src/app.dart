@@ -13,6 +13,7 @@ import 'package:vela_shuo/src/core/vela_window_exit_guard.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
+import 'package:vela_shuo/src/network/flclash_go_node_probe.dart';
 import 'package:vela_shuo/src/android/vela_android_vpn.dart';
 import 'package:vela_shuo/src/traffic/vela_traffic_monitor.dart';
 import 'package:vela_shuo/src/smart/vela_node_probe.dart';
@@ -180,13 +181,21 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         subscription!.addListener(syncRealGlobe);
         connection!.addListener(syncRealGlobe);
         widget.windowExitGuard?.shutdownConnection = connection!.shutdown;
-        final benchmark = VelaIsolatedNodeProbe(
-          coreBinary: widget.core!.benchmarkCorePath ?? '',
-        );
+        // Original Vela Smart controls: measurements now run INSIDE the
+        // FlClash Go core, not through Vela's isolated Mihomo processes.
+        final nativeProbe = runtime is VelaFlClashCoreController
+            ? FlClashGoNodeProbe(runtime.backend) : null;
+        final legacyProbe = nativeProbe == null
+            ? VelaIsolatedNodeProbe(
+                coreBinary: widget.core!.benchmarkCorePath ?? '')
+            : null;
+        final VelaNodeLatencyProbe latencyProbe = nativeProbe ?? legacyProbe!;
+        final VelaNodeDownloadProbe downloadProbe = nativeProbe ?? legacyProbe!;
+        final VelaFullNodeProbe fullProbe = nativeProbe ?? legacyProbe!;
         smart = VelaSmartController(
           subscription: subscription!, core: widget.core!,
-          connection: connection!, probe: benchmark,
-          downloadProbe: benchmark, fullProbe: benchmark,
+          connection: connection!, probe: latencyProbe,
+          downloadProbe: downloadProbe, fullProbe: fullProbe,
         );
       }
     }
