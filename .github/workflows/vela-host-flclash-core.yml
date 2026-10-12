@@ -121,6 +121,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Flutter dependencies failed" }
           flutter build windows --release
           if ($LASTEXITCODE -ne 0) { throw "Vela UI build failed" }
+          $registrant = 'windows/flutter/generated_plugin_registrant.cc'
+          if (-not (Test-Path $registrant) -or
+              -not (Select-String -Path $registrant -Pattern 'ProxyPluginCApiRegisterWithRegistrar' -Quiet)) {
+            throw "Original FlClash Windows native proxy plugin is not registered"
+          }
       - name: Bundle engine into Vela native core location
         shell: pwsh
         run: |
