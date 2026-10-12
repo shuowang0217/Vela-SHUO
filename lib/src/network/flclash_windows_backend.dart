@@ -43,6 +43,31 @@ class FlClashWindowsBackend {
     final path = homeDir ?? '$local${Platform.pathSeparator}Vela-SHUO'
         '${Platform.pathSeparator}FlClash-Core';
     await Directory(path).create(recursive: true);
+    // FlClash CoreController.initGeo seeds these exact Mihomo databases.
+    // A profile can load nodes while GEOIP / GEOSITE rules or DNS fail if
+    // the home directory lacks the resources bundled by the original app.
+    if (Platform.isWindows && transport is FlClashWindowsTransport) {
+      final source = Directory(
+        '${File(Platform.resolvedExecutable).parent.path}'
+        '${Platform.pathSeparator}core${Platform.pathSeparator}geodata');
+      for (final name in const [
+        'GEOIP.metadb', 'GEOIP.dat', 'GEOSITE.dat', 'ASN.mmdb',
+      ]) {
+        final target = File('$path${Platform.pathSeparator}$name');
+        if (await target.exists() && await target.length() > 0) continue;
+        final bundled = File(
+            '${source.path}${Platform.pathSeparator}$name');
+        if (!await bundled.exists()) {
+          throw StateError('FlClash Geo database missing: $name');
+        }
+        final temp = File('${target.path}.tmp');
+        await bundled.copy(temp.path);
+        if (await temp.length() == 0) {
+          throw StateError('Empty FlClash Geo database: $name');
+        }
+        await temp.rename(target.path);
+      }
+    }
     if (!await api.initialize(path)) {
       throw StateError('FlClash Go core rejected initialization');
     }
