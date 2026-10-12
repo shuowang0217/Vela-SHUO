@@ -37,6 +37,18 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
           ? widget.subscription as VelaFlClashSubscriptionController : null;
 
   Map<String, dynamic>? get _subscriptionUsage {
+    // FlClash Profile.update() reads subscription-userinfo from the final
+    // subscription HTTP response. Most paid subscriptions are a root profile,
+    // NOT a Mihomo proxy-provider. Prefer that authoritative metadata.
+    final nativeUsage = _native?.backend.subscriptionUsage;
+    if (nativeUsage != null) {
+      return {
+        'upload': nativeUsage.upload,
+        'download': nativeUsage.download,
+        'total': nativeUsage.total,
+        if (nativeUsage.expire != null) 'expire': nativeUsage.expire,
+      };
+    }
     final values = _native?.backend.providerSnapshots ?? const [];
     // Show a quota only when FlClash returned an authoritative upload,
     // download and total for an actual subscription provider.
