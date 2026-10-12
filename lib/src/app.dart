@@ -181,10 +181,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         subscription!.addListener(syncRealGlobe);
         connection!.addListener(syncRealGlobe);
         widget.windowExitGuard?.shutdownConnection = connection!.shutdown;
-        // Original Vela Smart controls: measurements now run INSIDE the
-        // FlClash Go core, not through Vela's isolated Mihomo processes.
-        final nativeProbe = runtime is VelaFlClashCoreController
-            ? FlClashGoNodeProbe(runtime.backend) : null;
+      }
+      // Android uses the same FlClash Go IPC and measurement algorithms as
+      // Windows. Its Android VpnService does not have a WinINet coordinator.
+      final nativeProbe = runtime is VelaFlClashCoreController
+          ? FlClashGoNodeProbe(runtime.backend) : null;
+      if (nativeProbe != null || connection != null) {
         final legacyProbe = nativeProbe == null
             ? VelaIsolatedNodeProbe(
                 coreBinary: widget.core!.benchmarkCorePath ?? '')
@@ -194,7 +196,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         final VelaFullNodeProbe fullProbe = nativeProbe ?? legacyProbe!;
         smart = VelaSmartController(
           subscription: subscription!, core: widget.core!,
-          connection: connection!, probe: latencyProbe,
+          connection: connection,
+          sessionActive: Platform.isAndroid
+              ? () => androidVpn?.active == true : null,
+          sessionBusy: Platform.isAndroid
+              ? () => androidVpn?.busy == true : null,
+          probe: latencyProbe,
           downloadProbe: downloadProbe, fullProbe: fullProbe,
         );
       }
@@ -1024,22 +1031,11 @@ class _SmartPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (Platform.isAndroid) {
-      return _ScreenPadding(child: ListView(children: [
-        _ScreenHeading('智能优选', 'Android VPN Beta · 线路测速待接入'),
-        const SizedBox(height: 18),
-        const Text('Android Mihomo VPN · Beta'),
-        const SizedBox(height: 20),
-        _GlassCard(child: Text(
-          'Android VpnService 和 Mihomo 原生运行层已接入。'
-          '本页不会进行虚假的延迟测速、速度测试或自动节点切换。',
-          style: TextStyle(color: _muted, height: 1.55),
-        )),
-      ]));
-    }
     if (smart != null && subscription?.nodes.isNotEmpty == true) {
       return _ScreenPadding(child: ListView(children: [
-        _ScreenHeading('智能优选', '真实 HTTPS 测速 · 稳定优先'),
+        _ScreenHeading('智能优选', Platform.isAndroid
+            ? 'FlClash 原生测速 · VPN 连接保护'
+            : '真实 HTTPS 测速 · 稳定优先'),
         SizedBox(height: 18),
         _RealTag(),
         SizedBox(height: 22),
