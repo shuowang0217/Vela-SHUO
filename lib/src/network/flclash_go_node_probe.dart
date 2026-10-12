@@ -18,9 +18,10 @@ class FlClashGoNodeProbe
         [for (final node in nodes) node.name]);
     return {
       for (final node in nodes)
-        node.name: result[node.name] case final int ms when ms > 0
+        node.name: (result[node.name] ?? 0) > 0
             ? VelaLatencySample(
-                ok: true, elapsed: Duration(milliseconds: ms))
+                ok: true,
+                elapsed: Duration(milliseconds: result[node.name]!))
             : const VelaLatencySample(ok: false),
     };
   }
