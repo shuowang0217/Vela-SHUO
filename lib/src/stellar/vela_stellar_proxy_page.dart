@@ -8,6 +8,7 @@ import '../home/globe.dart';
 import '../network/vela_flclash_subscription_adapter.dart';
 import '../smart/vela_smart_controller.dart';
 import '../subscription/vela_subscription_controller.dart';
+import '../subscription/vela_subscription_parser.dart';
 import '../traffic/vela_traffic_monitor.dart';
 import '../theme/vela_palettes.dart';
 import 'stellar_design.dart';
