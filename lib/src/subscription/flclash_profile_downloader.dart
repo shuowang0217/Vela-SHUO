@@ -8,11 +8,60 @@ import 'vela_subscription_controller.dart';
 import 'vela_subscription_parser.dart';
 import 'vela_windows_proxy_detector.dart';
 
+/// Parsed from the response header that FlClash Profile.update() reads.
+/// These are bytes and a Unix expiry time, NEVER the traffic of the device.
+class FlClashSubscriptionUsage {
+  const FlClashSubscriptionUsage({
+    required this.upload, required this.download,
+    required this.total, this.expire,
+  });
+  final int upload;
+  final int download;
+  final int total;
+  final int? expire;
+
+  int get used => upload + download;
+  double get fraction => (used / total).clamp(0.0, 1.0).toDouble();
+
+  /// FlClash receives "subscription-userinfo: upload=...; download=...;
+  /// total=...; expire=..." from the subscription HTTP response.
+  /// Reject malformed or incomplete values instead of showing false zeroes.
+  static FlClashSubscriptionUsage? parse(String? header) {
+    if (header == null || header.length > 2048) return null;
+    final fields = <String, int>{};
+    for (final segment in header.split(';')) {
+      final pair = segment.trim().split('=');
+      if (pair.length != 2) continue;
+      final key = pair[0].trim().toLowerCase();
+      if (!const {'upload', 'download', 'total', 'expire'}.contains(key)) {
+        continue;
+      }
+      final value = int.tryParse(pair[1].trim());
+      if (value != null && value >= 0) fields[key] = value;
+    }
+    final up = fields['upload'], down = fields['download'],
+        total = fields['total'];
+    if (up == null || down == null || total == null || total <= 0) {
+      return null;
+    }
+    return FlClashSubscriptionUsage(upload: up, download: down,
+        total: total, expire: fields['expire']);
+  }
+}
+
+class FlClashProfileDownload {
+  const FlClashProfileDownload(this.content, this.usage);
+  final String content;
+  final FlClashSubscriptionUsage? usage;
+}
+
 class FlClashProfileResponse {
-  const FlClashProfileResponse(this.statusCode, this.body, {this.redirect});
+  const FlClashProfileResponse(this.statusCode, this.body,
+      {this.redirect, this.subscriptionUserInfo});
   final int statusCode;
   final Uint8List body;
   final String? redirect;
+  final String? subscriptionUserInfo;
 }
 typedef FlClashProfileRequest = Future<FlClashProfileResponse> Function(
     Uri uri, String route);
@@ -99,14 +148,21 @@ class FlClashProfileDownloader implements VelaSubscriptionFetcher {
           headers: {'Accept': '*/*'}));
       return FlClashProfileResponse(response.statusCode ?? 0,
           response.data ?? Uint8List(0),
-          redirect: response.headers.value(HttpHeaders.locationHeader));
+          redirect: response.headers.value(HttpHeaders.locationHeader),
+          subscriptionUserInfo:
+              response.headers.value('subscription-userinfo'));
     } finally {
       dio.close(force: true);
     }
   }
 
   @override
-  Future<String> download(String source) async {
+  Future<String> download(String source) async =>
+      (await downloadWithMetadata(source)).content;
+
+  /// FlClash-style profile acquisition: return the exact Mihomo config
+  /// bytes AND the subscription-userinfo metadata of the FINAL HTTP 200.
+  Future<FlClashProfileDownload> downloadWithMetadata(String source) async {
     final start = Uri.tryParse(source.trim());
     if (start == null || !_validTarget(start)) {
       throw const FormatException('仅支持公网域名的 HTTPS 订阅链接');
@@ -139,7 +195,10 @@ class FlClashProfileDownloader implements VelaSubscriptionFetcher {
               response.body.length > VelaSubscriptionParser.maxBytes) {
             throw const FormatException('订阅为空或大小超过允许限制');
           }
-          return utf8.decode(response.body);
+          return FlClashProfileDownload(
+            utf8.decode(response.body),
+            FlClashSubscriptionUsage.parse(response.subscriptionUserInfo),
+          );
         }
         if (seen.length > 6) throw const FormatException('订阅跳转次数过多');
       } on DioException {
