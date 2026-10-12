@@ -380,6 +380,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     final node = sub.nodes[index];
     final picked = sub.selectedIndex == index;
     final health = widget.smart?.resultAt(index);
+    final download = widget.smart?.downloadAt(index);
     final delay = health?.lastMs;
     final latencyError = sub is VelaFlClashSubscriptionController
         ? sub.backend.delayFailureFor(node.name) : null;
@@ -432,6 +433,16 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                   Icon(Icons.check_circle, color: t.accent, size: 16),
                 ],
               ]),
+              if (download != null) ...[
+                const SizedBox(height: 5),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: StellarLabel(download.ok &&
+                          download.megabytesPerSecond != null
+                      ? '↓ ${download.megabytesPerSecond!.toStringAsFixed(2)} MB/s'
+                      : '下载失败'),
+                ),
+              ],
             ],
           ),
         ),
@@ -481,6 +492,19 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
         const SizedBox(height: 10),
         LinearProgressIndicator(value: progress),
       ],
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(child: StellarLabel(
+          smart?.downloadStatus ?? '选中节点后，可单独测试 HTTPS 下载速度')),
+        const SizedBox(width: 8),
+        OutlinedButton.icon(
+          key: const ValueKey('stellar_download_test'),
+          onPressed: smart?.canTestSelectedDownload == true
+              ? () => smart!.testSelectedDownload() : null,
+          icon: const Icon(Icons.download_rounded, size: 17),
+          label: Text(smart?.downloading == true ? '测速中' : '下载测速'),
+        ),
+      ]),
     ]));
   }
 
