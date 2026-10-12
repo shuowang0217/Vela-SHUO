@@ -65,8 +65,18 @@ def attach() -> None:
 android {
     ndkVersion = "27.3.13750724"
     defaultConfig {
+        // Flutter 3.35+ prepopulates armeabi-v7a, arm64-v8a and x86_64
+        // BEFORE app/build.gradle.kts is evaluated. Adding only arm64
+        // would keep 32-bit ABIs and break libclash.h linkage.
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            abiFilters.clear()
+            abiFilters.add("arm64-v8a")
+        }
+        // Only compile JNI for the ABI with a Go library and header.
+        externalNativeBuild {
+            cmake {
+                abiFilters("arm64-v8a")
+            }
         }
     }
     externalNativeBuild {
