@@ -6,6 +6,7 @@ import '../core/vela_core_controller.dart';
 import '../android/vela_android_vpn.dart';
 import '../theme/vela_palettes.dart';
 import 'vela_subscription_controller.dart';
+import '../network/vela_flclash_subscription_adapter.dart';
 import 'vela_node_filter_panel.dart';
 
 /// Subscription credentials never enter a diagnostic log or persisted field.
@@ -225,6 +226,29 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               Text('仅在本次启动期间保留上次成功导入的 HTTPS 地址；'
                   '不写入本地存档、不自动更新，也不会自动启动代理或 VPN。',
                 style: TextStyle(color: colors.muted, fontSize: 11)),
+            ],
+            // Native FlClash proxy-providers are separate from downloading
+            // the outer subscription URL. Refreshes run in the Go backend
+            // and retain the selected node / favorites by stable name.
+            if (subscription is VelaFlClashSubscriptionController &&
+                subscription.remoteProviderCount > 0) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                key: const ValueKey('flclash_update_providers'),
+                onPressed: busy || !subscription.canRefreshProviders
+                    ? null : () async {
+                  final ok = await subscription.refreshNativeProviders();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(ok
+                        ? 'FlClash 已更新远程节点提供者，保留仍存在的选择和收藏'
+                        : subscription.error ?? '节点提供者更新失败'),
+                  ));
+                },
+                icon: const Icon(Icons.sync_rounded, size: 19),
+                label: Text('更新 FlClash 远程节点提供者 '
+                    '(${subscription.remoteProviderCount})'),
+              ),
             ],
             if (subscription.error != null) Padding(
               padding: const EdgeInsets.only(top: 10),
