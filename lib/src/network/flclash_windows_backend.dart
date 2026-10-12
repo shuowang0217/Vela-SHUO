@@ -28,6 +28,7 @@ class FlClashWindowsBackend {
   String? lastImportedSource;
   List<VelaSubscriptionNode> nodes = const [];
   List<String> groups = const [];
+  Map<String, List<String>> groupMembers = const {};
   String? activeName;
   String? activeGroup;
   // Provider downloads/updates belong to the upstream FlClash Go runtime.
@@ -114,6 +115,7 @@ class FlClashWindowsBackend {
     lastImportedSource = raw;
     nodes = List.unmodifiable(importedNodes);
     groups = List.unmodifiable(groupNames);
+    groupMembers = _readGroupMembers(proxies, groupNames);
     activeGroup = groupName;
     activeName = null;
     internetVerified = false;
@@ -177,6 +179,16 @@ class FlClashWindowsBackend {
     return found;
   }
 
+  Map<String, List<String>> _readGroupMembers(
+      Map proxies, List<String> groupNames) {
+    return Map.unmodifiable({
+      for (final name in groupNames)
+        if (proxies[name] is Map && (proxies[name] as Map)['all'] is List)
+          name: List<String>.unmodifiable(
+              ((proxies[name] as Map)['all'] as List).whereType<String>()),
+    });
+  }
+
   /// Reads FlClash's native provider registry; only HTTP providers can be
   /// explicitly updated by the network client (file providers remain local).
   Future<List<String>> loadRemoteProviders() async {
@@ -222,6 +234,8 @@ class FlClashWindowsBackend {
     }
     nodes = List.unmodifiable(updated);
     groups = List.unmodifiable(all.whereType<String>());
+    groupMembers = _readGroupMembers(
+        proxies, all.whereType<String>().toList());
     if (activeName != null && !updated.any((n) => n.name == activeName)) {
       activeName = null;
     }
