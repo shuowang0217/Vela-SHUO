@@ -36,6 +36,10 @@ class FlClashWindowsBackend {
   List<String> remoteProviderNames = const [];
   int providerCount = 0;
   List<Map<String, dynamic>> providerSnapshots = const [];
+  // Only coarse failure categories are exposed; never store destination
+  // hostnames, private subscription details or underlying proxy credentials.
+  final Map<String, String> _delayErrors = {};
+  String? delayFailureFor(String name) => _delayErrors[name];
   // Original FlClash Profile.update() reads subscription-userinfo from the
   // subscription HTTP response, not from Mihomo proxy-providers.
   FlClashSubscriptionUsage? subscriptionUsage;
@@ -409,9 +413,14 @@ class FlClashWindowsBackend {
   }
 
   Future<int?> delay(String name) async {
-    // The pinned FlClash constant uses an 8s URLTest guard, not Vela's
-    // former 5s value. Retry a second well-known 204 service using the same
-    // native URLTest method when the first endpoint is locally blocked.
+    _delayErrors.remove(name);
+    if (!imported || !nodes.any((node) => node.name == name)) {
+      _delayErrors[name] = '节点不在当前 FlClash 配置中';
+      return null;
+    }
+
+    // Stage 1: FlClash's original asyncTestDelay / Mihomo URLTest. The
+    // native core handles TLS, DNS, proxy credentials and routing.
     for (final url in const [
       'https://www.gstatic.com/generate_204',
       'https://cp.cloudflare.com/generate_204',
@@ -419,11 +428,73 @@ class FlClashWindowsBackend {
       try {
         final ms = await api.testDelay(name, url, timeoutMs: 8000);
         if (ms != null && ms > 0) return ms;
+      } on FlClashCoreFailure catch (error) {
+        if (error.code == 'not_initialized' ||
+            error.code == 'not_implemented') {
+          _delayErrors[name] = 'FlClash 测速接口不可用';
+          return null;
+        }
       } catch (_) {
-        // A single timing endpoint failure must not label the node dead.
+        // Continue to the second native endpoint before reporting failure.
       }
     }
+
+    // Stage 2: original FlClash Go probe() through the SPECIFIED outbound.
+    // This is a separate native HTTP request path and returns response.delay,
+    // not fabricated Dart timing. Some networks reject Mihomo URLTest's
+    // connection pattern while the same node successfully handles HTTP.
+    for (final url in const [
+      'https://cp.cloudflare.com/generate_204',
+      'https://www.gstatic.com/generate_204',
+      'http://www.gstatic.com/generate_204',
+    ]) {
+      try {
+        final reply = await api.probe(url, name);
+        if (reply is! Map) {
+          _delayErrors[name] = 'FlClash 返回的测速数据为空';
+          continue;
+        }
+        final error = reply['error'];
+        if (error is String && error.isNotEmpty) {
+          _delayErrors[name] = _safeProbeFailure(error);
+          continue;
+        }
+        final status = reply['status-code'];
+        final ms = reply['delay'];
+        // A 204 endpoint should return exactly 204; accepting arbitrary 200
+        // would accidentally rate captive portals as successful nodes.
+        if (status == 204 && ms is num && ms >= 0 &&
+            ms.toDouble().isFinite) {
+          _delayErrors.remove(name);
+          return ms.toInt() == 0 ? 1 : ms.toInt();
+        }
+        _delayErrors[name] = '测速服务未返回预期的 204 状态';
+      } on TimeoutException {
+        _delayErrors[name] = '测速超时';
+      } on FlClashCoreFailure catch (error) {
+        _delayErrors[name] = error.code == 'not_implemented'
+            ? 'FlClash 测速接口不可用'
+            : 'FlClash 核心拒绝测速请求';
+      } catch (_) {
+        _delayErrors[name] = '网络探测未能完成';
+      }
+    }
+    _delayErrors.putIfAbsent(name, () => '代理节点未响应');
     return null;
+  }
+
+  String _safeProbeFailure(String kind) {
+    // Upstream probeErrorKind() returns stable reason categories.
+    // Never show its raw message: network errors may contain addresses.
+    return switch (kind.toLowerCase()) {
+      'timeout' => '节点响应超时',
+      'dns' => 'DNS 解析失败',
+      'tls' => 'TLS 握手失败',
+      'proxy' => '代理连接失败',
+      'network' => '网络连接失败',
+      'cancelled' => '测速已取消',
+      _ => 'FlClash 节点探测失败',
+    };
   }
 
   Future<(int, int)?> traffic() async {
