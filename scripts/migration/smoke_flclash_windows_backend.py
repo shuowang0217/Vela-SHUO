@@ -9,14 +9,26 @@ import subprocess
 import sys
 import tempfile
 import threading
+from collections import deque
 
 binary = Path(sys.argv[1]).resolve()
 if not binary.is_file():
     raise SystemExit("FlClash Go Core executable missing")
 data = queue.Queue()
+diagnostics = deque(maxlen=80)
 with tempfile.TemporaryDirectory(prefix="vela-flclash-core-") as home:
     proc = subprocess.Popen([str(binary), "--vela-stdio"], stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    def capture_diagnostics():
+        # CI uses a synthetic example profile, never a customer's subscription.
+        # Keep only a bounded redacted tail and print it ONLY upon failure.
+        for raw in iter(proc.stderr.readline, b""):
+            line = raw.decode("utf-8", errors="replace").strip()
+            line = line.replace("abc123", "[TEST_SECRET]")
+            line = line.replace("proxy.example.test", "[TEST_HOST]")
+            diagnostics.append(line)
+    threading.Thread(target=capture_diagnostics, daemon=True).start()
 
     def read_messages():
         try:
@@ -87,6 +99,12 @@ rules:
         })["message"] == ""
         assert call("stopListener") is True
         print("PASS: FlClash GO config parser, selector, nodes and RPC IPC")
+    except Exception:
+        print("FlClash Go exited=%s" % proc.poll(), file=sys.stderr)
+        print("FlClash synthetic profile diagnostic tail:", file=sys.stderr)
+        for line in list(diagnostics)[-50:]:
+            print(line[:500], file=sys.stderr)
+        raise
     finally:
         proc.terminate()
         try:
