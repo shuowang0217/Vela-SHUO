@@ -17,6 +17,13 @@ abstract class VelaNodeLatencyProbe {
   Future<VelaLatencySample> measure(VelaSubscriptionNode node);
 }
 
+/// Native batch probes can measure a whole subscription in one FlClash core
+/// invocation, avoiding per-node RPC saturation and UI-side timeouts.
+abstract class VelaBatchLatencyProbe {
+  Future<Map<String, VelaLatencySample>> measureBatch(
+      List<VelaSubscriptionNode> nodes);
+}
+
 abstract class VelaNodeDownloadProbe {
   Future<VelaDownloadSample> measureDownload(VelaSubscriptionNode node);
 }
