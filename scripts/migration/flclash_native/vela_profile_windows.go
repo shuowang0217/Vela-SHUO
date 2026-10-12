@@ -26,6 +26,7 @@ func init() {
     registerMethod(CoreMethod("velaLoadProfile"), withArguments(
         func(params *velaImportArgs, response MethodResponse) {
             safeGo(response, func() {
+                fmt.Fprintln(os.Stderr, "VELA_DIAG stage=profile-enter")
                 if !isInit.Load() {
                     response.failure("not_initialized", "FlClash core is not initialized", nil)
                     return
@@ -34,11 +35,13 @@ func init() {
                     response.failure("invalid_profile", "Profile is empty or exceeds 16 MB", nil)
                     return
                 }
+                fmt.Fprintln(os.Stderr, "VELA_DIAG stage=unmarshal-enter")
                 raw, err := config.UnmarshalRawConfig([]byte(params.Content))
                 if err != nil {
                     response.failure("invalid_profile", "Mihomo rejected the subscription YAML", nil)
                     return
                 }
+                fmt.Fprintln(os.Stderr, "VELA_DIAG stage=unmarshal-done")
                 // FlClash app settings, not remote subscriptions, own listeners
                 // and privilege-affecting settings. Do not let a provider turn
                 // the local client into an externally reachable proxy server.
@@ -61,11 +64,13 @@ func init() {
                 raw.IPTables.Enable = false
                 raw.TuicServer.Enable = false
                 raw.NTP.WriteToSystem = false
+                fmt.Fprintln(os.Stderr, "VELA_DIAG stage=serialize-enter")
                 serialized, err := json.Marshal(raw)
                 if err != nil {
                     response.failure("invalid_profile", "Mihomo could not encode profile", nil)
                     return
                 }
+                fmt.Fprintln(os.Stderr, "VELA_DIAG stage=serialize-done")
                 path := filepath.Join(constant.Path.HomeDir(), "config.yaml")
                 backup, readErr := os.ReadFile(path)
                 if readErr != nil && !os.IsNotExist(readErr) {
@@ -95,7 +100,9 @@ func init() {
                 }
                 // Use the EXACT same FlClash Go config application/validation,
                 // including Mihomo's proxy provider and rule-provider parser.
+                fmt.Fprintln(os.Stderr, "VELA_DIAG stage=apply-enter")
                 result := handleSetupConfig(defaultSetupParams())
+                fmt.Fprintln(os.Stderr, "VELA_DIAG stage=apply-return")
                 if result != "" {
                     if readErr == nil {
                         _ = os.WriteFile(path, backup, 0600)
@@ -107,7 +114,9 @@ func init() {
                     response.failure("profile_invalid", fmt.Sprintf("Mihomo config apply failed (size=%d)", len(params.Content)), nil)
                     return
                 }
+                fmt.Fprintln(os.Stderr, "VELA_DIAG stage=get-proxies-enter")
                 views := handleGetProxies()
+                fmt.Fprintln(os.Stderr, "VELA_DIAG stage=get-proxies-return")
                 if len(views.Proxies) == 0 {
                     response.failure("no_proxies", "FlClash core returned no proxies", nil)
                     return
