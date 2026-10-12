@@ -16,7 +16,7 @@ void main() {
       proxyLookup: () async => 'PROXY 127.0.0.1:7890',
       discoverProxy: () async => null,
       requestStep: (uri, route) async {
-        visits.add(uri.path + '|' + route);
+        visits.add('${uri.path}|$route');
         if (uri.path == '/subscribe') {
           return reply(302, '', redirect: '/config.yaml');
         }
