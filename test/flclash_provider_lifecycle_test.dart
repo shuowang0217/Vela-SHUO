@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/network/flclash_core_api.dart';
+import 'package:vela_shuo/src/subscription/flclash_profile_downloader.dart';
 import 'package:vela_shuo/src/network/flclash_windows_backend.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
@@ -114,6 +115,39 @@ proxy-providers:
 ''';
 
 void main() {
+  test('opt-in encrypted profile snapshot also restores FlClash server quota',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('vela_quota_snapshot_');
+    addTearDown(() => dir.delete(recursive: true));
+    final vault = _Vault();
+    final firstNative = _NativeFlClash();
+    final firstBackend = FlClashWindowsBackend(
+        homeDir: dir.path, transport: firstNative);
+    final firstCore = VelaFlClashCoreController(firstBackend);
+    final first = VelaFlClashSubscriptionController(
+        backend: firstBackend, core: firstCore, vault: vault);
+    expect(await first.importFromText(_profile), true);
+    firstBackend.subscriptionUsage = const FlClashSubscriptionUsage(
+      upload: 300, download: 700, total: 10000, expire: 2000000000,
+    );
+    expect(await first.saveOnDevice(), true);
+    expect(jsonDecode(vault.payload!)['subscriptionUsage']['total'], 10000);
+    first.dispose();
+    firstCore.dispose();
+
+    final nextBackend = FlClashWindowsBackend(
+        homeDir: dir.path, transport: _NativeFlClash());
+    final nextCore = VelaFlClashCoreController(nextBackend);
+    final restored = VelaFlClashSubscriptionController(
+        backend: nextBackend, core: nextCore, vault: vault);
+    expect(await restored.restoreSaved(), true);
+    expect(nextBackend.subscriptionUsage?.used, 1000);
+    expect(nextBackend.subscriptionUsage?.total, 10000);
+    expect(nextBackend.subscriptionUsage?.expire, 2000000000);
+    restored.dispose();
+    nextCore.dispose();
+  });
+
   test('native HTTP provider refresh preserves selected and starred node by name',
       () async {
     final dir = await Directory.systemTemp.createTemp('vela_provider_refresh_');
