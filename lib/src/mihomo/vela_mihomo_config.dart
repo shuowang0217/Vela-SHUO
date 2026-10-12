@@ -46,7 +46,11 @@ class VelaMihomoConfigBuilder {
     final entries = <VelaMihomoEntry>[];
     final used = <String>{VelaMihomoConfiguration.group, 'DIRECT'};
     for (var i = 0; i < nodes.length; i++) {
-      final proxy = _translate(nodes[i].outbound);
+      // FlClash/Mihomo owns Clash protocol interpretation. Never round-trip
+      // its original node through our legacy sing-box UI adapter.
+      final proxy = nodes[i].clashProxy == null
+          ? _translate(nodes[i].outbound)
+          : Map<String, dynamic>.from(nodes[i].clashProxy!);
       if (proxy == null) { continue; }
       var name = nodes[i].name.trim();
       if (name.isEmpty || name.length > 120) { continue; }
