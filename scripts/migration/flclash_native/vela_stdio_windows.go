@@ -3,16 +3,30 @@
 package main
 
 import (
+    "io"
     "os"
     "time"
 )
 
-// Vela is the graphical host; this transport only carries the ORIGINAL
-// FlClash CoreMethod JSON frames, not a second network implementation.
-// The existing FlClash server.go handles framing, concurrency and RPC dispatch.
-type velaStdioConn struct{}
+// Go's Mihomo configuration parser and dependencies can print to os.Stdout.
+// A framed JSON RPC stream MUST be isolated from diagnostics; even one byte
+// of a console log corrupts the FlClash IPC frame protocol.
+//
+// Capture the original stdout before rebinding os.Stdout to stderr. Only the
+// exact original FlClash server.go writeFrame output uses this private pipe.
+type velaStdioConn struct {
+    rpcOutput io.Writer
+}
+
+func velaServeStdio() {
+    protocolOutput := os.Stdout
+    os.Stdout = os.Stderr
+    serve(&velaStdioConn{rpcOutput: protocolOutput})
+}
 
 func (*velaStdioConn) Read(p []byte) (int, error) { return os.Stdin.Read(p) }
-func (*velaStdioConn) Write(p []byte) (int, error) { return os.Stdout.Write(p) }
+func (conn *velaStdioConn) Write(p []byte) (int, error) {
+    return conn.rpcOutput.Write(p)
+}
 func (*velaStdioConn) Close() error { return nil }
 func (*velaStdioConn) SetWriteDeadline(_ time.Time) error { return nil }
