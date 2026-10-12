@@ -81,7 +81,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       if (loaded.isEmpty) {
         throw StateError('FlClash returned no nodes');
       }
-      _raw = source;
+      _raw = source ?? backend.lastImportedSource;
       _sessionUrl = sourceUrl;
       _selection = null;
       _updatedAt = DateTime.now();
