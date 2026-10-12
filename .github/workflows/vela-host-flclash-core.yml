@@ -81,6 +81,12 @@ jobs:
           $env:CGO_ENABLED = '1'
           go build -trimpath -ldflags="-s -w" -o "$env:RUNNER_TEMP/mihomo.exe" .
           if ($LASTEXITCODE -ne 0) { throw "Cannot compile pinned Mihomo engine" }
+      - name: Install native FlClash RPC stdio bridge for Vela Windows host
+        shell: pwsh
+        working-directory: vela
+        run: |
+          python scripts/migration/attach_flclash_windows_stdio.py
+          if ($LASTEXITCODE -ne 0) { throw "FlClash backend bridge mismatch" }
       - name: Compile full FlClash Go business backend (profiles, proxies, DNS, delay RPC)
         shell: pwsh
         working-directory: flclash/core
