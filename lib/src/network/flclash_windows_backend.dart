@@ -141,13 +141,10 @@ class FlClashWindowsBackend {
       'DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE',
       ...groupNames,
     };
-    final originals = <String, Map<String, dynamic>>{
-      // Keep original metadata only when the native provider registry is
-      // being refreshed; a DIFFERENT profile must not inherit old secrets.
-      if (rawProxies == null)
-        for (final node in nodes)
-          if (node.clashProxy != null) node.name: node.clashProxy!,
-    };
+    // Imported raw entries are valid only for the import where Go parsed
+    // them. Provider.Update() may replace a proxy with the same name but
+    // different credentials; never retain its old raw outbound definition.
+    final originals = <String, Map<String, dynamic>>{};
     if (rawProxies is List) {
       for (final entry in rawProxies) {
         if (entry is Map && entry['name'] is String) {
