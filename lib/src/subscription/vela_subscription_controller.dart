@@ -606,6 +606,31 @@ class VelaSubscriptionController extends ChangeNotifier {
   }
 
 
+  /// Android: commit only a Go Core-confirmed and HTTPS-verified live switch.
+  /// The original Vela list, favorites and visual state remain unchanged.
+  bool confirmVpnSelection(int index) {
+    if (_disposed || index < 0 || index >= nodes.length ||
+        _preparedProfile?.nameFor(index) == null) {
+      return false;
+    }
+    try {
+      final random = Random.secure();
+      final secret = List.generate(32, (_) =>
+          random.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
+      final prepared = const VelaMihomoConfigBuilder().build(
+        nodes, selectedIndex: index, secret: secret,
+        proxyPort: 20808, apiPort: 20819,
+      );
+      _selected = index;
+      _preparedProfile = prepared; // next VPN start retains the selected node
+      _error = null;
+      _notify();
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
+
   /// The coordinator calls this only after the live API confirms the
   /// selected node and the remote HTTPS probe passes.
   bool confirmRunningSelection(int index) {
