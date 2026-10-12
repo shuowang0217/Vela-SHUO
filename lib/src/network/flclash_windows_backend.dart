@@ -412,6 +412,52 @@ class FlClashWindowsBackend {
     return null;
   }
 
+  /// One FlClash/Mihomo native batch request, instead of 42x individually
+  /// queued Flutter RPCs. A transport failure is propagated to the UI as a
+  /// batch failure, NOT misreported as 42 unreachable proxy nodes.
+  Future<Map<String, int?>> testLatencies(List<String> names) async {
+    if (!ready || !imported) {
+      throw StateError('FlClash 核心尚未载入配置');
+    }
+    if (names.isEmpty || names.length > 512) {
+      throw ArgumentError.value(names.length, 'names', 'Invalid batch size');
+    }
+    final result = await api.invoke('velaTestLatencies',
+        arguments: {'names': names},
+        timeout: const Duration(minutes: 4));
+    if (result is! List || result.length != names.length) {
+      throw const FlClashCoreFailure(
+          'invalid_response', 'Malformed native batch results');
+    }
+    final readings = <String, int?>{};
+    for (var i = 0; i < names.length; i++) {
+      final entry = result[i];
+      if (entry is! Map || entry['name'] != names[i] ||
+          entry['value'] is! num) {
+        throw const FlClashCoreFailure(
+            'invalid_response', 'Malformed native node delay');
+      }
+      final name = names[i];
+      final latency = (entry['value'] as num).toInt();
+      if (latency > 0 && latency <= 120000) {
+        readings[name] = latency;
+        _delayErrors.remove(name);
+      } else {
+        readings[name] = null;
+        final code = entry['reason'];
+        _delayErrors[name] = switch (code) {
+          'missing' => '节点未加载到 FlClash 核心',
+          'busy' => 'FlClash 测速队列繁忙',
+          'bad_status' => '测速地址响应异常',
+          'unreachable' => '节点暂时无法访问检测服务',
+          final String value => _safeProbeFailure(value),
+          _ => 'FlClash 节点测试失败',
+        };
+      }
+    }
+    return readings;
+  }
+
   Future<int?> delay(String name) async {
     _delayErrors.remove(name);
     if (!imported || !nodes.any((node) => node.name == name)) {
