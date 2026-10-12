@@ -176,6 +176,33 @@ class _GatedProbe implements VelaNodeLatencyProbe {
 }
 
 void main() {
+  test('proxy page latency-only test never measures download speed', () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 4);
+    final delay = _Probe();
+    final downloads = _BothProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link,
+      probe: delay, fullProbe: downloads,
+    );
+    try {
+      await smart.testAllLatencies();
+      expect(delay.measured, [0, 1, 2, 3]);
+      expect(downloads.names, isEmpty);
+      expect(smart.successful, 4);
+      expect(smart.failed, 0);
+      expect(smart.resultAt(0)?.lastMs, 200);
+      expect(smart.downloadAt(0), isNull);
+      expect(smart.status, contains('延迟测试完成'));
+    } finally {
+      smart.dispose();
+      link.dispose();
+      sub.dispose();
+      core.dispose();
+      proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
   test('batched HTTPS tests measure 8 then remaining 1, rank by actual times',
       () async {
     final (folder, core, sub, proxy, link) = await setup();
