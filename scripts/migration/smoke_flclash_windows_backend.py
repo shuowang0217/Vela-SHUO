@@ -135,6 +135,10 @@ rules:
         assert actual["proxies"]["GLOBAL"]["now"] == "Example SS", (
             "Mihomo did not route GLOBAL mode through the selected node")
         assert call("startListener") is True
+        # startListener returning true is not sufficient: prove the actual
+        # FlClash/Mihomo MixedPort is accepting local proxy connections.
+        with socket.create_connection(("127.0.0.1", 20808), timeout=5) as mixed:
+            assert mixed.getpeername()[1] == 20808
         assert call("stopListener") is True
         print("PASS: FlClash GO config parser, selector, nodes and RPC IPC")
     except Exception:
