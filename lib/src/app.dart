@@ -1071,18 +1071,20 @@ class _NodesPage extends StatelessWidget {
                 trailing: subscription!.selectedIndex == i
                     ? Icon(Icons.check_circle, color: _mint)
                     : Icon(Icons.chevron_right, color: _blue),
-                onTap: androidVpn?.active == true || connection?.busy == true ||
+                onTap: androidVpn?.busy == true || connection?.busy == true ||
                     (core?.isListening == true &&
                         connection?.connected != true) ? null : () async {
-                  final ok = connection?.connected == true
-                      ? await connection!.switchNode(i)
-                      : await subscription!.selectNode(i);
+                  final ok = androidVpn?.connected == true
+                      ? await androidVpn!.switchNode(subscription!, i)
+                      : connection?.connected == true
+                          ? await connection!.switchNode(i)
+                          : await subscription!.selectNode(i);
                   if (ok) {
                     smart?.manualSelection();
                     goHome();
                   } else if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(connection?.error ??
+                      content: Text(androidVpn?.error ?? connection?.error ??
                           subscription!.error ?? '节点操作失败'),
                     ));
                   }
