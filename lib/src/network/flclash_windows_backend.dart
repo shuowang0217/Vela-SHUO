@@ -142,8 +142,11 @@ class FlClashWindowsBackend {
       ...groupNames,
     };
     final originals = <String, Map<String, dynamic>>{
-      for (final node in nodes)
-        if (node.clashProxy != null) node.name: node.clashProxy!,
+      // Keep original metadata only when the native provider registry is
+      // being refreshed; a DIFFERENT profile must not inherit old secrets.
+      if (rawProxies == null)
+        for (final node in nodes)
+          if (node.clashProxy != null) node.name: node.clashProxy!,
     };
     if (rawProxies is List) {
       for (final entry in rawProxies) {
