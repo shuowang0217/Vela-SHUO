@@ -6,9 +6,24 @@ import 'flclash_windows_backend.dart';
 /// FlClash Go-backed measurements. The original Vela Smart page is unchanged;
 /// no separate Vela Mihomo process or proprietary protocol translator is used.
 class FlClashGoNodeProbe
-    implements VelaNodeLatencyProbe, VelaNodeDownloadProbe, VelaFullNodeProbe {
+    implements VelaNodeLatencyProbe, VelaBatchLatencyProbe,
+        VelaNodeDownloadProbe, VelaFullNodeProbe {
   const FlClashGoNodeProbe(this.backend);
   final FlClashWindowsBackend backend;
+
+  @override
+  Future<Map<String, VelaLatencySample>> measureBatch(
+      List<VelaSubscriptionNode> nodes) async {
+    final result = await backend.testLatencies(
+        [for (final node in nodes) node.name]);
+    return {
+      for (final node in nodes)
+        node.name: result[node.name] case final int ms when ms > 0
+            ? VelaLatencySample(
+                ok: true, elapsed: Duration(milliseconds: ms))
+            : const VelaLatencySample(ok: false),
+    };
+  }
 
   @override
   Future<VelaLatencySample> measure(VelaSubscriptionNode node) async {
