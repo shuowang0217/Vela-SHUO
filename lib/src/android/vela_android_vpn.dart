@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../subscription/vela_subscription_controller.dart';
 import '../network/flclash_core_api.dart';
+import '../network/vela_flclash_subscription_adapter.dart';
 
 enum VelaAndroidVpnPhase { disconnected, preparing, connecting, connected, error }
 
@@ -147,17 +148,20 @@ class VelaAndroidVpnController extends ChangeNotifier {
     final nextName = subscription.configuredNameFor(index);
     if (oldName == null || nextName == null) return false;
     final api = FlClashCoreApi(const FlClashAndroidTransport());
+    final group = subscription is VelaFlClashSubscriptionController
+        ? (subscription.backend.activeGroup ?? 'GLOBAL')
+        : 'VELA_SELECT';
     try {
-      await api.changeProxy('VELA_SELECT', nextName);
+      await api.changeProxy(group, nextName);
       if (await testConnectivity()) {
         return subscription.confirmVpnSelection(index);
       }
-      await api.changeProxy('VELA_SELECT', oldName);
+      await api.changeProxy(group, oldName);
       _error = '新节点联网验证失败，已恢复原节点';
       notifyListeners();
     } catch (_) {
       try {
-        await api.changeProxy('VELA_SELECT', oldName);
+        await api.changeProxy(group, oldName);
       } catch (_) {
         // Native backend may be gone; never claim rollback succeeded.
         _error = '节点切换和恢复失败，请安全断开 VPN 后重试';
