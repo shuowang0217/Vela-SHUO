@@ -197,6 +197,9 @@ jobs:
           export CFLAGS="-O3 -Werror"
           mkdir -p android/core/src/main/jniLibs/arm64-v8a
           mkdir -p android/core/src/main/cpp/includes/arm64-v8a
+          # Use exactly the SAME Mihomo-backed profile importer as Windows.
+          # Strip only the desktop build tag; Go keeps JNI transport intact.
+          tail -n +3 ../vela/scripts/migration/flclash_native/vela_profile_windows.go > core/vela_profile_android.go
           cd core
           go build -tags=with_gvisor -buildmode=c-shared -o ../android/core/src/main/jniLibs/arm64-v8a/libclash.so .
           cp ../android/core/src/main/jniLibs/arm64-v8a/libclash.h ../android/core/src/main/cpp/includes/arm64-v8a/libclash.h
