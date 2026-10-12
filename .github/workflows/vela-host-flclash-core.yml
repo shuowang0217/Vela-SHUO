@@ -81,6 +81,14 @@ jobs:
           $env:CGO_ENABLED = '1'
           go build -trimpath -ldflags="-s -w" -o "$env:RUNNER_TEMP/mihomo.exe" .
           if ($LASTEXITCODE -ne 0) { throw "Cannot compile pinned Mihomo engine" }
+      - name: Compile full FlClash Go business backend (profiles, proxies, DNS, delay RPC)
+        shell: pwsh
+        working-directory: flclash/core
+        run: |
+          $env:CGO_ENABLED = '0'
+          go build -tags=with_gvisor -trimpath -ldflags="-s -w" -o "$env:RUNNER_TEMP/FlClashCore.exe" .
+          if ($LASTEXITCODE -ne 0) { throw "Cannot compile FlClash Go control backend" }
+          if (-not (Test-Path "$env:RUNNER_TEMP/FlClashCore.exe")) { throw "Go backend missing" }
       - name: Build unmodified original Vela Flutter interface
         shell: pwsh
         working-directory: vela
@@ -102,6 +110,7 @@ jobs:
           $coreDir = Join-Path $release.FullName 'core'
           New-Item -Path $coreDir -ItemType Directory -Force | Out-Null
           Copy-Item "$env:RUNNER_TEMP/mihomo.exe" (Join-Path $coreDir 'mihomo.exe')
+          Copy-Item "$env:RUNNER_TEMP/FlClashCore.exe" (Join-Path $coreDir 'FlClashCore.exe')
           Copy-Item 'flclash/core/Clash.Meta/LICENSE' (Join-Path $coreDir 'LICENSE-mihomo.txt')
           Copy-Item 'flclash/LICENSE' (Join-Path $coreDir 'LICENSE-FlClash-GPL-3.0.txt')
           Rename-Item (Join-Path $release.FullName 'vela_shuo.exe') 'Vela-SHUO.exe'
