@@ -493,7 +493,12 @@ class VelaSmartController extends ChangeNotifier {
       indices = indices.take(50).toList();
     }
     final previousCursor = _cursor;
-    final workerCount = all ? (indices.length < 2 ? indices.length : 2) : 1;
+    // FlClash's native URLTest allows up to 16 concurrent tests.
+    // A 52-node latency-only pass should not wait for 26 serial batches.
+    // Keep the slower 1 MiB download benchmark capped at two workers.
+    final workerCount = latencyOnly
+        ? (indices.length < 12 ? indices.length : 12)
+        : all ? (indices.length < 2 ? indices.length : 2) : 1;
     var nextPosition = 0;
     _finished = 0;
     _total = indices.length;
