@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:proxy/proxy.dart' as flclash;
 
 class VelaProxySnapshot {
   const VelaProxySnapshot({required this.enabled, required this.server});
@@ -103,6 +104,38 @@ public static class VelaWinInet {
   }
 }
 
+/// The ACTUAL Windows proxy enable/disable is the original FlClash native
+/// plugin (plugins/proxy/windows/proxy_plugin.cpp), including VPN/RAS targets.
+/// Vela retains only its crash-safe snapshot journal so it can restore the
+/// exact previous user's settings on disconnect, rather than FlClash's
+/// unconditional stopProxy() leaving someone else's proxy disabled.
+class FlClashWindowsProxyBackend extends VelaRegistryProxyBackend {
+  const FlClashWindowsProxyBackend();
+
+  @override
+  Future<void> write(VelaProxySnapshot snapshot) async {
+    final plugin = flclash.Proxy();
+    if (snapshot.equals(VelaSystemProxyManager.managed)) {
+      if (!await plugin.startProxy(20808, const ['<local>'])) {
+        throw StateError('FlClash Windows native system proxy refused start');
+      }
+      return;
+    }
+    if (!await plugin.stopProxy()) {
+      throw StateError('FlClash Windows native system proxy refused stop');
+    }
+    // FlClash stopProxy sets DIRECT by design. Only this minimal restoration
+    // adapter reinstates the state that existed before Vela took ownership.
+    await super.write(snapshot);
+  }
+
+  @override
+  Future<void> refresh() async {
+    // FlClash's WinInet implementation already calls SETTINGS_CHANGED and
+    // REFRESH for every Windows/RAS connection.
+  }
+}
+
 /// Never overwrite settings subsequently changed by a user/other application.
 /// The on-disk restore journal is written BEFORE WinINet is modified.
 class VelaSystemProxyManager extends ChangeNotifier {
@@ -110,7 +143,9 @@ class VelaSystemProxyManager extends ChangeNotifier {
     VelaWindowsProxyBackend? backend,
     Directory? stateDirectory,
     bool? supported,
-  }) : _backend = backend ?? const VelaRegistryProxyBackend(),
+  }) : _backend = backend ?? (Platform.isWindows
+          ? const FlClashWindowsProxyBackend()
+          : const VelaRegistryProxyBackend()),
        _directory = stateDirectory ?? _defaultDirectory(),
        supported = supported ?? Platform.isWindows;
 
