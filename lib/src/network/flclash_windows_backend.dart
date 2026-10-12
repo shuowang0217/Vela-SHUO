@@ -408,8 +408,23 @@ class FlClashWindowsBackend {
     return null;
   }
 
-  Future<int?> delay(String name) =>
-      api.testDelay(name, 'https://www.gstatic.com/generate_204');
+  Future<int?> delay(String name) async {
+    // The pinned FlClash constant uses an 8s URLTest guard, not Vela's
+    // former 5s value. Retry a second well-known 204 service using the same
+    // native URLTest method when the first endpoint is locally blocked.
+    for (final url in const [
+      'https://www.gstatic.com/generate_204',
+      'https://cp.cloudflare.com/generate_204',
+    ]) {
+      try {
+        final ms = await api.testDelay(name, url, timeoutMs: 8000);
+        if (ms != null && ms > 0) return ms;
+      } catch (_) {
+        // A single timing endpoint failure must not label the node dead.
+      }
+    }
+    return null;
+  }
 
   Future<(int, int)?> traffic() async {
     if (!listenerStarted) return null;
