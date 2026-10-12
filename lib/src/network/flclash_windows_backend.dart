@@ -36,6 +36,9 @@ class FlClashWindowsBackend {
   List<String> remoteProviderNames = const [];
   int providerCount = 0;
   List<Map<String, dynamic>> providerSnapshots = const [];
+  // Original FlClash Profile.update() reads subscription-userinfo from the
+  // subscription HTTP response, not from Mihomo proxy-providers.
+  FlClashSubscriptionUsage? subscriptionUsage;
 
   Future<void> initialize() async {
     if (ready) return;
@@ -114,6 +117,8 @@ class FlClashWindowsBackend {
     }
     imported = true;
     lastImportedSource = raw;
+    // Local text/file imports have no authoritative subscription HTTP header.
+    subscriptionUsage = null;
     nodes = List.unmodifiable(importedNodes);
     groups = List.unmodifiable(groupNames);
     groupMembers = _readGroupMembers(proxies, groupNames);
@@ -252,9 +257,13 @@ class FlClashWindowsBackend {
     VelaSubscriptionDownloadMode mode = VelaSubscriptionDownloadMode.automatic,
     int? localHttpProxyPort,
   }) async {
-    final raw = await FlClashProfileDownloader(
-        mode: mode, localHttpProxyPort: localHttpProxyPort).download(url);
-    return importText(raw);
+    final downloaded = await FlClashProfileDownloader(
+        mode: mode, localHttpProxyPort: localHttpProxyPort)
+        .downloadWithMetadata(url);
+    final loaded = await importText(downloaded.content);
+    // Commit quota only AFTER Mihomo accepts the new profile.
+    subscriptionUsage = downloaded.usage;
+    return loaded;
   }
 
   Future<bool> selectNode(String name) async {
