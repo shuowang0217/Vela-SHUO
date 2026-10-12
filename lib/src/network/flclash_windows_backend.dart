@@ -66,11 +66,15 @@ class FlClashWindowsBackend {
       throw const FlClashCoreFailure('invalid_response', 'Malformed proxy list');
     }
     final groupNames = allGroups.whereType<String>().toList();
-    final groupName = groupNames.contains('VELA_SELECT')
-        ? 'VELA_SELECT'
-        : groupNames.contains('GLOBAL')
-            ? 'GLOBAL'
-            : groupNames.isEmpty ? null : groupNames.first;
+    // Vela's single selected-node action uses the built-in FlClash/Mihomo
+    // GLOBAL selector. Picking an arbitrary subscription group may leave
+    // MATCH,DIRECT or nested groups routing away from the selected node.
+    if (!groupNames.contains('GLOBAL') ||
+        !proxies.containsKey('GLOBAL')) {
+      throw const FlClashCoreFailure(
+          'no_global', 'Mihomo GLOBAL selector is missing');
+    }
+    const groupName = 'GLOBAL';
     final reserved = <String>{
       'DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE',
       ...groupNames,
@@ -133,6 +137,14 @@ class FlClashWindowsBackend {
     if (group == null) return false;
     try {
       await api.changeProxy(group, name);
+      // Do not confirm only because the RPC accepted the request. Read the
+      // actual selector state from FlClash's live Mihomo proxy registry.
+      final snapshot = await api.getProxies();
+      final all = snapshot['proxies'];
+      final selectedGroup = all is Map ? all[group] : null;
+      if (selectedGroup is! Map || selectedGroup['now'] != name) {
+        return false;
+      }
       activeName = name;
       internetVerified = false;
       return true;
@@ -163,12 +175,18 @@ class FlClashWindowsBackend {
   Future<bool> verifyInternet() async {
     if (!listenerStarted || activeName == null) return false;
     try {
+      // An explicit "proxy-name" bypasses Mihomo's routing rules. Probe
+      // through the actual inbound tunnel instead, then ensure its reported
+      // connection chain contains the selected exit node.
       final res = await api.probe(
-          'https://cp.cloudflare.com/generate_204', activeName!);
+          'https://cp.cloudflare.com/generate_204', '');
       if (res is! Map) return false;
+      final chains = res['chains'];
       internetVerified = (res['status-code'] == 204 ||
-          res['status-code'] == 200) && (res['error'] == null ||
-          res['error'] == '');
+          res['status-code'] == 200) &&
+          (res['error'] == null || res['error'] == '') &&
+          chains is List &&
+          chains.contains(activeName);
       return internetVerified;
     } catch (_) {
       internetVerified = false;
