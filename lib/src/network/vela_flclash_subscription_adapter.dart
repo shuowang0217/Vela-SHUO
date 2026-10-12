@@ -31,6 +31,20 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   bool _storageBusy = false;
   bool _closed = false;
   DateTime? _updatedAt;
+  String? _profileName;
+
+  /// User-owned display label; never sent to the Mihomo engine.
+  String? get profileName => _profileName;
+
+  void setProfileName(String? name) {
+    final clean = name?.trim();
+    final next = clean == null || clean.isEmpty
+        ? null : (clean.length > 64 ? clean.substring(0, 64) : clean);
+    if (_profileName == next) return;
+    _profileName = next;
+    _stored = false;
+    _emit();
+  }
   // Favorites are presentation state, keyed by stable native Mihomo names.
   // Provider ordering changes and profile refreshes cannot remap them.
   final Set<String> _favoriteNames = <String>{};
@@ -310,6 +324,11 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
                 ? quota['expire'] as int : null,
           );
         }
+        final label = obj['profileName'];
+        _profileName = label is String && label.trim().isNotEmpty
+            ? (label.trim().length > 64
+                ? label.trim().substring(0, 64) : label.trim())
+            : null;
         _favoriteNames.clear();
         final favorites = obj['favoriteNames'];
         if (favorites is List && favorites.length <= 4096) {
@@ -357,6 +376,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
         'v': 2,
         'raw': _raw,
         'selectedName': selected?.name,
+        if (_profileName != null) 'profileName': _profileName,
         'favoriteNames': _favoriteNames.toList()..sort(),
         if (quota != null) 'subscriptionUsage': {
           'upload': quota.upload,
