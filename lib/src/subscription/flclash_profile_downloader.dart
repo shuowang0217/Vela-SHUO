@@ -37,7 +37,9 @@ class FlClashProfileDownloader implements VelaSubscriptionFetcher {
 
   static bool _validTarget(Uri uri) {
     if (uri.scheme != 'https' || !uri.hasAuthority || uri.host.isEmpty ||
-        uri.userInfo.isNotEmpty) return false;
+        uri.userInfo.isNotEmpty) {
+      return false;
+    }
     final host = uri.host.toLowerCase();
     return host != 'localhost' && !host.endsWith('.localhost') &&
         !host.endsWith('.local') && InternetAddress.tryParse(host) == null;
@@ -130,7 +132,7 @@ class FlClashProfileDownloader implements VelaSubscriptionFetcher {
             continue;
           }
           if (response.statusCode != 200) {
-            lastError = '订阅服务器返回 HTTP ' + response.statusCode.toString();
+            lastError = '订阅服务器返回 HTTP ${response.statusCode}';
             break;
           }
           if (response.body.isEmpty ||
