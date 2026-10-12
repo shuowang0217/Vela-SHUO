@@ -11,6 +11,8 @@ import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/core/vela_window_exit_guard.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
+import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
+import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
 import 'package:vela_shuo/src/android/vela_android_vpn.dart';
 import 'package:vela_shuo/src/traffic/vela_traffic_monitor.dart';
 import 'package:vela_shuo/src/smart/vela_node_probe.dart';
@@ -160,8 +162,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       unawaited(androidVpn!.refresh());
     }
     if (widget.core != null) {
-      subscription = VelaSubscriptionController(
-          core: widget.core!, previewOnly: Platform.isAndroid);
+      final runtime = widget.core;
+      subscription = runtime is VelaFlClashCoreController
+          ? VelaFlClashSubscriptionController(
+              backend: runtime.backend, core: runtime)
+          : VelaSubscriptionController(
+              core: widget.core!, previewOnly: Platform.isAndroid);
       unawaited(subscription!.restoreSaved());
       if (Platform.isAndroid) {
         subscription!.addListener(syncRealGlobe);
