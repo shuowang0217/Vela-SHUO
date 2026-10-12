@@ -10,6 +10,46 @@ FlClashProfileResponse reply(int code, String text, {String? redirect}) =>
         redirect: redirect);
 
 void main() {
+  test('FlClash root subscription HTTP header supplies exact quota', () async {
+    final fetcher = FlClashProfileDownloader(
+      mode: VelaSubscriptionDownloadMode.direct,
+      requestStep: (uri, _) async {
+        if (uri.path == '/start') {
+          return reply(302, '', redirect: '/final');
+        }
+        // Only the final HTTP 200 may supply quota. Matches FlClash
+        // Profile.update() and never reads it from the Mihomo YAML body.
+        return FlClashProfileResponse(
+          200, Uint8List.fromList(utf8.encode('proxies: []')),
+          subscriptionUserInfo:
+              'upload=1073741824; download=5368709120; '
+              'total=107374182400; expire=2000000000',
+        );
+      },
+    );
+    final downloaded = await fetcher.downloadWithMetadata(
+        'https://example.com/start?token=secret');
+    expect(downloaded.content, 'proxies: []');
+    expect(downloaded.usage?.upload, 1073741824);
+    expect(downloaded.usage?.download, 5368709120);
+    expect(downloaded.usage?.used, 6442450944);
+    expect(downloaded.usage?.total, 107374182400);
+    expect(downloaded.usage?.expire, 2000000000);
+    expect(downloaded.usage?.fraction, closeTo(.06, .00001));
+  });
+
+  test('quota parser rejects absent and corrupted server metadata', () {
+    expect(FlClashSubscriptionUsage.parse(null), isNull);
+    expect(FlClashSubscriptionUsage.parse('download=2; total=200'), isNull);
+    expect(FlClashSubscriptionUsage.parse(
+        'upload=-1;download=1;total=100'), isNull);
+    expect(FlClashSubscriptionUsage.parse(
+        'upload=1;download=2;total=0'), isNull);
+    expect(FlClashSubscriptionUsage.parse(
+        'Upload=1024; Download=1024; TOTAL=4096')?.fraction, .5);
+  });
+
+
   test('Dio-compatible profile import follows HTTPS redirect while preserving proxy route', () async {
     final visits = <String>[];
     final fetcher = FlClashProfileDownloader(
