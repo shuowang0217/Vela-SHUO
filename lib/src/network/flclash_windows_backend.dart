@@ -243,11 +243,49 @@ class FlClashWindowsBackend {
           (res['error'] == null || res['error'] == '') &&
           chains is List &&
           chains.contains(activeName);
+      if (!internetVerified) return false;
+      // A Go-internal probe alone does NOT prove the browser-facing
+      // Windows MixedPort forwards HTTPS. Exercise the actual HTTP CONNECT
+      // inbound through FlClash before enabling WinINet system proxy.
+      if (Platform.isWindows && transport is FlClashWindowsTransport) {
+        internetVerified = await _verifyMixedPortHttps();
+      }
       return internetVerified;
     } catch (_) {
       internetVerified = false;
       return false;
     }
+  }
+
+  Future<bool> _verifyMixedPortHttps() async {
+    // This request uses the exact same 127.0.0.1 MixedPort as WinINet.
+    // HttpClient is only a host-side validation transport: Mihomo still
+    // performs every DNS, TLS tunnel and outbound routing decision.
+    for (final address in const [
+      'https://www.gstatic.com/generate_204',
+      'https://cp.cloudflare.com/generate_204',
+    ]) {
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 5)
+        ..findProxy = (_) => 'PROXY 127.0.0.1:20808';
+      try {
+        final request = await client.getUrl(Uri.parse(address))
+            .timeout(const Duration(seconds: 8));
+        request.followRedirects = false;
+        final response = await request.close()
+            .timeout(const Duration(seconds: 9));
+        final valid = response.statusCode == 204 ||
+            response.statusCode == 200;
+        await response.drain<void>()
+            .timeout(const Duration(seconds: 3));
+        if (valid) return true;
+      } catch (_) {
+        // One test endpoint may be blocked while the node is functional.
+      } finally {
+        client.close(force: true);
+      }
+    }
+    return false;
   }
 
   Future<VelaSubscriptionNode?> refreshNode(String name) async {
