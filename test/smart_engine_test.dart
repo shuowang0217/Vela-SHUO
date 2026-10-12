@@ -203,6 +203,32 @@ void main() {
     }
   });
 
+  test('FlClash latency sweep respects native concurrency and skips downloads',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 25);
+    final probe = _LimitedProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link, probe: probe,
+    );
+    try {
+      await smart.testAllLatencies();
+      expect(smart.scanned, 25);
+      expect(probe.visited.toSet().length, 25);
+      expect(probe.maximum, greaterThan(2));
+      expect(probe.maximum, lessThanOrEqualTo(12));
+      expect(smart.successful, 21); // 0,7,14,21 failed
+      expect(smart.failed, 4);
+      expect(smart.downloadAt(1), isNull);
+    } finally {
+      smart.dispose();
+      link.dispose();
+      sub.dispose();
+      core.dispose();
+      proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
   test('batched HTTPS tests measure 8 then remaining 1, rank by actual times',
       () async {
     final (folder, core, sub, proxy, link) = await setup();
