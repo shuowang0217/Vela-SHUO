@@ -12,12 +12,18 @@ class VelaSubscriptionNode {
     required this.protocol,
     required this.server,
     required this.outbound,
+    this.clashProxy,
   });
 
   final String name;
   final String protocol;
   final String server;
   final Map<String, dynamic> outbound;
+  /// Raw Clash/Mihomo outbound options (TLS, Reality, WS, gRPC, TUIC,
+  /// AnyTLS etc.). Never recode these via sing-box; Mihomo validates them.
+  /// Only this single proxy entry is kept; remote listeners/rules/scripts
+  /// from the downloaded subscription are intentionally not passed through.
+  final Map<String, dynamic>? clashProxy;
 }
 
 class VelaSubscriptionResult {
@@ -124,7 +130,7 @@ class VelaSubscriptionParser {
           continue;
         }
         final node = isClash
-            ? _fromClash(candidate)
+            ? _fromClash(candidate) ?? _fromNativeClash(candidate)
             : _fromSingBox(candidate);
         if (node == null) {
           skipped++;
@@ -160,7 +166,7 @@ class VelaSubscriptionParser {
         continue;
       }
       try {
-        final node = _fromClash(candidate);
+        final node = _fromClash(candidate) ?? _fromNativeClash(candidate);
         if (node == null) {
           skipped++;
         } else {
@@ -356,6 +362,38 @@ class VelaSubscriptionParser {
     }
     return VelaSubscriptionNode(
       name: name, protocol: kind, server: server as String, outbound: outbound,
+      clashProxy: Map<String, dynamic>.from(p),
+    );
+  }
+
+  // FlClash delegates actual protocol/transport validation to Mihomo,
+  // instead of silently rejecting node types unknown to a UI-side parser.
+  // This adapter only validates minimum metadata for the visible Vela list.
+  // The original complete entry is given to Mihomo unmodified.
+  static const _nativeClashTypes = <String>{
+    'ss', 'ssr', 'snell', 'vmess', 'vless', 'trojan', 'hysteria',
+    'hysteria2', 'tuic', 'anytls', 'socks5', 'http', 'ssh',
+    'wireguard', 'mieru', 'juicity',
+  };
+
+  static VelaSubscriptionNode? _fromNativeClash(Map<String, dynamic> p) {
+    final type = p['type'];
+    final name = _name(p['name']);
+    final server = p['server'];
+    final port = _port(p['port']);
+    if (type is! String || !_nativeClashTypes.contains(type) ||
+        name == null || !_validServer(server) || port == null) {
+      return null;
+    }
+    // Preserve node transport, TLS/security and protocol settings exactly.
+    // A server-side "skip-cert-verify" flag is NOT added or changed here.
+    // Mihomo's native parser makes the final compatibility decision.
+    return VelaSubscriptionNode(
+      name: name,
+      protocol: type,
+      server: server as String,
+      outbound: const <String, dynamic>{},
+      clashProxy: Map<String, dynamic>.from(p),
     );
   }
 
