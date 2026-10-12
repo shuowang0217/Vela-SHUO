@@ -158,29 +158,46 @@ func init() {
                     response.failure("invalid_arguments", "Missing selected node", nil)
                     return
                 }
-                const size int64 = 1024 * 1024
-                started := time.Now()
-                result := runProbe(context.Background(), probeRequest{
-                    method: http.MethodGet,
-                    url: "https://speed.cloudflare.com/__down?bytes=1048576",
-                    proxyName: params.ProxyName,
-                    timeout: 20 * time.Second,
-                    maxBody: size,
-                    noRedirect: true,
-                    headers: map[string]string{"Accept-Encoding": "identity"},
-                })
-                duration := time.Since(started).Seconds()
-                if result == nil || result.Error != "" ||
-                    result.StatusCode != http.StatusOK ||
-                    len(result.Body) != int(size) || duration <= 0 {
-                    response.success(map[string]any{"ok": false})
+                // The original FlClash Go probeDialer owns DNS, TLS,
+                // routing and credentials. Only the sample URLs differ.
+                // The old single-CDN exact-1MiB rule marked every other
+                // valid response failed when its origin truncated output.
+                const sampleSize int64 = 1024 * 1024
+                const minSample int = 256 * 1024
+                endpoints := []string{
+                    "https://speed.cloudflare.com/__down?bytes=1048576",
+                    "https://proof.ovh.net/files/1Mb.dat",
+                    "https://speed.hetzner.de/1MB.bin",
+                }
+                for _, endpoint := range endpoints {
+                    started := time.Now()
+                    result := runProbe(context.Background(), probeRequest{
+                        method: http.MethodGet,
+                        url: endpoint,
+                        proxyName: params.ProxyName,
+                        timeout: 15 * time.Second,
+                        maxBody: sampleSize,
+                        noRedirect: true,
+                        headers: map[string]string{
+                            "Accept-Encoding": "identity",
+                            "Cache-Control": "no-cache",
+                        },
+                    })
+                    seconds := time.Since(started).Seconds()
+                    if result == nil || result.Error != "" ||
+                        result.StatusCode != http.StatusOK ||
+                        len(result.Body) < minSample || seconds <= 0 {
+                        continue
+                    }
+                    transferred := len(result.Body)
+                    response.success(map[string]any{
+                        "ok": true,
+                        "bytes": transferred,
+                        "mbps": float64(transferred) * 8 / seconds / 1000000,
+                    })
                     return
                 }
-                response.success(map[string]any{
-                    "ok": true,
-                    "bytes": len(result.Body),
-                    "mbps": float64(size) * 8 / duration / 1000000,
-                })
+                response.success(map[string]any{"ok": false})
             })
         },
     ))
