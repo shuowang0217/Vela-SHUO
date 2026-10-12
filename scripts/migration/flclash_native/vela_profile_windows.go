@@ -7,6 +7,9 @@ import (
     "encoding/json"
     "fmt"
     "net/http"
+    "net/url"
+    "io"
+    "strconv"
     "os"
     "path/filepath"
     "time"
@@ -14,6 +17,7 @@ import (
     "strings"
 
     "github.com/metacubex/mihomo/config"
+    "github.com/metacubex/mihomo/component/ca"
     "github.com/metacubex/mihomo/constant"
     T "github.com/metacubex/mihomo/tunnel"
 )
@@ -145,61 +149,143 @@ func init() {
 }
 
 
-// The Vela speed-test button delegates its bounded sample to FlClash's
-// existing runProbe/probeDialer. This adds only timing/byte metadata; the
-// networking algorithm, TLS, proxy choice and connection pool remain Mihomo's.
+// A bounded, node-pinned throughput measurement using the same FlClash
+// probeDialer and Mihomo CA configuration as the original Go probe. Never
+// serialize downloaded binary data into a JSON RPC response.
 type velaDownloadArgs struct {
     ProxyName string `json:"proxy-name"`
+    // Only used by the deterministic CI loopback SOCKS5 fixture.
+    TestURL string `json:"test-url"`
+}
+
+const (
+    velaDownloadLimit int64 = 1024 * 1024
+    velaDownloadMinimum int64 = 256 * 1024
+    velaDownloadTimeout = 15 * time.Second
+)
+
+// Local test URLs must not redirect or resolve via a non-loopback hostname.
+// The production UI never sets test-url; it uses fixed public HTTPS targets.
+func velaLocalDownloadURL(raw string) bool {
+    parsed, err := url.Parse(raw)
+    if err != nil || parsed.Scheme != "http" ||
+        parsed.Hostname() != "127.0.0.1" || parsed.User != nil ||
+        parsed.Fragment != "" || parsed.Opaque != "" {
+        return false
+    }
+    port, err := strconv.Atoi(parsed.Port())
+    return err == nil && port > 0 && port <= 65535
+}
+
+// Use the selected proxy's DialContext, NEVER the host's direct connection.
+// Time only the bounded response BODY: DNS, TLS and the response's first-byte
+// delay must not distort actual download throughput.
+func velaReadDownload(ctx context.Context, proxy constant.Proxy, endpoint string) (int64, time.Duration) {
+    tlsConfig, err := ca.GetTLSConfig(ca.Option{})
+    if err != nil {
+        return 0, 0
+    }
+    dialer := &probeDialer{proxy: proxy}
+    transport := &http.Transport{
+        DialContext: dialer.dial,
+        TLSClientConfig: tlsConfig,
+        TLSHandshakeTimeout: 10 * time.Second,
+        DisableCompression: true,
+        MaxIdleConns: 1,
+    }
+    defer transport.CloseIdleConnections()
+    client := &http.Client{
+        Transport: transport,
+        CheckRedirect: func(*http.Request, []*http.Request) error {
+            return http.ErrUseLastResponse
+        },
+    }
+    request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+    if err != nil {
+        return 0, 0
+    }
+    request.Header.Set("Accept-Encoding", "identity")
+    request.Header.Set("Cache-Control", "no-cache")
+    response, err := client.Do(request)
+    if err != nil {
+        return 0, 0
+    }
+    defer response.Body.Close()
+    if response.StatusCode != http.StatusOK &&
+        response.StatusCode != http.StatusPartialContent {
+        return 0, 0
+    }
+    if response.Header.Get("Content-Encoding") != "" ||
+        strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "text/html") {
+        return 0, 0
+    }
+    started := time.Now()
+    // io.Copy to Discard uses constant memory and never returns the payload
+    // through the RPC frame. LimitReader bounds traffic even for huge files.
+    count, _ := io.Copy(io.Discard, io.LimitReader(response.Body, velaDownloadLimit))
+    elapsed := time.Since(started)
+    // A remote origin can close early or report a wrong Content-Length.
+    // Enough genuine bytes received over a pinned node are still a sample.
+    if count < velaDownloadMinimum || count > velaDownloadLimit ||
+        elapsed <= 0 || ctx.Err() != nil {
+        return 0, 0
+    }
+    return count, elapsed
 }
 
 func init() {
     registerMethod(CoreMethod("velaTestDownload"), withArguments(
         func(params *velaDownloadArgs, response MethodResponse) {
             safeGo(response, func() {
+                if !isInit.Load() {
+                    response.failure("not_initialized", "FlClash core is not ready", nil)
+                    return
+                }
                 if params.ProxyName == "" {
                     response.failure("invalid_arguments", "Missing selected node", nil)
                     return
                 }
-                // The original FlClash Go probeDialer owns DNS, TLS,
-                // routing and credentials. Only the sample URLs differ.
-                // The old single-CDN exact-1MiB rule marked every other
-                // valid response failed when its origin truncated output.
-                const sampleSize int64 = 1024 * 1024
-                const minSample int = 256 * 1024
+                proxy := lookupProxy(params.ProxyName)
+                if proxy == nil {
+                    response.success(map[string]any{"ok": false, "reason": "missing"})
+                    return
+                }
                 endpoints := []string{
                     "https://speed.cloudflare.com/__down?bytes=1048576",
+                    "https://cachefly.cachefly.net/1mb.test",
                     "https://proof.ovh.net/files/1Mb.dat",
-                    "https://speed.hetzner.de/1MB.bin",
+                }
+                if params.TestURL != "" {
+                    if !velaLocalDownloadURL(params.TestURL) {
+                        response.failure("invalid_arguments", "Download fixture must use local loopback", nil)
+                        return
+                    }
+                    endpoints = []string{params.TestURL}
                 }
                 for _, endpoint := range endpoints {
-                    started := time.Now()
-                    result := runProbe(context.Background(), probeRequest{
-                        method: http.MethodGet,
-                        url: endpoint,
-                        proxyName: params.ProxyName,
-                        timeout: 15 * time.Second,
-                        maxBody: sampleSize,
-                        noRedirect: true,
-                        headers: map[string]string{
-                            "Accept-Encoding": "identity",
-                            "Cache-Control": "no-cache",
-                        },
-                    })
-                    seconds := time.Since(started).Seconds()
-                    if result == nil || result.Error != "" ||
-                        result.StatusCode != http.StatusOK ||
-                        len(result.Body) < minSample || seconds <= 0 {
+                    ctx, cancel := context.WithTimeout(context.Background(), velaDownloadTimeout)
+                    if !acquireSlot(ctx, probeSlots) {
+                        cancel()
                         continue
                     }
-                    transferred := len(result.Body)
+                    count, elapsed := velaReadDownload(ctx, proxy, endpoint)
+                    <-probeSlots
+                    cancel()
+                    if count < velaDownloadMinimum {
+                        continue
+                    }
+                    mbps := float64(count) * 8 / elapsed.Seconds() / 1000000
+                    if mbps <= 0 {
+                        continue
+                    }
                     response.success(map[string]any{
                         "ok": true,
-                        "bytes": transferred,
-                        "mbps": float64(transferred) * 8 / seconds / 1000000,
+                        "bytes": count,
+                        "mbps": mbps,
                     })
                     return
                 }
-                response.success(map[string]any{"ok": false})
+                response.success(map[string]any{"ok": false, "reason": "no_sample"})
             })
         },
     ))
