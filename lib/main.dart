@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:vela_shuo/src/app.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/network/flclash_windows_backend.dart';
+import 'package:vela_shuo/src/network/flclash_android_backend.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/core/vela_window_exit_guard.dart';
@@ -20,7 +21,9 @@ void main() {
   // Do not instantiate the legacy VelaNativeCoreRunner on Windows.
   final core = Platform.isWindows
       ? VelaFlClashCoreController(FlClashWindowsBackend())
-      : VelaCoreController();
+      : Platform.isAndroid
+          ? VelaFlClashCoreController(FlClashAndroidBackend())
+          : VelaCoreController();
   final systemProxy = VelaSystemProxyManager();
 
   // Initialize the binding inside the same error zone as the application.
