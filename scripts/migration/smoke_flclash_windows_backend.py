@@ -170,6 +170,21 @@ rules:
             assert result["status-code"] == 204
             assert result["delay"] > 0
             assert not result.get("error")
+
+            # This is the SAME one-RPC batch used by the Vela proxy page.
+            # Check two legitimate measurements and one missing node without
+            # requiring a public proxy or leaking real subscription tokens.
+            batch = call("velaTestLatencies", {
+                "names": ["DIRECT", "DIRECT", "NOT_CONFIGURED"],
+                "test-url": url_204,
+            }, timeout=45)
+            assert isinstance(batch, list) and len(batch) == 3
+            assert [row["name"] for row in batch] == [
+                "DIRECT", "DIRECT", "NOT_CONFIGURED",
+            ]
+            assert batch[0]["value"] > 0 and batch[1]["value"] > 0
+            assert batch[2]["value"] == -1
+            assert batch[2]["reason"] == "missing"
         finally:
             endpoint_204.shutdown()
             endpoint_204.server_close()
