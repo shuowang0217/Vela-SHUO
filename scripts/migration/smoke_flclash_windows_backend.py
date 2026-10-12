@@ -208,6 +208,20 @@ rules:
         # endpoint. No public network / credential is needed for this test.
         class Local204(BaseHTTPRequestHandler):
             def do_GET(self):
+                if self.path in ("/download", "/download-truncated"):
+                    size = 1048576 if self.path == "/download" else 320 * 1024
+                    # The truncated fixture advertises a full MiB, then
+                    # closes: actual measured bytes, not Content-Length, win.
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/octet-stream")
+                    self.send_header("Content-Length", "1048576")
+                    self.end_headers()
+                    payload = bytes(range(256)) * 256
+                    for _ in range((size + len(payload) - 1) // len(payload)):
+                        self.wfile.write(payload[:min(len(payload), size)])
+                        size -= min(len(payload), size)
+                        time.sleep(.005)
+                    return
                 time.sleep(.045)  # ensure nonzero delay even on fast CI
                 self.send_response(204)
                 self.end_headers()
@@ -254,6 +268,28 @@ rules:
                 "Real Mihomo SOCKS5 proxy outbound latency failed")
             assert batch[2]["value"] == -1
             assert batch[2]["reason"] == "missing"
+
+            # Download MUST traverse FlClash's selected SOCKS5 adapter,
+            # use streaming bytes instead of binary JSON, and work without
+            # an active browser-facing mixed-port listener.
+            for suffix, minimum, maximum in (
+                ("/download", 1048576, 1048576),
+                ("/download-truncated", 256 * 1024, 1048576),
+            ):
+                sample = call("velaTestDownload", {
+                    "proxy-name": "Local Socks Test",
+                    "test-url": "http://127.0.0.1:%d%s" %
+                                (endpoint_204.server_port, suffix),
+                }, timeout=35)
+                assert sample["ok"] is True, "Native FlClash download failed"
+                assert minimum <= sample["bytes"] <= maximum
+                assert sample["mbps"] > 0, "Sample throughput was not measured"
+            missing = call("velaTestDownload", {
+                "proxy-name": "NOT_CONFIGURED",
+                "test-url": "http://127.0.0.1:%d/download" %
+                            endpoint_204.server_port,
+            }, timeout=35)
+            assert missing == {"ok": False, "reason": "missing"}
         finally:
             endpoint_204.shutdown()
             endpoint_204.server_close()
