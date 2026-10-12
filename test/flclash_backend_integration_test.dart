@@ -39,6 +39,9 @@ class _GoCoreFake implements FlClashCoreTransport {
             'GLOBAL': {'type': 'Selector'},
             'JP-VLESS': {'type': 'VLESS'},
             'US-TUIC': {'type': 'TUIC'},
+            'PASS-RULE': {'type': 'PassRule'},
+            '剩余流量：975.56 GB': {'type': 'VLESS'},
+            '套餐到期：长期有效': {'type': 'VLESS'},
             'DIRECT': {'type': 'Direct'},
           },
         };
@@ -118,6 +121,9 @@ proxy-providers:
     final nodes = await backend.importText(raw);
     expect(nodes.map((n) => n.name), containsAll(['JP-VLESS', 'US-TUIC']));
     expect(nodes.any((n) => n.name == 'DIRECT'), isFalse);
+    expect(nodes.map((n) => n.name), isNot(contains('PASS-RULE')));
+    expect(nodes.map((n) => n.name), isNot(contains('剩余流量：975.56 GB')));
+    expect(nodes.map((n) => n.name), isNot(contains('套餐到期：长期有效')));
     expect(nodes.firstWhere((n) => n.name == 'JP-VLESS').server,
         'jp.example.test');
     expect(backend.groups, contains('VELA_SELECT'));
