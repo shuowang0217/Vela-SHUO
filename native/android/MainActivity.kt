@@ -70,6 +70,37 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                 }
+                "coreMethod" -> {
+                    // The original Vela Flutter controls call the real
+                    // FlClash Go Core RPC. No FlClash screens are embedded.
+                    val data = call.argument<String>("data")
+                    try {
+                        require(!data.isNullOrBlank() && data.length <= 1024 * 1024)
+                        val request = org.json.JSONObject(data)
+                        val method = request.optString("method")
+                        val allowed = setOf(
+                            "initClash", "getIsInit", "validateConfig",
+                            "validateProxies", "updateConfig", "getConfig",
+                            "getProxies", "changeProxy", "getTraffic",
+                            "getTotalTraffic", "asyncTestDelay", "probe",
+                            "getConnections", "getConnectionCount",
+                            "closeConnections", "resetConnections",
+                            "getExternalProviders", "getExternalProvider",
+                            "updateExternalProvider", "sideLoadExternalProvider",
+                            "setupConfig", "startListener", "stopListener",
+                            "clearEffect", "serviceCheck", "outboundIp"
+                        )
+                        require(method in allowed) { "Unsupported core method" }
+                        Core.invokeMethod(data) { bytes ->
+                            runOnUiThread {
+                                result.success(bytes?.decodeToString())
+                            }
+                        }
+                    } catch (_: Exception) {
+                        result.error("flclash_core_error",
+                            "FlClash 后台调用失败", null)
+                    }
+                }
                 "testConnection" -> {
                     if (VelaVpnState.state != "connected") {
                         result.success(false)
