@@ -381,6 +381,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     final picked = sub.selectedIndex == index;
     final health = widget.smart?.resultAt(index);
     final delay = health?.lastMs;
+    final latencyError = sub is VelaFlClashSubscriptionController
+        ? sub.backend.delayFailureFor(node.name) : null;
     final region = _nodeRegion(node.name);
     return StellarPanel(
       padding: EdgeInsets.zero, selected: picked, radius: 15,
@@ -412,11 +414,18 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
               Row(children: [
                 Expanded(child: StellarLabel(node.protocol.toUpperCase())),
                 if (health?.samples != null)
-                  Text(health!.reachable ? '$delay ms' : '失败',
-                    style: TextStyle(color: health.reachable
-                      ? (delay! < 250 ? const Color(0xFF38C9A4)
-                          : const Color(0xFFE6A54C))
-                      : const Color(0xFFD47575), fontSize: 12))
+                  Tooltip(
+                    message: health!.reachable
+                        ? 'FlClash 原生延迟测试'
+                        : (latencyError ?? '节点测试失败'),
+                    child: Text(health.reachable ? '$delay ms'
+                        : (latencyError ?? '失败'),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: health.reachable
+                        ? (delay! < 250 ? const Color(0xFF38C9A4)
+                            : const Color(0xFFE6A54C))
+                        : const Color(0xFFD47575), fontSize: 12)),
+                  )
                 else StellarLabel('尚未测速'),
                 if (picked) ...[
                   const SizedBox(width: 7),
