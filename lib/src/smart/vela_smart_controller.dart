@@ -513,6 +513,33 @@ class VelaSmartController extends ChangeNotifier {
             : '正在检测真实 HTTPS 代理响应时间…';
     _emit();
 
+    // The real FlClash Go engine owns batch URLTest execution. Do not issue
+    // dozens of overlapping RPC requests and then label the whole node list
+    // dead when the transport, rather than the proxies, gets congested.
+    Map<String, VelaLatencySample>? batch;
+    if (all && _probe is VelaBatchLatencyProbe) {
+      try {
+        batch = await (_probe as VelaBatchLatencyProbe).measureBatch(
+          [for (final index in indices) nodes[index]],
+        );
+      } catch (_) {
+        if (!_disposed && run == _generation) {
+          _status = 'FlClash 批量测速通信失败，未将任何节点标记为故障。'
+              '请确认内核运行状态后重试。';
+          _scanning = false;
+          _cancelRequested = false;
+          _emit();
+        }
+        return;
+      }
+    }
+    if (_disposed || _cancelRequested || run != _generation) {
+      _scanning = false;
+      _emit();
+      return;
+    }
+    final nativeSamples = batch;
+
     Future<void> worker() async {
       while (!_disposed && !_cancelRequested && run == _generation) {
         if (nextPosition >= indices.length) { return; }
@@ -521,7 +548,13 @@ class VelaSmartController extends ChangeNotifier {
         VelaLatencySample sample;
         VelaDownloadSample? speed;
         try {
-          if (all && !latencyOnly && _fullProbe != null) {
+          if (nativeSamples != null) {
+            sample = nativeSamples[nodes[index].name] ??
+                const VelaLatencySample(ok: false);
+            if (!latencyOnly && _downloadProbe != null) {
+              speed = await _downloadProbe.measureDownload(nodes[index]);
+            }
+          } else if (all && !latencyOnly && _fullProbe != null) {
             final measured = await _fullProbe.measureBoth(nodes[index]);
             sample = measured.latency;
             speed = measured.download;
