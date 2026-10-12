@@ -83,6 +83,37 @@ final class FlClashCoreApi {
     return decoded['result'];
   }
 
+  /// These are the FlClash Go method handlers, not a Vela configuration engine.
+  Future<bool> initialize(String homeDir, {int androidApiLevel = 0}) async =>
+      await invoke('initClash', arguments: {
+        'home-dir': homeDir, 'version': androidApiLevel,
+      }) == true;
+
+  Future<Map<String, dynamic>> getConfig(String path) async {
+    final value = await invoke('getConfig', arguments: path);
+    if (value is! Map) {
+      throw const FlClashCoreFailure('invalid_response', 'Expected core config');
+    }
+    return Map<String, dynamic>.from(value);
+  }
+
+  Future<bool> startListener() async =>
+      await invoke('startListener') == true;
+
+  Future<bool> stopListener() async =>
+      await invoke('stopListener') == true;
+
+  Future<bool> shutdown() async =>
+      await invoke('shutdown') == true;
+
+  Future<Map<String, dynamic>> totalTraffic() async {
+    final value = await invoke('getTotalTraffic', arguments: false);
+    if (value is! Map) {
+      throw const FlClashCoreFailure('invalid_response', 'Expected counters');
+    }
+    return Map<String, dynamic>.from(value);
+  }
+
   Future<String> validateConfig(String path) async =>
       await invoke('validateConfig', arguments: path) as String? ?? '';
 
