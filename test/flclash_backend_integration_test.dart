@@ -12,6 +12,8 @@ class _GoCoreFake implements FlClashCoreTransport {
   String? probedName;
   bool wrongRoute = false;
   bool primary204Blocked = false;
+  bool blockEveryUrlTest = false;
+  bool blockEveryProbe = false;
   final testedUrls = <String>[];
   bool started = false;
 
@@ -60,8 +62,9 @@ class _GoCoreFake implements FlClashCoreTransport {
       case 'probe':
         probedName = (data['arguments'] as Map)['proxy-name'] as String;
         result = {
-          'status-code': 204,
-          'error': '',
+          'status-code': blockEveryProbe ? 0 : 204,
+          'delay': blockEveryProbe ? 0 : 184,
+          'error': blockEveryProbe ? 'timeout' : '',
           'chains': [wrongRoute ? 'DIRECT' : active],
         };
       case 'asyncTestDelay':
@@ -71,7 +74,8 @@ class _GoCoreFake implements FlClashCoreTransport {
         expect(params['timeout'], 8000);
         result = {
           'name': params['proxy-name'],
-          'value': primary204Blocked && url.contains('gstatic.com')
+          'value': blockEveryUrlTest ||
+              (primary204Blocked && url.contains('gstatic.com'))
               ? -1 : 126,
           'url': url,
         };
@@ -122,6 +126,14 @@ proxy-providers:
     fake.wrongRoute = false;
     expect(await backend.verifyInternet(), true);
     expect(await backend.delay('JP-VLESS'), 126);
+    fake.blockEveryUrlTest = true;
+    expect(await backend.delay('JP-VLESS'), 184,
+        reason: 'Native FlClash probe must recover working nodes when URLTest fails');
+    fake.blockEveryProbe = true;
+    expect(await backend.delay('JP-VLESS'), isNull);
+    expect(backend.delayFailureFor('JP-VLESS'), '节点响应超时');
+    fake.blockEveryUrlTest = false;
+    fake.blockEveryProbe = false;
     fake.primary204Blocked = true;
     expect(await backend.delay('JP-VLESS'), 126);
     expect(fake.testedUrls, containsAll([
