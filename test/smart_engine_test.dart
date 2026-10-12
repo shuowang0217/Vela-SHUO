@@ -209,6 +209,54 @@ class _GatedProbe implements VelaNodeLatencyProbe {
 }
 
 void main() {
+  test('Android native latency and download work without Windows proxy, '
+      'and never auto-select while VPN is active', () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 3);
+    var vpnActive = true;
+    var vpnBusy = false;
+    final delay = _BatchProbe();
+    final speed = _SpeedProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub,
+      // Android has a VpnService, not VelaConnectionCoordinator.
+      sessionActive: () => vpnActive,
+      sessionBusy: () => vpnBusy,
+      probe: delay, downloadProbe: speed,
+    );
+    try {
+      expect(smart.canTestAll, true);
+      expect(smart.safeToSelect, false);
+      await smart.testAllLatencies();
+      expect(delay.calls, 1);
+      expect(smart.scanned, 3);
+      expect(smart.resultAt(0)?.lastMs, 100);
+      expect(smart.downloadAt(0), isNull);
+
+      await smart.testAllNodes();
+      expect(delay.calls, 2);
+      expect(speed.tested, ['Node-0', 'Node-1', 'Node-2']);
+      expect(smart.downloadAt(0)?.megabytesPerSecond, closeTo(8.175, .001));
+      expect(smart.safeToSelect, false);
+      expect(smart.canRecommend, false);
+
+      expect(await smart.testSelectedDownload(), true);
+      expect(smart.downloadAt(0)?.ok, true);
+      vpnBusy = true;
+      expect(smart.canTestAll, false);
+      expect(smart.canTestSelectedDownload, false);
+      vpnBusy = false;
+      vpnActive = false;
+      expect(smart.safeToSelect, true);
+    } finally {
+      smart.dispose();
+      link.dispose();
+      sub.dispose();
+      core.dispose();
+      proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
   test('FlClash native latency batch updates real nodes without per-node RPC',
       () async {
     final (folder, core, sub, proxy, link) = await setup(count: 9);
