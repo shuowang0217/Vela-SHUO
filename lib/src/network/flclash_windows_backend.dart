@@ -22,6 +22,8 @@ class FlClashWindowsBackend {
   bool imported = false;
   bool listenerStarted = false;
   bool internetVerified = false;
+  // RAM-only raw profile. Never log it or store its bearer URL.
+  String? lastImportedSource;
   List<VelaSubscriptionNode> nodes = const [];
   List<String> groups = const [];
   String? activeName;
@@ -103,6 +105,7 @@ class FlClashWindowsBackend {
           'FlClash core loaded no usable nodes');
     }
     imported = true;
+    lastImportedSource = raw;
     nodes = List.unmodifiable(importedNodes);
     groups = List.unmodifiable(groupNames);
     activeGroup = groupName;
