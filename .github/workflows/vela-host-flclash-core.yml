@@ -95,6 +95,12 @@ jobs:
           go build -tags=with_gvisor -trimpath -ldflags="-s -w" -o "$env:RUNNER_TEMP/FlClashCore.exe" .
           if ($LASTEXITCODE -ne 0) { throw "Cannot compile FlClash Go control backend" }
           if (-not (Test-Path "$env:RUNNER_TEMP/FlClashCore.exe")) { throw "Go backend missing" }
+      - name: Verify real FlClash Go subscription and node RPC before packaging
+        shell: pwsh
+        working-directory: vela
+        run: |
+          python scripts/migration/smoke_flclash_windows_backend.py "$env:RUNNER_TEMP/FlClashCore.exe"
+          if ($LASTEXITCODE -ne 0) { throw "FlClash Go backend end-to-end test failed" }
       - name: Build unmodified original Vela Flutter interface
         shell: pwsh
         working-directory: vela
