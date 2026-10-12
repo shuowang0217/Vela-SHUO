@@ -123,12 +123,18 @@ rules:
 """
         res = call("velaLoadProfile", {"content": yaml})
         assert "Example SS" in res["proxies"], "Node missing from actual Mihomo"
-        assert "VELA_SELECT" in res["groups"], "Selector not applied in FlClash"
+        assert "GLOBAL" in res["groups"], "Built-in GLOBAL mode is missing"
+        config = call("getConfig", os.path.join(home, "config.yaml"))
+        assert config["mode"] == "global", "Vela selection must control traffic route"
         actual = call("getProxies")
         assert "Example SS" in actual["proxies"], "FlClash core not populated"
         assert call("changeProxy", {
-            "group-name": "VELA_SELECT", "proxy-name": "Example SS"
+            "group-name": "GLOBAL", "proxy-name": "Example SS"
         })["message"] == ""
+        actual = call("getProxies")
+        assert actual["proxies"]["GLOBAL"]["now"] == "Example SS", (
+            "Mihomo did not route GLOBAL mode through the selected node")
+        assert call("startListener") is True
         assert call("stopListener") is True
         print("PASS: FlClash GO config parser, selector, nodes and RPC IPC")
     except Exception:
