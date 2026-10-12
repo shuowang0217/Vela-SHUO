@@ -10,6 +10,7 @@ import (
     "os"
     "path/filepath"
     "time"
+    "sync"
 
     "github.com/metacubex/mihomo/config"
     "github.com/metacubex/mihomo/constant"
@@ -198,6 +199,97 @@ func init() {
                     return
                 }
                 response.success(map[string]any{"ok": false})
+            })
+        },
+    ))
+}
+
+// Vela's GUI must not multiply thousands of tiny native IPC calls when a
+// subscription has 40-300 proxies. Let the original FlClash Go core own one
+// bounded batch. The actual latency is still calculated exclusively by
+// Mihomo URLTest or FlClash's built-in probe, never a Dart stopwatch.
+type velaLatencyBatchArgs struct {
+    Names []string `json:"names"`
+}
+type velaLatencyBatchRow struct {
+    Name string `json:"name"`
+    Value int64 `json:"value"`
+    Reason string `json:"reason,omitempty"`
+}
+
+func init() {
+    registerMethod(CoreMethod("velaTestLatencies"), withArguments(
+        func(params *velaLatencyBatchArgs, response MethodResponse) {
+            safeGo(response, func() {
+                if !isInit.Load() {
+                    response.failure("not_initialized", "FlClash not ready", nil)
+                    return
+                }
+                if len(params.Names) == 0 || len(params.Names) > 512 {
+                    response.failure("invalid_arguments", "Invalid batch size", nil)
+                    return
+                }
+
+                rows := make([]velaLatencyBatchRow, len(params.Names))
+                jobs := make(chan int)
+                var workers sync.WaitGroup
+                const concurrency = 8
+                for n := 0; n < concurrency; n++ {
+                    workers.Add(1)
+                    go func() {
+                        defer workers.Done()
+                        for index := range jobs {
+                            name := params.Names[index]
+                            result := velaLatencyBatchRow{
+                                Name: name, Value: -1, Reason: "unreachable",
+                            }
+                            if name == "" || lookupProxy(name) == nil {
+                                result.Reason = "missing"
+                                rows[index] = result
+                                continue
+                            }
+                            for _, url := range []string{
+                                "https://www.gstatic.com/generate_204",
+                                "https://cp.cloudflare.com/generate_204",
+                            } {
+                                delay := handleTestDelay(&TestDelayParams{
+                                    ProxyName: name, TestUrl: url, Timeout: 6000,
+                                })
+                                if delay != nil && delay.Value > 0 {
+                                    result.Value = int64(delay.Value)
+                                    result.Reason = ""
+                                    break
+                                }
+                            }
+                            if result.Value < 0 {
+                                // Same FlClash Go probeDialer, with no extra
+                                // proxy configuration and NO guessed latency.
+                                probe := handleProbe(&ProbeParams{
+                                    Url: "https://cp.cloudflare.com/generate_204",
+                                    ProxyName: name, Timeout: 6000,
+                                    MaxBody: 0,
+                                    Headers: map[string]string{},
+                                })
+                                if probe == nil {
+                                    result.Reason = "busy"
+                                } else if probe.Error != "" {
+                                    result.Reason = probe.Error
+                                } else if probe.StatusCode == 204 && probe.Delay >= 0 {
+                                    result.Value = probe.Delay
+                                    if result.Value == 0 { result.Value = 1 }
+                                    result.Reason = ""
+                                } else {
+                                    result.Reason = "bad_status"
+                                }
+                            }
+                            rows[index] = result
+                        }
+                    }()
+                }
+                for i := range params.Names { jobs <- i }
+                close(jobs)
+                workers.Wait()
+                response.success(rows)
             })
         },
     ))
