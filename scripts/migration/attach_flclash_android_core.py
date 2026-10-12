@@ -149,6 +149,33 @@ android {
                             dns = "198.18.0.2",
                         )
                         check(started) { "FlClash Go core rejected TUN descriptor" }'''
+    # Both Windows and Android now load the same complete Mihomo profile
+    # from FlClash's own config.yaml, rather than generating a second Vela
+    # JSON configuration for the Android VpnService.
+    src = replace_once(
+        src, 'val dir = File(cacheDir, "vela-vpn")',
+        'val dir = File(filesDir, "FlClash-Core")',
+        "Android Go core profile location",
+    )
+    src = replace_once(
+        src, 'configFile.length() > 1500000L',
+        'configFile.length() > 16L * 1024 * 1024',
+        "FlClash source config size",
+    )
+    src = replace_once(
+        src, 'Core.quickSetup(initJson, "{}") { message ->',
+        '''val selected = File(cacheDir, "vela-vpn/selection.json")
+                    val selection = if (selected.isFile &&
+                        selected.length() in 1..4096L)
+                        selected.readText(Charsets.UTF_8) else "{}"
+                Core.quickSetup(initJson, selection) { message ->''',
+        "FlClash native selectedMap setup",
+    )
+    src = replace_once(
+        src, 'File(cacheDir, "vela-vpn/config.yaml").delete()',
+        'File(cacheDir, "vela-vpn/selection.json").delete()',
+        "Do not delete FlClash's own subscription on VPN disconnect",
+    )
     src = replace_once(src, old, new, "FlClash Go TUN hook")
     src = replace_once(
         src, "if (Clash.isLoaded()) Clash.stopTun()",
