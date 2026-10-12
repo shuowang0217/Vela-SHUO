@@ -182,8 +182,39 @@ class FlClashWindowsBackend {
     if (!ready || !imported || activeName == null) {
       throw StateError('Select a FlClash node before connecting');
     }
+    // The upstream RPC can return true even when WinSock fails to bind
+    // its local MixedPort. Check exclusive availability BEFORE starting,
+    // and actual local listener readiness AFTER FlClash starts it.
+    if (Platform.isWindows && transport is FlClashWindowsTransport) {
+      try {
+        final probe = await ServerSocket.bind(
+            InternetAddress.loopbackIPv4, 20808, shared: false);
+        await probe.close();
+      } on SocketException {
+        throw StateError('本机 20808 代理端口已被其他程序占用');
+      }
+    }
     if (!await api.startListener()) {
       throw StateError('FlClash Go listener did not start');
+    }
+    if (Platform.isWindows && transport is FlClashWindowsTransport) {
+      var listening = false;
+      for (var i = 0; i < 15; i++) {
+        try {
+          final testSocket = await Socket.connect(
+              InternetAddress.loopbackIPv4, 20808,
+              timeout: const Duration(milliseconds: 350));
+          testSocket.destroy();
+          listening = true;
+          break;
+        } on SocketException {
+          await Future<void>.delayed(const Duration(milliseconds: 150));
+        }
+      }
+      if (!listening) {
+        await api.stopListener();
+        throw StateError('FlClash Go 未能在本机 20808 端口建立代理监听');
+      }
     }
     listenerStarted = true;
   }
