@@ -27,6 +27,8 @@ import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/globe.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
+import 'package:vela_shuo/src/stellar/vela_stellar_proxy_page.dart';
+import 'package:vela_shuo/src/stellar/vela_stellar_config_page.dart';
 
 Color get _background => VelaThemeRuntime.active.background;
 Color get _panel => VelaThemeRuntime.active.surface;
@@ -222,8 +224,9 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
 
   static const destinations = <(IconData, IconData, String)>[
     (Icons.home_outlined, Icons.home_rounded, '首页'),
-    (Icons.language_outlined, Icons.language_rounded, '节点'),
+    (Icons.language_outlined, Icons.language_rounded, '代理'),
     (Icons.auto_graph_outlined, Icons.auto_graph_rounded, '智能优选'),
+    (Icons.layers_outlined, Icons.layers_rounded, '配置'),
     (Icons.settings_outlined, Icons.settings_rounded, '设置'),
   ];
 
@@ -257,11 +260,15 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   void navigate(int i) => setState(() => tab = i);
 
   Widget page(bool desktop) => switch (tab) {
-    1 => _NodesPage(demo: demo, subscription: subscription,
-      core: widget.core, connection: connection, androidVpn: androidVpn,
-      smart: smart, goHome: () => navigate(0)),
+    1 => VelaStellarProxyPage(
+      demo: demo, subscription: subscription,
+      connection: connection, androidVpn: androidVpn,
+      smart: smart, traffic: traffic, openConfig: () => navigate(3)),
     2 => _SmartPage(demo: demo, smart: smart, subscription: subscription),
-    3 => _SettingsPage(
+    3 => VelaStellarConfigPage(
+      demo: demo, subscription: subscription, core: widget.core,
+      connection: connection, androidVpn: androidVpn),
+    4 => _SettingsPage(
       demo: demo, settings: widget.settings,
       diagnostics: widget.diagnostics, core: widget.core,
       subscription: subscription, connection: connection,
