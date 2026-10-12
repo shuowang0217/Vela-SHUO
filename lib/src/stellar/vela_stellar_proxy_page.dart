@@ -455,10 +455,12 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                 fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
             StellarLabel(running
-                ? '已测 ${smart!.scanned} / ${smart.total} 节点'
+                ? '正在由 FlClash 测试 ${smart!.total} 个节点…'
                 : smart == null
                     ? '当前平台尚未接入批量测速'
-                    : '由 FlClash 原生线路检测，结果不作模拟'),
+                    : smart.status?.isNotEmpty == true
+                        ? smart.status!
+                        : '由 FlClash 原生线路检测，结果不作模拟'),
           ],
         )),
         if (!narrow)
