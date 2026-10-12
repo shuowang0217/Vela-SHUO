@@ -30,6 +30,9 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   bool _storageBusy = false;
   bool _closed = false;
   DateTime? _updatedAt;
+  // Favorites are presentation state, keyed by stable native Mihomo names.
+  // Provider ordering changes and profile refreshes cannot remap them.
+  final Set<String> _favoriteNames = <String>{};
 
   void _emit() {
     if (!_closed) notifyListeners();
@@ -49,6 +52,64 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   String? get format => backend.imported ? 'FlClash / Mihomo 原生配置' : null;
   @override
   int? get selectedIndex => _selection;
+  @override
+  int get favoriteCount => _favoriteNames.length;
+
+  @override
+  bool isFavorite(int index) =>
+      index >= 0 && index < nodes.length &&
+      _favoriteNames.contains(nodes[index].name);
+
+  @override
+  bool toggleFavorite(int index) {
+    if (_closed || loading || index < 0 || index >= nodes.length) {
+      return false;
+    }
+    final name = nodes[index].name;
+    if (!_favoriteNames.add(name)) _favoriteNames.remove(name);
+    _stored = false;
+    _emit();
+    return true;
+  }
+
+  @override
+  List<int> visibleNodeIndices({
+    String query = '',
+    bool favoritesOnly = false,
+    List<int>? order,
+  }) {
+    final normalized = query.trim().toLowerCase();
+    final ids = <int>[];
+    final seen = <int>{};
+    if (order != null) {
+      for (final id in order) {
+        if (id >= 0 && id < nodes.length && seen.add(id)) ids.add(id);
+      }
+    }
+    for (var i = 0; i < nodes.length; i++) {
+      if (seen.add(i)) ids.add(i);
+    }
+    final favorites = <int>[];
+    final others = <int>[];
+    for (final index in ids) {
+      final node = nodes[index];
+      final favorite = _favoriteNames.contains(node.name);
+      if (favoritesOnly && !favorite) continue;
+      if (normalized.isNotEmpty &&
+          !node.name.toLowerCase().contains(normalized) &&
+          !node.protocol.toLowerCase().contains(normalized)) {
+        continue;
+      }
+      (favorite ? favorites : others).add(index);
+    }
+    return [...favorites, ...others];
+  }
+
+  int get remoteProviderCount => backend.remoteProviderNames.length;
+  bool get canRefreshProviders =>
+      !loading && !_storageBusy && !backend.listenerStarted &&
+      backend.imported && remoteProviderCount > 0;
+
   @override
   VelaSubscriptionNode? get selected =>
       _selection == null || _selection! < 0 || _selection! >= nodes.length
@@ -72,6 +133,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   Future<bool> _import(Future<List<VelaSubscriptionNode>> Function() action,
       {String? source, String? sourceUrl}) async {
     if (_closed || loading || backend.listenerStarted) return false;
+    final oldSelectedName = selected?.name;
     _current = VelaSubscriptionPhase.loading;
     _lastError = null;
     _emit();
@@ -83,7 +145,17 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       }
       _raw = source ?? backend.lastImportedSource;
       _sessionUrl = sourceUrl;
+      _favoriteNames.removeWhere(
+          (name) => !loaded.any((node) => node.name == name));
       _selection = null;
+      if (oldSelectedName != null) {
+        final previous = loaded.indexWhere(
+            (node) => node.name == oldSelectedName);
+        if (previous >= 0 &&
+            await backend.selectNode(oldSelectedName)) {
+          _selection = previous;
+        }
+      }
       _updatedAt = DateTime.now();
       _stored = false;
       _current = VelaSubscriptionPhase.ready;
@@ -113,6 +185,41 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     final url = _sessionUrl;
     if (url == null || !canRefresh) return Future.value(false);
     return importFromUrl(url);
+  }
+
+  /// Same native FlClash provider.Update() used by FlClash itself.
+  /// No Vela protocol parser or independent HTTP provider logic is involved.
+  Future<bool> refreshNativeProviders() async {
+    if (_closed || !canRefreshProviders) return false;
+    final previouslySelected = selected?.name;
+    _current = VelaSubscriptionPhase.loading;
+    _lastError = null;
+    _emit();
+    try {
+      final current = await backend.refreshRemoteProviders();
+      if (current.isEmpty || _closed) return false;
+      _favoriteNames.removeWhere(
+          (name) => !current.any((node) => node.name == name));
+      _selection = null;
+      if (previouslySelected != null) {
+        final index = current.indexWhere(
+            (node) => node.name == previouslySelected);
+        if (index >= 0 &&
+            await backend.selectNode(previouslySelected)) {
+          _selection = index;
+        }
+      }
+      _updatedAt = DateTime.now();
+      _stored = false;
+      _current = VelaSubscriptionPhase.ready;
+      _emit();
+      return true;
+    } catch (_) {
+      _lastError = 'FlClash 节点提供者更新失败；原节点与加密存档未被清除';
+      _current = VelaSubscriptionPhase.ready;
+      _emit();
+      return false;
+    }
   }
 
   @override
@@ -183,10 +290,31 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       }
       final ok = await importFromText(obj['raw'] as String);
       if (ok) {
-        _stored = true;
-        if (obj['selected'] is int) {
-          await selectNode(obj['selected'] as int);
+        _favoriteNames.clear();
+        final favorites = obj['favoriteNames'];
+        if (favorites is List && favorites.length <= 4096) {
+          for (final value in favorites) {
+            if (value is String && nodes.any((n) => n.name == value)) {
+              _favoriteNames.add(value);
+            }
+          }
+        } else if (obj['favorites'] is List) {
+          // Backward compatibility with the old Vela encrypted snapshot.
+          for (final value in obj['favorites'] as List) {
+            if (value is int && value >= 0 && value < nodes.length) {
+              _favoriteNames.add(nodes[value].name);
+            }
+          }
         }
+        final selectedName = obj['selectedName'];
+        final index = selectedName is String
+            ? nodes.indexWhere((node) => node.name == selectedName)
+            : obj['selected'] is int
+                ? obj['selected'] as int : -1;
+        if (index >= 0 && index < nodes.length) {
+          await selectNode(index);
+        }
+        _stored = true;
       }
       return ok;
     } catch (_) {
@@ -205,7 +333,10 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _emit();
     try {
       await _store.write(jsonEncode({
-        'v': 2, 'raw': _raw, 'selected': _selection,
+        'v': 2,
+        'raw': _raw,
+        'selectedName': selected?.name,
+        'favoriteNames': _favoriteNames.toList()..sort(),
       }));
       _stored = true;
       return true;
