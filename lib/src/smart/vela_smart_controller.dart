@@ -443,6 +443,18 @@ class VelaSmartController extends ChangeNotifier {
     await _runScan(indices, all: true, automatic: automatic);
   }
 
+  /// Proxy-page latency button: FlClash's native URLTest only.
+  /// Do not mark a healthy node failed just because a separate 1 MiB
+  /// Cloudflare download sample was blocked or rate-limited.
+  Future<void> testAllLatencies() async {
+    if (!canTestAll) return;
+    _results.clear();
+    _downloads.clear();
+    _cursor = 0;
+    final indices = List<int>.generate(count, (i) => i);
+    await _runScan(indices, all: true, latencyOnly: true);
+  }
+
   /// The original manual 8-at-a-time tool remains available when idle.
   Future<void> testNextBatch() async {
     if (_scanning || _disposed || count == 0 || !core.hasCore ||
@@ -466,7 +478,8 @@ class VelaSmartController extends ChangeNotifier {
   }
 
   Future<void> _runScan(List<int> indices,
-      {required bool all, bool automatic = false}) async {
+      {required bool all, bool automatic = false,
+       bool latencyOnly = false}) async {
     if (_scanning || _downloading || _disposed || indices.isEmpty) {
       return;
     }
@@ -486,10 +499,13 @@ class VelaSmartController extends ChangeNotifier {
     _total = indices.length;
     _successful = 0;
     _failed = 0;
-    _status = all
-        ? '正在测延迟和下载速度：' +
-            indices.length.toString() + ' 个节点（最多并发2）…'
-        : '正在检测真实 HTTPS 代理响应时间…';
+    _status = latencyOnly
+        ? 'FlClash 正在检测 ' + indices.length.toString() +
+            ' 个节点的 HTTPS 延迟…'
+        : all
+            ? '正在测延迟和下载速度：' +
+                indices.length.toString() + ' 个节点（最多并发2）…'
+            : '正在检测真实 HTTPS 代理响应时间…';
     _emit();
 
     Future<void> worker() async {
@@ -500,7 +516,7 @@ class VelaSmartController extends ChangeNotifier {
         VelaLatencySample sample;
         VelaDownloadSample? speed;
         try {
-          if (all && _fullProbe != null) {
+          if (all && !latencyOnly && _fullProbe != null) {
             final measured = await _fullProbe.measureBoth(nodes[index]);
             sample = measured.latency;
             speed = measured.download;
@@ -509,7 +525,7 @@ class VelaSmartController extends ChangeNotifier {
           }
         } catch (_) {
           sample = const VelaLatencySample(ok: false);
-          if (all && _fullProbe != null) {
+          if (all && !latencyOnly && _fullProbe != null) {
             speed = const VelaDownloadSample(ok: false);
           }
         }
@@ -542,13 +558,16 @@ class VelaSmartController extends ChangeNotifier {
             _cursor = (previousCursor + indices.length) % count;
           }
           if (all) { _lastScan = _clock(); }
-          _status = all
-              ? (automatic && count > 50 && _fullProbe != null
-                  ? '自动检测按50 MiB单轮流量上限完成前50个节点；'
-                      '手动一键测速可测全部节点。'
-                  : '延迟和下载速度检测完成：成功 $_successful，'
-                      '失败 $_failed，共 $_total 个。')
-              : '本批次完成：成功 $_successful，失败 $_failed，共 $_total 个。';
+          _status = latencyOnly
+              ? 'FlClash 延迟测试完成：成功 $_successful，'
+                  '失败 $_failed，共 $_total 个。'
+              : all
+                  ? (automatic && count > 50 && _fullProbe != null
+                      ? '自动检测按50 MiB单轮流量上限完成前50个节点；'
+                          '手动一键测速可测全部节点。'
+                      : '延迟和下载速度检测完成：成功 $_successful，'
+                          '失败 $_failed，共 $_total 个。')
+                  : '本批次完成：成功 $_successful，失败 $_failed，共 $_total 个。';
         } else if (run == _generation) {
           _status = '测速已停止：完成 $_finished / $_total，剩余节点未测。';
         }
