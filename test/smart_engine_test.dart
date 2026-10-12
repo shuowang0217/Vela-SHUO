@@ -41,6 +41,29 @@ class _Probe implements VelaNodeLatencyProbe {
   }
 }
 
+class _BatchProbe implements VelaNodeLatencyProbe, VelaBatchLatencyProbe {
+  int calls = 0;
+  bool broken = false;
+
+  @override
+  Future<VelaLatencySample> measure(VelaSubscriptionNode node) =>
+      throw StateError('Flutter must not call per-node latency RPC');
+
+  @override
+  Future<Map<String, VelaLatencySample>> measureBatch(
+      List<VelaSubscriptionNode> nodes) async {
+    ++calls;
+    if (broken) throw StateError('Synthetic FlClash IPC disconnect');
+    return {
+      for (var i = 0; i < nodes.length; i++)
+        nodes[i].name: VelaLatencySample(
+          ok: i.isEven,
+          elapsed: i.isEven ? Duration(milliseconds: 100 + i) : null,
+        ),
+    };
+  }
+}
+
 class _SpeedProbe implements VelaNodeDownloadProbe {
   final List<String> tested = [];
   bool succeeds = true;
@@ -186,6 +209,56 @@ class _GatedProbe implements VelaNodeLatencyProbe {
 }
 
 void main() {
+  test('FlClash native latency batch updates real nodes without per-node RPC',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 9);
+    final probe = _BatchProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link, probe: probe,
+    );
+    try {
+      await smart.testAllLatencies();
+      expect(probe.calls, 1);
+      expect(smart.scanned, 9);
+      expect(smart.successful, 5);
+      expect(smart.failed, 4);
+      expect(smart.resultAt(0)?.lastMs, 100);
+      expect(smart.resultAt(1)?.reachable, false);
+    } finally {
+      smart.dispose();
+      link.dispose();
+      sub.dispose();
+      core.dispose();
+      proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+  test('broken batch RPC never misreports every node as unreachable',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 8);
+    final probe = _BatchProbe()..broken = true;
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link, probe: probe,
+    );
+    try {
+      await smart.testAllLatencies();
+      expect(probe.calls, 1);
+      expect(smart.scanned, 0);
+      expect(smart.failed, 0);
+      expect(smart.successful, 0);
+      expect(smart.status, contains('批量测速通信失败'));
+    } finally {
+      smart.dispose();
+      link.dispose();
+      sub.dispose();
+      core.dispose();
+      proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+
   test('proxy page latency-only test never measures download speed', () async {
     final (folder, core, sub, proxy, link) = await setup(count: 4);
     final delay = _Probe();
