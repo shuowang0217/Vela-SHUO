@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import '../subscription/flclash_profile_downloader.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../subscription/vela_subscription_parser.dart';
 import '../subscription/vela_subscription_vault.dart';
@@ -290,6 +291,25 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       }
       final ok = await importFromText(obj['raw'] as String);
       if (ok) {
+        // A previously saved subscription header is trusted only inside the
+        // user-opted-in encrypted vault, NEVER inside untrusted YAML.
+        // Legacy snapshots without quota continue to restore normally.
+        final quota = obj['subscriptionUsage'];
+        if (quota is Map &&
+            quota['upload'] is int && quota['download'] is int &&
+            quota['total'] is int &&
+            (quota['upload'] as int) >= 0 &&
+            (quota['download'] as int) >= 0 &&
+            (quota['total'] as int) > 0) {
+          backend.subscriptionUsage = FlClashSubscriptionUsage(
+            upload: quota['upload'] as int,
+            download: quota['download'] as int,
+            total: quota['total'] as int,
+            expire: quota['expire'] is int &&
+                (quota['expire'] as int) >= 0
+                ? quota['expire'] as int : null,
+          );
+        }
         _favoriteNames.clear();
         final favorites = obj['favoriteNames'];
         if (favorites is List && favorites.length <= 4096) {
@@ -332,11 +352,18 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _storageBusy = true;
     _emit();
     try {
+      final quota = backend.subscriptionUsage;
       await _store.write(jsonEncode({
         'v': 2,
         'raw': _raw,
         'selectedName': selected?.name,
         'favoriteNames': _favoriteNames.toList()..sort(),
+        if (quota != null) 'subscriptionUsage': {
+          'upload': quota.upload,
+          'download': quota.download,
+          'total': quota.total,
+          if (quota.expire != null) 'expire': quota.expire,
+        },
       }));
       _stored = true;
       return true;
