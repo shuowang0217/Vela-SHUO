@@ -96,7 +96,9 @@ class VelaSmartController extends ChangeNotifier {
   VelaSmartController({
     required this.subscription,
     required this.core,
-    required this.connection,
+    this.connection,
+    this.sessionActive,
+    this.sessionBusy,
     required VelaNodeLatencyProbe probe,
     VelaNodeDownloadProbe? downloadProbe,
     VelaFullNodeProbe? fullProbe,
@@ -114,7 +116,13 @@ class VelaSmartController extends ChangeNotifier {
 
   final VelaSubscriptionController subscription;
   final VelaCoreController core;
-  final VelaConnectionCoordinator connection;
+  // Windows uses the WinINet coordinator; Android VpnService owns its own
+  // connection lifecycle. Native FlClash node probes work on either platform.
+  final VelaConnectionCoordinator? connection;
+  final bool Function()? sessionActive;
+  final bool Function()? sessionBusy;
+  bool get _connectionBusy =>
+      (connection?.busy ?? false) || (sessionBusy?.call() ?? false);
   final VelaNodeLatencyProbe _probe;
   final VelaNodeDownloadProbe? _downloadProbe;
   final VelaFullNodeProbe? _fullProbe;
@@ -193,7 +201,7 @@ class VelaSmartController extends ChangeNotifier {
       !_downloading && _downloadProbe != null &&
       subscription.selectedIndex != null &&
       !subscription.loading && core.hasCore && core.supported &&
-      !core.busy && !connection.busy;
+      !core.busy && !_connectionBusy;
   bool _scanning = false;
   bool _cancelRequested = false;
   bool _allNodesScan = false;
@@ -242,7 +250,7 @@ class VelaSmartController extends ChangeNotifier {
   int get failed => _failed;
   bool get canTestAll => !_scanning && !_disposed && count > 0 &&
       core.hasCore && core.supported && !core.busy &&
-      !_downloading && !connection.busy && !subscription.loading;
+      !_downloading && !_connectionBusy && !subscription.loading;
   String? get status => _status;
   int get count => subscription.nodes.length;
   int get nextBatchSize => count == 0 ? 0 :
@@ -343,7 +351,8 @@ class VelaSmartController extends ChangeNotifier {
   }
 
   bool get safeToSelect =>
-      !connection.busy && !connection.proxy.active &&
+      !_connectionBusy && !(connection?.proxy.active ?? false) &&
+      !(sessionActive?.call() ?? false) &&
       !core.busy && !core.isListening && !subscription.loading;
 
   bool get canRecommend {
