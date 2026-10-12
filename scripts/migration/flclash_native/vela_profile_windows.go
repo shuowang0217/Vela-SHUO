@@ -6,7 +6,7 @@ import (
     "context"
     "encoding/json"
     "fmt"
-    "net/http"
+    http "github.com/metacubex/http"
     "net/url"
     "io"
     "strconv"
