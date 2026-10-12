@@ -3,10 +3,13 @@
 package main
 
 import (
+    "context"
     "encoding/json"
     "fmt"
+    "net/http"
     "os"
     "path/filepath"
+    "time"
 
     "github.com/metacubex/mihomo/config"
     "github.com/metacubex/mihomo/constant"
@@ -114,6 +117,50 @@ func init() {
                     "proxies": views.Proxies,
                     "raw-proxies": raw.Proxy,
                     "provider-count": len(raw.ProxyProvider),
+                })
+            })
+        },
+    ))
+}
+
+
+// The Vela speed-test button delegates its bounded sample to FlClash's
+// existing runProbe/probeDialer. This adds only timing/byte metadata; the
+// networking algorithm, TLS, proxy choice and connection pool remain Mihomo's.
+type velaDownloadArgs struct {
+    ProxyName string `json:"proxy-name"`
+}
+
+func init() {
+    registerMethod(CoreMethod("velaTestDownload"), withArguments(
+        func(params *velaDownloadArgs, response MethodResponse) {
+            safeGo(response, func() {
+                if params.ProxyName == "" {
+                    response.failure("invalid_arguments", "Missing selected node", nil)
+                    return
+                }
+                const size int64 = 1024 * 1024
+                started := time.Now()
+                result := runProbe(context.Background(), probeRequest{
+                    method: http.MethodGet,
+                    url: "https://speed.cloudflare.com/__down?bytes=1048576",
+                    proxyName: params.ProxyName,
+                    timeout: 20 * time.Second,
+                    maxBody: size,
+                    noRedirect: true,
+                    headers: map[string]string{"Accept-Encoding": "identity"},
+                })
+                duration := time.Since(started).Seconds()
+                if result == nil || result.Error != "" ||
+                    result.StatusCode != http.StatusOK ||
+                    len(result.Body) != int(size) || duration <= 0 {
+                    response.success(map[string]any{"ok": false})
+                    return
+                }
+                response.success(map[string]any{
+                    "ok": true,
+                    "bytes": len(result.Body),
+                    "mbps": float64(size) * 8 / duration / 1000000,
                 })
             })
         },
