@@ -201,7 +201,7 @@ class FlClashWindowsBackend {
   static bool _isSubscriptionNotice(String name) {
     return RegExp(
       r'^(?:剩余流量|套餐到期|到期时间|过期时间|流量重置|剩余天数|订阅到期|官网地址|'
-      r'套餐信息|已用流量|有效期)\\s*[:：]',
+      r'套餐信息|已用流量|有效期)\s*[:：]',
       caseSensitive: false,
     ).hasMatch(name.trim());
   }
