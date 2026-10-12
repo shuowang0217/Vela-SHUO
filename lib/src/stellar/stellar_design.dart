@@ -116,7 +116,7 @@ class StellarSectionHeading extends StatelessWidget {
     final t = VelaThemeRuntime.active;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(title, style: TextStyle(
-        color: t.text, fontSize: 27, fontWeight: FontWeight.w750,
+        color: t.text, fontSize: 27, fontWeight: FontWeight.w700,
         letterSpacing: 1,
       )),
       const SizedBox(height: 5),
