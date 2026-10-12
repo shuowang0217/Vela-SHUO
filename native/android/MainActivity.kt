@@ -30,6 +30,11 @@ class MainActivity : FlutterActivity() {
         }
         bridge.setMethodCallHandler { call, result ->
             when (call.method) {
+                "coreHomeDir" -> {
+                    val dir = File(filesDir, "FlClash-Core")
+                    result.success(if (dir.isDirectory || dir.mkdirs())
+                        dir.canonicalPath else null)
+                }
                 "status" -> result.success(mapOf("state" to VelaVpnState.state,
                     "error" to VelaVpnState.error))
                 "traffic" -> {
@@ -75,11 +80,12 @@ class MainActivity : FlutterActivity() {
                     // FlClash Go Core RPC. No FlClash screens are embedded.
                     val data = call.argument<String>("data")
                     try {
-                        require(!data.isNullOrBlank() && data.length <= 1024 * 1024)
+                        require(!data.isNullOrBlank() && data.length <= 16 * 1024 * 1024)
                         val request = org.json.JSONObject(data)
                         val method = request.optString("method")
                         val allowed = setOf(
-                            "initClash", "getIsInit", "validateConfig",
+                            "initClash", "getIsInit", "velaLoadProfile",
+                            "velaTestDownload", "validateConfig",
                             "validateProxies", "updateConfig", "getConfig",
                             "getProxies", "changeProxy", "getTraffic",
                             "getTotalTraffic", "asyncTestDelay", "probe",
@@ -173,7 +179,7 @@ class MainActivity : FlutterActivity() {
             // Intent extra. VPN service removes this file after stopping.
             val dir = File(cacheDir, "vela-vpn")
             check(dir.isDirectory || dir.mkdirs())
-            val file = File(dir, "config.yaml")
+            val file = File(dir, "selection.json")
             file.writeText(profile, Charsets.UTF_8)
             VelaVpnState.report("connecting")
             val intent = Intent(this, VelaVpnService::class.java)
