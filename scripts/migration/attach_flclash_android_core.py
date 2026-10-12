@@ -137,7 +137,7 @@ android {
                             protect = { socketFd -> this@VelaVpnService.protect(socketFd) },
                             resolveUid = { protocol, source, target ->
                                 if (Build.VERSION.SDK_INT >= 29)
-                                    getConnectionOwnerUid(protocol, source, target)
+                                    getSystemService(android.net.ConnectivityManager::class.java)\n                                        ?.getConnectionOwnerUid(protocol, source, target) ?: -1
                                 else -1
                             },
                             resolvePackage = { uid ->
