@@ -42,6 +42,16 @@ jobs:
           grep -q 'class VelaGlobe extends StatefulWidget' lib/src/home/globe.dart
           grep -q 'class _DesktopHome extends StatelessWidget' lib/src/app.dart
           ! grep -R -q 'VelaShell\|WindowHeaderContainer\|FlClash dashboard' lib/src/app.dart
+          # The old Vela parser, isolated runner and subscription config
+          # generator may exist only for legacy tests; neither is instantiated
+          # by the Windows/Android product entry points.
+          grep -q 'VelaFlClashCoreController(FlClashWindowsBackend())' lib/main.dart
+          grep -q 'VelaFlClashCoreController(FlClashAndroidBackend())' lib/main.dart
+          grep -q 'VelaFlClashSubscriptionController(' lib/src/app.dart
+          grep -q 'FlClashGoNodeProbe(' lib/src/app.dart
+          grep -q "velaLoadProfile" lib/src/network/flclash_windows_backend.dart
+          grep -q "coreMethod" native/android/MainActivity.kt
+
 
   windows:
     name: 'Windows x64: Vela UI + FlClash pinned Mihomo source'
