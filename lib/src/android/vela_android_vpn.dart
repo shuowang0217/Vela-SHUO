@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../subscription/vela_subscription_controller.dart';
+import '../network/flclash_core_api.dart';
 
 enum VelaAndroidVpnPhase { disconnected, preparing, connecting, connected, error }
 
@@ -128,6 +129,45 @@ class VelaAndroidVpnController extends ChangeNotifier {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Change a live VPN node through FlClash's actual Go selector RPC.
+  /// Validate the selected outbound with real HTTPS before committing UI
+  /// state; a failed route test rolls the Go selector back.
+  Future<bool> switchNode(
+      VelaSubscriptionController subscription, int index) async {
+    if (!Platform.isAndroid || _disposed || !connected ||
+        index < 0 || index >= subscription.nodes.length ||
+        subscription.selectedIndex == null) {
+      return false;
+    }
+    final current = subscription.selectedIndex!;
+    if (current == index) return true;
+    final oldName = subscription.configuredNameFor(current);
+    final nextName = subscription.configuredNameFor(index);
+    if (oldName == null || nextName == null) return false;
+    final api = FlClashCoreApi(const FlClashAndroidTransport());
+    try {
+      await api.changeProxy('VELA_SELECT', nextName);
+      if (await testConnectivity()) {
+        return subscription.confirmVpnSelection(index);
+      }
+      await api.changeProxy('VELA_SELECT', oldName);
+      _error = '新节点联网验证失败，已恢复原节点';
+      notifyListeners();
+    } catch (_) {
+      try {
+        await api.changeProxy('VELA_SELECT', oldName);
+      } catch (_) {
+        // Native backend may be gone; never claim rollback succeeded.
+        _error = '节点切换和恢复失败，请安全断开 VPN 后重试';
+        notifyListeners();
+        return false;
+      }
+      _error = '切换失败，FlClash 已恢复先前节点';
+      notifyListeners();
+    }
+    return false;
   }
 
   Future<bool> stop() async {
