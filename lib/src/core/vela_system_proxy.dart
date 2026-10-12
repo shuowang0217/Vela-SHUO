@@ -131,8 +131,11 @@ class FlClashWindowsProxyBackend extends VelaRegistryProxyBackend {
 
   @override
   Future<void> refresh() async {
-    // FlClash's WinInet implementation already calls SETTINGS_CHANGED and
-    // REFRESH for every Windows/RAS connection.
+    // FlClash refreshes immediately when it starts/stops the native proxy.
+    // Re-notify after restoring the exact previous WinINet snapshot, which
+    // may be another proxy rather than DIRECT; otherwise browsers can keep
+    // stale per-session settings.
+    await super.refresh();
   }
 }
 
