@@ -176,7 +176,7 @@ func velaCustomDownload(name, endpoint string) (bytes int64, micros int64, reaso
     measured := handleProbe(&ProbeParams{
         Url: endpoint,
         ProxyName: name,
-        Timeout: 20000,
+        Timeout: 10000, // At most 4 endpoints; fit inside Dart's 55s RPC timeout.
         MaxBody: velaDownloadLimit,
         Headers: map[string]string{
             "X-FlClash-Measure-Download": "1",
