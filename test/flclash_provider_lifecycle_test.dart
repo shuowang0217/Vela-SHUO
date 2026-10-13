@@ -115,6 +115,64 @@ proxy-providers:
 ''';
 
 void main() {
+  test('named profiles switch independently and restore active profile',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('vela_multi_profile_');
+    addTearDown(() => dir.delete(recursive: true));
+    final singleVault = _Vault();
+    final profileVault = _Vault();
+    final backend = FlClashWindowsBackend(homeDir: dir.path,
+        transport: _NativeFlClash());
+    final core = VelaFlClashCoreController(backend);
+    final sub = VelaFlClashSubscriptionController(
+        backend: backend, core: core,
+        vault: singleVault, profileVault: profileVault);
+
+    expect(await sub.importFromText(_profile), true);
+    expect(await sub.selectNode(0), true);
+    expect(sub.toggleFavorite(1), true);
+    expect(await sub.saveAsProfile('日本订阅'), true);
+    final japanId = sub.activeProfileId!;
+
+    expect(await sub.importFromText('$_profile\n# second profile'), true);
+    expect(sub.selectedIndex, isNull);
+    expect(sub.favoriteCount, 0);
+    expect(await sub.selectNode(1), true);
+    expect(sub.toggleFavorite(0), true);
+    expect(await sub.saveAsProfile('美国订阅'), true);
+    final usaId = sub.activeProfileId!;
+    expect(sub.profiles, hasLength(2));
+
+    expect(await sub.activateProfile(japanId), true);
+    expect(sub.selected?.name, 'Japan');
+    expect(sub.isFavorite(1), true);
+    expect(sub.isFavorite(0), false);
+
+    expect(await sub.activateProfile(usaId), true);
+    expect(sub.selected?.name, 'USA');
+    expect(sub.isFavorite(0), true);
+    expect(sub.isFavorite(1), false);
+    sub.dispose();
+    core.dispose();
+
+    final restoredBackend = FlClashWindowsBackend(homeDir: dir.path,
+        transport: _NativeFlClash());
+    final restoredCore = VelaFlClashCoreController(restoredBackend);
+    final restored = VelaFlClashSubscriptionController(
+        backend: restoredBackend, core: restoredCore,
+        vault: singleVault, profileVault: profileVault);
+    expect(await restored.restoreSaved(), true);
+    expect(restored.profileName, '美国订阅');
+    expect(restored.selected?.name, 'USA');
+    expect(restored.isFavorite(0), true);
+    expect(restored.profiles, hasLength(2));
+    expect(await restored.renameProfile(japanId, '日本线路'), true);
+    expect(await restored.removeProfile(japanId), true);
+    expect(restored.profiles, hasLength(1));
+    restored.dispose();
+    restoredCore.dispose();
+  });
+
   test('opt-in encrypted profile snapshot also restores FlClash server quota',
       () async {
     final dir = await Directory.systemTemp.createTemp('vela_quota_snapshot_');
