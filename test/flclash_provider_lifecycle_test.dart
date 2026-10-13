@@ -131,16 +131,17 @@ void main() {
     expect(await sub.importFromText(_profile), true);
     expect(await sub.selectNode(0), true);
     expect(sub.toggleFavorite(1), true);
-    expect(await sub.saveAsProfile('日本订阅'), true);
+    // Successful imports now auto-save the active airport.
     final japanId = sub.activeProfileId!;
+    expect(await sub.renameProfile(japanId, '日本订阅'), true);
 
     expect(await sub.importFromText('$_profile\n# second profile'), true);
-    expect(sub.selectedIndex, isNull);
+    expect(sub.selectedIndex, 0); // Default route is usable immediately.
     expect(sub.favoriteCount, 0);
     expect(await sub.selectNode(1), true);
     expect(sub.toggleFavorite(0), true);
-    expect(await sub.saveAsProfile('美国订阅'), true);
     final usaId = sub.activeProfileId!;
+    expect(await sub.renameProfile(usaId, '美国订阅'), true);
     expect(sub.profiles, hasLength(2));
 
     expect(await sub.activateProfile(japanId), true);
