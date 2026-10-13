@@ -508,11 +508,16 @@ class VelaSmartController extends ChangeNotifier {
       indices = indices.take(50).toList();
     }
     final previousCursor = _cursor;
-    // FlClash's native URLTest allows up to 16 concurrent tests.
-    // A 52-node latency-only pass should not wait for 26 serial batches.
-    // Keep the slower 1 MiB download benchmark capped at two workers.
+    // FlClash's native URLTest is a single batch request. Keep its
+    // concurrency there, but serialize native downloads. The tested
+    // single-node button invokes this same measureDownload() method with
+    // only one RPC in flight; overlapping 1 MiB probes can otherwise
+    // saturate the same native IPC/proxy while reporting generic failures.
+    final nativeDownloads = all && !latencyOnly &&
+        _probe is VelaBatchLatencyProbe && _downloadProbe != null;
     final workerCount = latencyOnly
         ? (indices.length < 12 ? indices.length : 12)
+        : nativeDownloads ? 1
         : all ? (indices.length < 2 ? indices.length : 2) : 1;
     var nextPosition = 0;
     _finished = 0;
@@ -524,7 +529,9 @@ class VelaSmartController extends ChangeNotifier {
             ' 个节点的 HTTPS 延迟…'
         : all
             ? '正在测延迟和下载速度：' +
-                indices.length.toString() + ' 个节点（最多并发2）…'
+                indices.length.toString() +
+                (nativeDownloads ? ' 个节点（逐个下载）…'
+                    : ' 个节点（最多并发2）…')
             : '正在检测真实 HTTPS 代理响应时间…';
     _emit();
 
