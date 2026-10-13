@@ -18,10 +18,13 @@ class VelaWindowExitGuard extends WindowListener {
     Future<void> Function()? minimizeWindow,
     Future<void> Function()? allowCloseWindow,
     Future<void> Function()? destroyWindow,
-  }) : _minimizeWindow = minimizeWindow ?? windowManager.minimize,
+  }) : // Lazily resolve the plugin only when the window is actually used.
+       // Eager method tear-offs initialize its MethodChannel in unit tests
+       // before Flutter's binary messenger exists.
+       _minimizeWindow = minimizeWindow ?? (() => windowManager.minimize()),
        _allowCloseWindow = allowCloseWindow ??
            (() => windowManager.setPreventClose(false)),
-       _destroyWindow = destroyWindow ?? windowManager.destroy;
+       _destroyWindow = destroyWindow ?? (() => windowManager.destroy());
 
   final VelaCoreController core;
   final VelaSystemProxyManager proxy;
