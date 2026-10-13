@@ -99,7 +99,9 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
     final connected = widget.connection?.connected == true ||
         widget.androidVpn?.connected == true;
     final selected = widget.subscription.selected?.name;
-    if (!connected || selected == null) return;
+    if (!connected || selected == null) {
+      return;
+    }
     _testingDelay = true;
     try {
       final value = await native!.backend.delay(selected);
