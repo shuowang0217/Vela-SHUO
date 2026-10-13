@@ -1,8 +1,8 @@
-name: Vela v1.0.0 - Windows and Android (FlClash core)
+name: Vela FlClash Windows + Android CI
 
 on:
   push:
-    branches: [main, release/v1.0.0]
+    branches: [main, release/v1.0.0, feature/v1.1.0-multi-subscriptions-tray]
   workflow_dispatch:
 
 permissions:
