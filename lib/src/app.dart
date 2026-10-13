@@ -174,6 +174,11 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
           : VelaSubscriptionController(
               core: widget.core!, previewOnly: Platform.isAndroid);
       unawaited(subscription!.restoreSaved());
+      if (subscription is VelaFlClashSubscriptionController) {
+        widget.windowExitGuard?.flushSavedProfiles =
+            (subscription! as VelaFlClashSubscriptionController)
+                .flushPendingSaves;
+      }
       if (Platform.isAndroid) {
         subscription!.addListener(syncRealGlobe);
       }
@@ -250,6 +255,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     androidVpn?.dispose();
     traffic?.dispose();
     widget.windowExitGuard?.shutdownConnection = null;
+    widget.windowExitGuard?.flushSavedProfiles = null;
     // Restore WinINet BEFORE terminating its local endpoint. Never kill
     // the core synchronously while the system proxy still points at it.
     final link = connection;
