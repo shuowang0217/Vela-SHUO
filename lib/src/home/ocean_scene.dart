@@ -76,7 +76,7 @@ class _OceanPainter extends CustomPainter {
         wave.lineTo(x, baseline + math.sin(x * .013 + i * 1.2) * (9 + i * 2));
       }
       wave..lineTo(1040, 660)..lineTo(-40, 660)..close();
-      final shade = Color.lerp(ocean, base, (i / 6).clamp(0.0, 1.0))!;
+      final shade = Color.lerp(ocean, base, (i / 6).clamp(0.0, 1.0).toDouble())!;
       canvas.drawPath(wave, Paint()
         ..color = shade.withValues(alpha: dark ? .36 : .28));
       final crest = Paint()
