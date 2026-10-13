@@ -198,20 +198,39 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   }
 
   @override
-  Future<bool> importFromText(String source) => _import(
-      () => backend.importText(source), source: source);
+  Future<bool> importFromText(String source) async {
+    final ok = await _import(() => backend.importText(source), source: source);
+    if (ok) {
+      _activeProfileId = null;
+      _profileName = null;
+      _emit();
+    }
+    return ok;
+  }
 
   @override
-  Future<bool> importFromUrl(String url) => _import(
-      () => backend.importUrl(url.trim(),
-          mode: downloadMode, localHttpProxyPort: localHttpProxyPort),
-      sourceUrl: url.trim());
+  Future<bool> importFromUrl(String url) async {
+    final ok = await _import(
+        () => backend.importUrl(url.trim(),
+            mode: downloadMode, localHttpProxyPort: localHttpProxyPort),
+        sourceUrl: url.trim());
+    if (ok) {
+      _activeProfileId = null;
+      _profileName = null;
+      _emit();
+    }
+    return ok;
+  }
 
   @override
   Future<bool> refreshLastUrl() {
     final url = _sessionUrl;
     if (url == null || !canRefresh) return Future.value(false);
-    return importFromUrl(url);
+    // A refresh updates the active unsaved working copy, not a new profile.
+    return _import(
+        () => backend.importUrl(url,
+            mode: downloadMode, localHttpProxyPort: localHttpProxyPort),
+        sourceUrl: url);
   }
 
   /// Same native FlClash provider.Update() used by FlClash itself.
@@ -461,6 +480,36 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _storageBusy = true;
     _emit();
     try {
+      final library = await _library.read();
+      _profiles = library.profiles;
+      _activeProfileId = library.activeId;
+      if (_profiles.isNotEmpty) {
+        final saved = _profiles.firstWhere(
+            (profile) => profile.id == _activeProfileId,
+            orElse: () => _profiles.first);
+        final applied = await _import(
+            () => backend.importText(saved.raw), source: saved.raw);
+        if (applied) {
+          _favoriteNames
+            ..clear()
+            ..addAll(saved.favorites.where(
+                (name) => nodes.any((node) => node.name == name)));
+          _selection = null;
+          if (saved.selectedName != null) {
+            final index = nodes.indexWhere((n) => n.name == saved.selectedName);
+            if (index >= 0 && await backend.selectNode(saved.selectedName!)) {
+              _selection = index;
+            }
+          }
+          _activeProfileId = saved.id;
+          _profileName = saved.name;
+          _stored = true;
+          _emit();
+          return true;
+        }
+      }
+      // Automatic migration: the original v1.0.0 single-profile snapshot
+      // remains readable until the user explicitly saves a named profile.
       final data = await _store.read();
       if (data == null || _closed) return false;
       final obj = jsonDecode(data);
@@ -549,6 +598,21 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
           if (quota.expire != null) 'expire': quota.expire,
         },
       }));
+      final id = _activeProfileId ??
+          DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+      final name = _profileName ?? '我的订阅';
+      final updated = _currentProfile(id, name);
+      final next = [..._profiles];
+      final index = next.indexWhere((p) => p.id == id);
+      if (index >= 0) {
+        next[index] = updated;
+      } else {
+        next.add(updated);
+      }
+      await _library.write(next, id);
+      _profiles = next;
+      _activeProfileId = id;
+      _profileName = name;
       _stored = true;
       return true;
     } catch (_) {
@@ -567,6 +631,12 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _emit();
     try {
       await _store.delete();
+      if (_activeProfileId != null) {
+        final next = _profiles.where((p) => p.id != _activeProfileId).toList();
+        await _library.write(next, null);
+        _profiles = next;
+        _activeProfileId = null;
+      }
       _stored = false;
       return true;
     } catch (_) {
