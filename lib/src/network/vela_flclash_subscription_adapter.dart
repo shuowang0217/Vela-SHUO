@@ -176,7 +176,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       final loaded = await action();
       if (_closed) return false;
       if (loaded.isEmpty) {
-        throw StateError('FlClash returned no nodes');
+        throw StateError('Airport profile contains no available nodes');
       }
       _raw = source ?? backend.lastImportedSource;
       _sessionUrl = sourceUrl;
