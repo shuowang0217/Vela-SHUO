@@ -1,8 +1,8 @@
-name: Vela FlClash Windows + Android CI
+name: Vela Windows + Android CI
 
 on:
   push:
-    branches: [main, release/v1.0.0, feature/v1.1.0-multi-subscriptions-tray]
+    branches: [main, release/v1.0.0, feature/v1.1.0-multi-subscriptions-tray, feature/v1.1.1-ocean-branding]
   workflow_dispatch:
 
 permissions:
@@ -58,7 +58,7 @@ jobs:
           set -euo pipefail
           grep -q 'runApp(VelaShuoApp(' lib/main.dart
           grep -q 'home: _Shell(settings: settings' lib/src/app.dart
-          grep -q 'class VelaGlobe extends StatefulWidget' lib/src/home/globe.dart
+          grep -q 'class VelaOceanScene extends StatelessWidget' lib/src/home/ocean_scene.dart
           grep -q 'class _DesktopHome extends StatelessWidget' lib/src/app.dart
           ! grep -R -q 'VelaShell\|WindowHeaderContainer\|FlClash dashboard' lib/src/app.dart
           # The old Vela parser, isolated runner and subscription config
