@@ -236,8 +236,12 @@ class _VoyagePainter extends CustomPainter {
         Offset? previous;
         for (final vertex in ring) {
           var lon = vertex.dx;
-          while (lon < left - 180) lon += 360;
-          while (lon > right + 180) lon -= 360;
+          while (lon < left - 180) {
+            lon += 360;
+          }
+          while (lon > right + 180) {
+            lon -= 360;
+          }
           final position = project(lon, vertex.dy);
           // Avoid drawing a false chord across the international date line.
           if (previous == null || (position.dx - previous.dx).abs() >
