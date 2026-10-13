@@ -239,9 +239,9 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   }
 
   static const destinations = <(IconData, IconData, String)>[
-    (Icons.home_outlined, Icons.home_rounded, '首页'),
     (Icons.sailing_outlined, Icons.sailing_rounded, '代理'),
-    (Icons.auto_graph_outlined, Icons.auto_graph_rounded, '智能优选'),
+    (Icons.route_outlined, Icons.route_rounded, '节点'),
+    (Icons.speed_outlined, Icons.speed_rounded, '测速'),
     (Icons.settings_outlined, Icons.settings_rounded, '设置'),
     (Icons.layers_outlined, Icons.layers_rounded, '配置'),
   ];
