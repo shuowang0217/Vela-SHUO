@@ -4,12 +4,29 @@ import 'dart:io';
 /// A bounded, single-request sample through a known local HTTP proxy.
 /// This is not a sustained bandwidth test or a promise about other sites.
 class VelaDownloadSample {
-  const VelaDownloadSample({required this.ok, this.mbps, this.bytes = 0});
+  const VelaDownloadSample({
+    required this.ok, this.mbps, this.bytes = 0, this.reason,
+  });
   final bool ok;
   final double? mbps;
   /// Decimal MB/s, matching the user's FlClash-Custom ranking unit.
   double? get megabytesPerSecond => mbps == null ? null : mbps! / 8;
   final int bytes;
+  // Safe category from the FlClash core, never a URL, credential or body.
+  final String? reason;
+
+  String get failureLabel => switch (reason) {
+    'timeout' => '下载超时',
+    'http_status' => '下载HTTP异常',
+    'network' => '下载网络异常',
+    'busy' => '测速内核忙',
+    'short_sample' => '下载数据不足',
+    'invalid_sample' => '下载数据无效',
+    'missing' => '节点不可用',
+    'transport_error' => '测速通信超时',
+    'no_sample' => '无有效测速数据',
+    _ => '下载失败',
+  };
 }
 
 abstract class VelaDownloadTransport {
