@@ -11,6 +11,9 @@ class VelaStoredProfile {
     required this.raw,
     this.selectedName,
     this.favorites = const [],
+    this.usage,
+    this.updatedAt,
+    this.nodeCount,
   });
 
   final String id;
@@ -18,16 +21,24 @@ class VelaStoredProfile {
   final String raw;
   final String? selectedName;
   final List<String> favorites;
+  /// FlClash subscription-userinfo counters; never infer from node counts.
+  final Map<String, int>? usage;
+  final DateTime? updatedAt;
+  final int? nodeCount;
 
   VelaStoredProfile copyWith({
     String? name, String? raw, String? selectedName,
     List<String>? favorites,
+    Map<String, int>? usage, DateTime? updatedAt, int? nodeCount,
   }) => VelaStoredProfile(
     id: id,
     name: name ?? this.name,
     raw: raw ?? this.raw,
     selectedName: selectedName ?? this.selectedName,
     favorites: favorites ?? this.favorites,
+    usage: usage ?? this.usage,
+    updatedAt: updatedAt ?? this.updatedAt,
+    nodeCount: nodeCount ?? this.nodeCount,
   );
 
   Map<String, Object?> toJson() => {
@@ -36,6 +47,9 @@ class VelaStoredProfile {
     'raw': raw,
     'selectedName': selectedName,
     'favorites': favorites,
+    if (usage != null) 'usage': usage,
+    if (updatedAt != null) 'updatedAt': updatedAt!.millisecondsSinceEpoch,
+    if (nodeCount != null) 'nodeCount': nodeCount,
   };
 
   static VelaStoredProfile? fromJson(Object? object) {
@@ -58,7 +72,30 @@ class VelaStoredProfile {
       favorites: favorites is List && favorites.length <= 4096
           ? favorites.whereType<String>().take(4096).toList()
           : const [],
+      usage: _readUsage(object['usage']),
+      updatedAt: object['updatedAt'] is int &&
+              (object['updatedAt'] as int) > 0
+          ? DateTime.fromMillisecondsSinceEpoch(object['updatedAt'] as int)
+          : null,
+      nodeCount: object['nodeCount'] is int &&
+              (object['nodeCount'] as int) >= 0
+          ? object['nodeCount'] as int : null,
     );
+  }
+
+  static Map<String, int>? _readUsage(Object? raw) {
+    if (raw is! Map || raw['upload'] is! int ||
+        raw['download'] is! int || raw['total'] is! int ||
+        (raw['total'] as int) <= 0 ||
+        (raw['upload'] as int) < 0 || (raw['download'] as int) < 0) {
+      return null;
+    }
+    return {
+      'upload': raw['upload'] as int,
+      'download': raw['download'] as int,
+      'total': raw['total'] as int,
+      if (raw['expire'] is int) 'expire': raw['expire'] as int,
+    };
   }
 }
 
