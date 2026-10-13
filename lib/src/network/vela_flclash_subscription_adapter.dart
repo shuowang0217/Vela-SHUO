@@ -201,8 +201,13 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   Future<bool> importFromText(String source) async {
     final ok = await _import(() => backend.importText(source), source: source);
     if (ok) {
+      // Importing a different subscription creates a new working copy:
+      // favorites and selected node must NOT bleed across profiles.
       _activeProfileId = null;
       _profileName = null;
+      _favoriteNames.clear();
+      _selection = null;
+      _stored = false;
       _emit();
     }
     return ok;
@@ -215,8 +220,13 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
             mode: downloadMode, localHttpProxyPort: localHttpProxyPort),
         sourceUrl: url.trim());
     if (ok) {
+      // Importing a different subscription creates a new working copy:
+      // favorites and selected node must NOT bleed across profiles.
       _activeProfileId = null;
       _profileName = null;
+      _favoriteNames.clear();
+      _selection = null;
+      _stored = false;
       _emit();
     }
     return ok;
