@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/network/flclash_core_api.dart';
@@ -115,6 +116,45 @@ proxy-providers:
 ''';
 
 void main() {
+  test('online fetch stages a second airport without interrupting active core',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('vela_staged_airport_');
+    addTearDown(() => dir.delete(recursive: true));
+    final vault = _Vault();
+    final backend = FlClashWindowsBackend(homeDir: dir.path,
+        transport: _NativeFlClash());
+    final core = VelaFlClashCoreController(backend);
+    final sub = VelaFlClashSubscriptionController(
+      backend: backend, core: core,
+      profileVault: vault, vault: _Vault(),
+      downloader: FlClashProfileDownloader(
+        mode: VelaSubscriptionDownloadMode.direct,
+        requestStep: (uri, route) async => FlClashProfileResponse(
+          200, Uint8List.fromList(utf8.encode(_profile)),
+          subscriptionUserInfo: 'upload=100; download=200; total=1000'),
+      ),
+    );
+    expect(await sub.importFromText(_profile), true);
+    final oldId = sub.activeProfileId!;
+    final oldName = backend.activeName;
+    backend.listenerStarted = true; // Simulate connected listener.
+    expect(await sub.importFromUrlNamed(
+        'https://example.test/sub?token=private-token',
+        name: '第二机场', stageOnly: true), true);
+    expect(sub.profiles, hasLength(2));
+    expect(sub.activeProfileId, oldId);
+    expect(backend.activeName, oldName);
+    expect(backend.listenerStarted, true);
+    expect(vault.payload, isNot(contains('private-token')));
+    expect(sub.profiles.last.usage?['total'], 1000);
+    backend.listenerStarted = false;
+    expect(await sub.activateProfile(sub.profiles.last.id), true);
+    expect(sub.profileName, '第二机场');
+    expect(backend.subscriptionUsage?.total, 1000);
+    sub.dispose();
+    core.dispose();
+  });
+
   test('named profiles switch independently and restore active profile',
       () async {
     final dir = await Directory.systemTemp.createTemp('vela_multi_profile_');
