@@ -20,6 +20,7 @@ class VelaVoyageDashboard extends StatefulWidget {
   const VelaVoyageDashboard({
     super.key,
     required this.subscription,
+    this.showMap = true,
     required this.showNodes,
     required this.showConfig,
     required this.showSmart,
@@ -28,6 +29,7 @@ class VelaVoyageDashboard extends StatefulWidget {
     this.traffic,
   });
   final VelaSubscriptionController subscription;
+  final bool showMap;
   final VelaConnectionCoordinator? connection;
   final VelaAndroidVpnController? androidVpn;
   final VelaTrafficMonitor? traffic;
@@ -100,7 +102,7 @@ class _VelaVoyageDashboardState extends State<VelaVoyageDashboard> {
           final compact = limits.maxWidth < 760;
           if (compact) {
             return Stack(children: [
-              Positioned.fill(child: VelaVoyageMap(
+              if (widget.showMap) Positioned.fill(child: VelaVoyageMap(
                 connected: connected, nodeName: node)),
               SingleChildScrollView(child: Padding(
                 padding: const EdgeInsets.fromLTRB(14, 22, 14, 24),
@@ -119,7 +121,7 @@ class _VelaVoyageDashboardState extends State<VelaVoyageDashboard> {
             ]);
           }
           return Stack(children: [
-            Positioned.fill(child: VelaVoyageMap(
+            if (widget.showMap) Positioned.fill(child: VelaVoyageMap(
               connected: connected, nodeName: node)),
             Positioned(
               left: 27, top: 31, right: 360,
@@ -172,7 +174,7 @@ class _VelaVoyageDashboardState extends State<VelaVoyageDashboard> {
 
   Widget _controls(bool connected, bool busy, String airport,
       String node, {bool compact = false}) {
-    return _glass(radius: 20, padding: const EdgeInsets.all(15),
+    return _glass(radius: 22, padding: const EdgeInsets.all(17),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min, children: [
         const Row(children: [
@@ -251,7 +253,7 @@ class _VelaVoyageDashboardState extends State<VelaVoyageDashboard> {
 
   Widget _setting(IconData icon, String title, String value,
       VoidCallback onTap) {
-    return Material(color: const Color(0xBB143454),
+    return Material(color: const Color(0x68112C4C),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap, borderRadius: BorderRadius.circular(12),
@@ -279,7 +281,7 @@ class _VelaVoyageDashboardState extends State<VelaVoyageDashboard> {
   Widget _statusBar(bool connected, String airport, String node,
       {bool compact = false}) {
     return _glass(
-      padding: EdgeInsets.symmetric(horizontal: 16,
+      padding: EdgeInsets.symmetric(horizontal: 21,
         vertical: compact ? 14 : 10),
       radius: 18,
       child: compact
@@ -349,15 +351,20 @@ class _VelaVoyageDashboardState extends State<VelaVoyageDashboard> {
       EdgeInsetsGeometry padding = EdgeInsets.zero, double radius = 20}) {
     return ClipRRect(borderRadius: BorderRadius.circular(radius),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(sigmaX: 19, sigmaY: 19),
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
-            color: const Color(0xDD0C2947),
-            border: Border.all(color: const Color(0x8056B9F2)),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0x93162D4D), Color(0x74031930)],
+            ),
+            border: Border.all(color: const Color(0x7D7BB9DF), width: 1.05),
             boxShadow: [BoxShadow(
-              color: const Color(0xFF030E20).withValues(alpha: .25),
-              blurRadius: 14,
+              color: const Color(0xFF030E20).withValues(alpha: .44),
+              blurRadius: 32,
+              offset: const Offset(0, 14),
             )],
           ),
           child: Padding(padding: padding, child: child),
