@@ -352,6 +352,8 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   Future<bool> saveAsProfile(String name) async {
     if (_raw == null || !canSwitchProfiles ||
         _profiles.length >= VelaProfileLibrary.maxProfiles) return false;
+    _storageBusy = true;
+    _emit();
     try {
       final clean = _cleanProfileName(name);
       final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
@@ -368,11 +370,16 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       _lastError = '无法保存新订阅：检查名称、数量限制与系统加密存储';
       _emit();
       return false;
+    } finally {
+      _storageBusy = false;
+      _emit();
     }
   }
 
   Future<bool> renameProfile(String id, String name) async {
     if (!canSwitchProfiles) return false;
+    _storageBusy = true;
+    _emit();
     try {
       final clean = _cleanProfileName(name);
       final index = _profiles.indexWhere((profile) => profile.id == id);
@@ -388,6 +395,9 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       _lastError = '订阅重命名失败';
       _emit();
       return false;
+    } finally {
+      _storageBusy = false;
+      _emit();
     }
   }
 
@@ -395,6 +405,8 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     if (!canSwitchProfiles) return false;
     final next = _profiles.where((p) => p.id != id).toList();
     if (next.length == _profiles.length) return false;
+    _storageBusy = true;
+    _emit();
     try {
       final active = _activeProfileId == id ? null : _activeProfileId;
       await _library.write(next, active);
@@ -407,6 +419,9 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       _lastError = '删除加密订阅失败';
       _emit();
       return false;
+    } finally {
+      _storageBusy = false;
+      _emit();
     }
   }
 
