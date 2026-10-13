@@ -229,8 +229,14 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     final copy = [..._profiles];
     copy[index] = _currentProfile(id, copy[index].name);
     _profiles = copy;
-    _pendingWrites = _pendingWrites.then((_) =>
-        _library.write(copy, id)).catchError((Object _) {
+    _stored = false;
+    _pendingWrites = _pendingWrites.then((_) async {
+      await _library.write(copy, id);
+      if (_activeProfileId == id && !_closed) {
+        _stored = true;
+        _emit();
+      }
+    }).catchError((Object _) {
       _lastError = '自动保存失败，请检查系统安全存储';
       _emit();
     });
