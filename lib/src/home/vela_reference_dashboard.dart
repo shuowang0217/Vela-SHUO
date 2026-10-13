@@ -214,12 +214,13 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
                 children: [
                   _connectionHero(connected, busy, airportName, node),
                   const SizedBox(height: 170),
-                  _quotaCard(quota == null ? null : used,
-                      total, airportName),
+                  SizedBox(height: 236,
+                    child: _quotaCard(used, total, airportName)),
                   const SizedBox(height: 12),
-                  _connectionInfo(connected, airportName, node),
+                  SizedBox(height: 306,
+                    child: _connectionInfo(connected, airportName, node)),
                   const SizedBox(height: 12),
-                  _modeCard(),
+                  SizedBox(height: 315, child: _modeCard()),
                 ]),
             );
           }
