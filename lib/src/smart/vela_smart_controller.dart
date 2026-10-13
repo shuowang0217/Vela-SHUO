@@ -559,7 +559,7 @@ class VelaSmartController extends ChangeNotifier {
     // every card can show latency while slower downloads remain in progress.
     if (delaysPublished) {
       for (final index in indices) {
-        final sample = nativeSamples[nodes[index].name] ??
+        final sample = nativeSamples![nodes[index].name] ??
             const VelaLatencySample(ok: false);
         _results[index] = VelaNodeHealth.first(index, sample, _clock());
       }
