@@ -25,6 +25,7 @@ import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/ocean_scene.dart';
 import 'package:vela_shuo/src/home/vela_voyage_dashboard.dart';
+import 'package:vela_shuo/src/home/vela_reference_dashboard.dart';
 import 'package:vela_shuo/src/home/vela_voyage_map.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
@@ -240,11 +241,11 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   }
 
   static const destinations = <(IconData, IconData, String)>[
-    (Icons.sailing_outlined, Icons.sailing_rounded, '代理'),
-    (Icons.route_outlined, Icons.route_rounded, '节点'),
-    (Icons.speed_outlined, Icons.speed_rounded, '测速'),
-    (Icons.settings_outlined, Icons.settings_rounded, '设置'),
-    (Icons.layers_outlined, Icons.layers_rounded, '配置'),
+    (Icons.sailing_outlined, Icons.sailing_rounded, '航行'),
+    (Icons.route_outlined, Icons.route_rounded, '节点列表'),
+    (Icons.speed_outlined, Icons.speed_rounded, '智能测速'),
+    (Icons.settings_outlined, Icons.settings_rounded, '系统设置'),
+    (Icons.directions_boat_outlined, Icons.directions_boat_rounded, '机场管理'),
   ];
 
   @override
@@ -298,13 +299,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       goHome: () => navigate(0),
     ),
     _ => widget.core is VelaFlClashCoreController && subscription != null
-        ? VelaVoyageDashboard(
-            showMap: false,
+        ? VelaReferenceDashboard(
             subscription: subscription!,
-            connection: connection, androidVpn: androidVpn, traffic: traffic,
-            showNodes: () => navigate(1),
-            showConfig: () => navigate(4),
-            showSmart: () => navigate(2),
+            connection: connection, androidVpn: androidVpn,
+            traffic: traffic,
+            openConfig: () => navigate(4),
+            openNodes: () => navigate(1),
           )
         : _HomePage(
             demo: demo, desktop: desktop,
@@ -349,7 +349,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                 ClipRect(child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                   child: Container(
-                    width: extended ? 190 : 90,
+                    width: voyageHome && extended ? 214 : extended ? 190 : 90,
                     decoration: BoxDecoration(
                       color: voyageHome ? const Color(0x65071931)
                           : const Color(0xDE0B2541),
@@ -359,7 +359,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                       )),
                     ),
                     child: _DesktopNav(
-                      selected: tab, extended: extended, onSelect: navigate,
+                      selected: tab, extended: extended,
+                      voyageMode: voyageHome, onSelect: navigate,
                     ),
                   ),
                 )),
@@ -400,39 +401,61 @@ class _DesktopNav extends StatelessWidget {
     required this.selected,
     required this.extended,
     required this.onSelect,
+    this.voyageMode = false,
   });
   final int selected;
   final bool extended;
+  final bool voyageMode;
   final ValueChanged<int> onSelect;
 
   @override
   Widget build(BuildContext context) => Column(children: [
-    SizedBox(height: 32),
-    VelaBrandLogo(size: 68),
-    if (extended) ...[
-      SizedBox(height: 8),
-      Text('VELA', style: TextStyle(
-        color: _foreground, fontSize: 21,
-        letterSpacing: 3, fontWeight: FontWeight.w700,
-      )),
-      Text('— SHUO —', style: TextStyle(
-        color: _blue, fontSize: 12, letterSpacing: 2,
-      )),
-     ],
-    SizedBox(height: extended ? 46 : 25),
+    SizedBox(height: voyageMode ? 34 : 32),
+    if (voyageMode && extended)
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(children: [
+          VelaBrandLogo(size: 60),
+          const SizedBox(width: 8),
+          const Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Vela', style: TextStyle(
+                color: Color(0xFFF5FBFF), fontSize: 25,
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.bold)),
+              Text('Let Your Internet Set Sail',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Color(0xFFBED9EA),
+                  fontStyle: FontStyle.italic, fontSize: 9)),
+            ],
+          )),
+        ]))
+    else ...[
+      VelaBrandLogo(size: 68),
+      if (extended) ...[
+        const SizedBox(height: 8),
+        Text('VELA', style: TextStyle(
+          color: _foreground, fontSize: 21,
+          letterSpacing: 3, fontWeight: FontWeight.w700)),
+        Text('— SHUO —', style: TextStyle(
+          color: _blue, fontSize: 12, letterSpacing: 2)),
+      ],
+    ],
+    SizedBox(height: voyageMode ? 60 : extended ? 46 : 25),
     for (final i in _ShellState.navOrder)
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         child: Material(
           color: selected == i
-              ? _blue.withValues(alpha: .15) : Colors.transparent,
+              ? _blue.withValues(alpha: voyageMode ? .27 : .15)
+               : Colors.transparent,
           borderRadius: BorderRadius.circular(13),
           child: InkWell(
             key: ValueKey('nav_$i'),
             onTap: () => onSelect(i),
             borderRadius: BorderRadius.circular(13),
             child: Container(
-              height: extended ? 52 : 70,
+              height: voyageMode ? 75 : extended ? 52 : 70,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(13),
                 border: Border.all(
