@@ -30,9 +30,28 @@ jobs:
           channel: master
           cache: true
       - run: flutter create --project-name vela_shuo --org com.shuowang --platforms windows .
-      - run: flutter pub get
-      - run: flutter analyze
-      - run: flutter test --reporter expanded
+      - name: Resolve Flutter dependencies
+        run: |
+          set -o pipefail
+          flutter pub get 2>&1 | tee pub-get-output.txt
+      - name: Flutter static analysis
+        run: |
+          set -o pipefail
+          flutter analyze 2>&1 | tee analyze-output.txt
+      - name: Flutter unit and UI tests
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded 2>&1 | tee test-output.txt
+      - name: Attach diagnostic output when validation fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-v1_1-diagnostics
+          retention-days: 7
+          path: |
+            pub-get-output.txt
+            analyze-output.txt
+            test-output.txt
       - name: Prove this is the Vela host, never the FlClash UI overlay
         shell: bash
         run: |
