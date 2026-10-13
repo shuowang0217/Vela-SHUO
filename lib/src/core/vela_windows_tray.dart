@@ -212,12 +212,16 @@ class VelaWindowsTrayController with TrayListener {
     switch (item.key) {
       case 'open':
         unawaited(showWindow());
+        break;
       case 'enable':
         unawaited(_applyConnection(true));
+        break;
       case 'disable':
         unawaited(_applyConnection(false));
+        break;
       case 'exit':
         unawaited(_exit());
+        break;
     }
   }
 
