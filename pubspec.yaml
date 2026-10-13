@@ -36,3 +36,5 @@ flutter:
     - assets/maps/world_110m.json
     - assets/earth/earth_day.jpg
     - assets/earth/earth_night_lights.png
+    - assets/tray/proxy_on.ico
+    - assets/tray/proxy_off.ico
