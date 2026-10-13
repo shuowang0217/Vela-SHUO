@@ -4,7 +4,7 @@ import '../android/vela_android_vpn.dart';
 import '../core/vela_connection_coordinator.dart';
 import '../core/vela_core_controller.dart';
 import '../home/demo_connection.dart';
-import '../home/globe.dart';
+import '../home/ocean_scene.dart';
 import '../network/vela_flclash_subscription_adapter.dart';
 import '../subscription/vela_profile_library.dart';
 import 'vela_stellar_import_dialog.dart';
@@ -12,10 +12,8 @@ import '../subscription/vela_subscription_controller.dart';
 import '../theme/vela_palettes.dart';
 import 'stellar_design.dart';
 
-/// Configuration management in the approved orbital-card visual language.
-/// Current FlClash integration has one active on-device profile. This view
-/// deliberately shows real data only; it does NOT fabricate other profiles,
-/// provider quota, scheduled updates, or server-side expiration.
+/// Multi-airport management using the Vela maritime visual language.
+/// Display saved airport profiles and actual provider metadata only.
 class VelaStellarConfigPage extends StatefulWidget {
   const VelaStellarConfigPage({super.key, required this.demo,
     required this.core, this.subscription, this.connection, this.androidVpn});
@@ -112,7 +110,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
         _notify('没有本次运行的订阅地址或可更新的 HTTP 提供者；可重新导入配置');
         return;
       }
-      _notify(ok ? 'FlClash 配置更新成功'
+      _notify(ok ? '机场配置更新成功'
           : sub.error ?? '更新失败，原节点列表保持不变');
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -123,7 +121,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
     final controller = widget.subscription;
     final core = widget.core;
     if (controller == null || core == null) {
-      _notify('FlClash 核心尚未就绪');
+      _notify('航线服务尚未就绪');
       return;
     }
     final stage = widget.connection?.connected == true ||
@@ -263,7 +261,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
         child: Column(mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const StellarSectionHeading('配置操作', '仅执行已经接入 FlClash 的真实功能'),
+            const StellarSectionHeading('配置操作', '管理机场订阅与航线配置'),
             const SizedBox(height: 20),
             ListTile(
               leading: const Icon(Icons.sync_rounded),
@@ -330,7 +328,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                   children: [
                     Row(children: [
                       Expanded(child: StellarSectionHeading(
-                        '配置管理', '订阅世界的更多可能 · FlClash 原生配置')),
+                        '配置管理', '航行由此启程 · 管理每一条海上航线')),
                       if (!narrow)
                         StellarAction(label: '刷新配置',
                           icon: Icons.sync_rounded,
@@ -438,7 +436,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
               height: narrow ? 315 : 490,
               child: IgnorePointer(child: Opacity(
                 opacity: t.dark ? .72 : .46,
-                child: VelaGlobe(demo: widget.demo),
+                child: VelaOceanScene(demo: widget.demo),
               ))),
             Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(
               gradient: LinearGradient(colors: [
@@ -452,7 +450,8 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                     StellarPlanetGlyph(size: 43),
                     const SizedBox(width: 8),
                     Flexible(child: Text(active
-                        ? '当前航线 · FlClash' : '等待第一份配置',
+                        ? '当前航线 · ${_native?.profileName ?? '未命名机场'}'
+                         : '等待第一份机场配置',
                       maxLines: 2, style: TextStyle(color: t.text,
                         fontWeight: FontWeight.bold, fontSize: 20))),
                   ]),
@@ -581,7 +580,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
         Text('尚未添加航线配置', style: TextStyle(
           color: t.text, fontWeight: FontWeight.bold, fontSize: 17)),
         const SizedBox(height: 5),
-        const StellarLabel('支持 FlClash / Mihomo 配置和 HTTPS 订阅'),
+        const StellarLabel('支持航线配置和 HTTPS 机场订阅'),
         const SizedBox(height: 14),
         FilledButton.icon(onPressed: _openImporter,
           icon: const Icon(Icons.add_rounded),
