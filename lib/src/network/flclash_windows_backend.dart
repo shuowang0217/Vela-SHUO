@@ -44,6 +44,17 @@ class FlClashWindowsBackend {
   // subscription HTTP response, not from Mihomo proxy-providers.
   FlClashSubscriptionUsage? subscriptionUsage;
 
+  /// Applies the active native tunnel routing mode (not a UI-only toggle).
+  /// The upstream Go updateConfig handler returns an empty string on success.
+  Future<bool> updateRoutingMode(String mode) async {
+    if (!imported || !const {'rule', 'global', 'direct'}.contains(mode)) {
+      return false;
+    }
+    final reply = await api.invoke('updateConfig',
+        arguments: {'mode': mode});
+    return reply is String && reply.isEmpty;
+  }
+
   Future<void> initialize() async {
     if (ready) return;
     if (!Platform.isWindows && transport is FlClashWindowsTransport) {
