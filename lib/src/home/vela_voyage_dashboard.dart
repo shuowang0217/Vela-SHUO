@@ -308,7 +308,8 @@ class _VelaVoyageDashboardState extends State<VelaVoyageDashboard> {
             const VerticalDivider(color: Color(0xFF42617E),
                 thickness: 1, indent: 9, endIndent: 9),
             Expanded(flex: 2, child: _status(Icons.security_rounded,
-              '系统代理', connected ? '已开启' : '未开启',
+              widget.androidVpn != null ? 'Android VPN' : '系统代理',
+              connected ? '已开启' : '未开启',
               connected ? _mint : _muted)),
           ]),
     );
