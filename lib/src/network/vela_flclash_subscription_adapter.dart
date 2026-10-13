@@ -820,6 +820,10 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     }
   }
 
+  Future<void> flushPendingSaves() async {
+    await _pendingWrites;
+  }
+
   @override
   void dispose() {
     _closed = true;
