@@ -5,6 +5,7 @@ import '../subscription/flclash_profile_downloader.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../subscription/vela_subscription_parser.dart';
 import '../subscription/vela_subscription_vault.dart';
+import '../subscription/vela_profile_library.dart';
 import 'flclash_windows_backend.dart';
 import 'vela_flclash_core_adapter.dart';
 
@@ -17,11 +18,22 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     required this.backend,
     required VelaFlClashCoreController core,
     VelaSubscriptionVault? vault,
+    VelaSubscriptionVault? profileVault,
   })  : _store = vault ?? VelaDeviceSubscriptionVault(),
+        _library = VelaProfileLibrary(profileVault ??
+            (vault == null ? VelaDeviceProfileVault() :
+                VelaMemoryProfileVault())),
         super(core: core);
 
   final FlClashWindowsBackend backend;
   final VelaSubscriptionVault _store;
+  final VelaProfileLibrary _library;
+  List<VelaStoredProfile> _profiles = [];
+  String? _activeProfileId;
+  List<VelaStoredProfile> get profiles => List.unmodifiable(_profiles);
+  String? get activeProfileId => _activeProfileId;
+  bool get canSwitchProfiles =>
+      !loading && !_storageBusy && !backend.listenerStarted && !_closed;
   VelaSubscriptionPhase _current = VelaSubscriptionPhase.idle;
   String? _lastError;
   String? _raw;
@@ -287,6 +299,158 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _selection = index;
     _emit();
     return true;
+  }
+
+  String _cleanProfileName(String name) {
+    final value = name.trim();
+    if (value.isEmpty || value.length > 64) {
+      throw const FormatException('订阅名称须为1-64个字符');
+    }
+    return value;
+  }
+
+  VelaStoredProfile _currentProfile(String id, String name) {
+    final raw = _raw;
+    if (raw == null) throw StateError('No imported profile');
+    return VelaStoredProfile(
+      id: id, name: name, raw: raw, selectedName: selected?.name,
+      favorites: _favoriteNames.toList()..sort(),
+    );
+  }
+
+  /// Saves the current imported profile as a distinct named subscription.
+  /// Does not retain the HTTPS source URL or trigger an automatic connection.
+  Future<bool> saveAsProfile(String name) async {
+    if (_raw == null || !canSwitchProfiles ||
+        _profiles.length >= VelaProfileLibrary.maxProfiles) return false;
+    try {
+      final clean = _cleanProfileName(name);
+      final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+      final next = [..._profiles, _currentProfile(id, clean)];
+      await _library.write(next, id);
+      _profiles = next;
+      _activeProfileId = id;
+      _profileName = clean;
+      _stored = true;
+      _lastError = null;
+      _emit();
+      return true;
+    } catch (_) {
+      _lastError = '无法保存新订阅：检查名称、数量限制与系统加密存储';
+      _emit();
+      return false;
+    }
+  }
+
+  Future<bool> renameProfile(String id, String name) async {
+    if (!canSwitchProfiles) return false;
+    try {
+      final clean = _cleanProfileName(name);
+      final index = _profiles.indexWhere((profile) => profile.id == id);
+      if (index < 0) return false;
+      final next = [..._profiles];
+      next[index] = next[index].copyWith(name: clean);
+      await _library.write(next, _activeProfileId);
+      _profiles = next;
+      if (_activeProfileId == id) _profileName = clean;
+      _emit();
+      return true;
+    } catch (_) {
+      _lastError = '订阅重命名失败';
+      _emit();
+      return false;
+    }
+  }
+
+  Future<bool> removeProfile(String id) async {
+    if (!canSwitchProfiles) return false;
+    final next = _profiles.where((p) => p.id != id).toList();
+    if (next.length == _profiles.length) return false;
+    try {
+      final active = _activeProfileId == id ? null : _activeProfileId;
+      await _library.write(next, active);
+      _profiles = next;
+      _activeProfileId = active;
+      if (active == null) _stored = false;
+      _emit();
+      return true;
+    } catch (_) {
+      _lastError = '删除加密订阅失败';
+      _emit();
+      return false;
+    }
+  }
+
+  /// Change the Mihomo profile ONLY when no Windows listener or Android VPN
+  /// owns the core. The caller must check Android VPN activity separately.
+  /// A failed import attempts to restore the old in-memory profile.
+  Future<bool> activateProfile(String id) async {
+    if (!canSwitchProfiles || _closed) return false;
+    if (_activeProfileId == id) return true;
+    final target = _profiles.where((p) => p.id == id).firstOrNull;
+    if (target == null) return false;
+    final oldRaw = _raw;
+    final oldActive = _activeProfileId;
+    final oldName = _profileName;
+    final oldSelected = selected?.name;
+    final oldFavorites = _favoriteNames.toList();
+    _storageBusy = true;
+    _emit();
+    try {
+      // Save the user's last selection and stars before switching.
+      final next = [..._profiles];
+      if (oldRaw != null && oldActive != null) {
+        final index = next.indexWhere((p) => p.id == oldActive);
+        if (index >= 0) next[index] = _currentProfile(oldActive, next[index].name);
+      }
+      final ok = await _import(
+          () => backend.importText(target.raw), source: target.raw);
+      if (!ok) throw StateError('Could not apply selected profile');
+      _favoriteNames
+        ..clear()
+        ..addAll(target.favorites.where(
+            (name) => nodes.any((node) => node.name == name)));
+      _selection = null;
+      if (target.selectedName != null) {
+        final i = nodes.indexWhere((n) => n.name == target.selectedName);
+        if (i >= 0 && await backend.selectNode(nodes[i].name)) {
+          _selection = i;
+        }
+      }
+      await _library.write(next, id);
+      _profiles = next;
+      _activeProfileId = id;
+      _profileName = target.name;
+      _stored = true;
+      _lastError = null;
+      _emit();
+      return true;
+    } catch (_) {
+      if (oldRaw != null) {
+        try {
+          await backend.importText(oldRaw);
+          _raw = oldRaw;
+          _favoriteNames
+            ..clear()
+            ..addAll(oldFavorites);
+          _selection = null;
+          if (oldSelected != null) {
+            final index = nodes.indexWhere((n) => n.name == oldSelected);
+            if (index >= 0 && await backend.selectNode(oldSelected)) {
+              _selection = index;
+            }
+          }
+        } catch (_) {}
+      }
+      _activeProfileId = oldActive;
+      _profileName = oldName;
+      _lastError = '订阅切换失败，已尝试恢复原订阅。请确认已断开 VPN 或代理';
+      _emit();
+      return false;
+    } finally {
+      _storageBusy = false;
+      _emit();
+    }
   }
 
   @override
