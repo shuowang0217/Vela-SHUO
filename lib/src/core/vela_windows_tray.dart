@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart' hide MenuItem;
 import 'package:tray_manager/tray_manager.dart';
@@ -9,62 +7,6 @@ import 'package:window_manager/window_manager.dart';
 
 import 'vela_connection_coordinator.dart';
 import 'vela_window_exit_guard.dart';
-
-/// A self-contained status icon; generated locally rather than downloading
-/// remote icon files or depending on Flutter asset paths in Release builds.
-class VelaTrayIconBuilder {
-  static Future<Uint8List> icon({required bool connected}) async {
-    const size = 32;
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    final background = Paint()
-      ..color = connected
-          ? const Color(0xFF209978) : const Color(0xFF687587)
-      ..isAntiAlias = true;
-    canvas.drawCircle(const Offset(16, 16), 14, background);
-    final mark = Paint()
-      ..color = const Color(0xFFFFFFFF)
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-    final path = Path();
-    if (connected) {
-      path.moveTo(9, 16);
-      path.lineTo(14, 21);
-      path.lineTo(23, 11);
-    } else {
-      path.moveTo(10, 16);
-      path.lineTo(22, 16);
-    }
-    canvas.drawPath(path, mark);
-    final image = await recorder.endRecording().toImage(size, size);
-    try {
-      final data = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (data == null) throw StateError('Cannot encode tray icon');
-      final png = data.buffer.asUint8List();
-      // Windows ICO file with a single 32x32 PNG entry.
-      final header = ByteData(22)
-        ..setUint16(0, 0, Endian.little)
-        ..setUint16(2, 1, Endian.little)
-        ..setUint16(4, 1, Endian.little)
-        ..setUint8(6, size)
-        ..setUint8(7, size)
-        ..setUint8(8, 0)
-        ..setUint8(9, 0)
-        ..setUint16(10, 1, Endian.little)
-        ..setUint16(12, 32, Endian.little)
-        ..setUint32(14, png.length, Endian.little)
-        ..setUint32(18, 22, Endian.little);
-      return Uint8List.fromList([
-        ...header.buffer.asUint8List(), ...png,
-      ]);
-    } finally {
-      image.dispose();
-    }
-  }
-}
 
 /// Windows title-bar X hides to the notification area, while - minimizes
 /// normally. The connection service remains alive until explicit Safe Exit.
@@ -76,24 +18,13 @@ class VelaWindowsTrayController with TrayListener {
   bool _initialized = false;
   bool _busy = false;
   bool? _lastConnected;
-  String? _offIcon;
-  String? _onIcon;
+  static const _offIcon = 'assets/tray/proxy_off.ico';
+  static const _onIcon = 'assets/tray/proxy_on.ico';
 
   Future<void> initialize() async {
     if (!Platform.isWindows || _initialized) return;
     try {
-      final folder = Directory(
-          '${Platform.environment['LOCALAPPDATA'] ??
-              Directory.systemTemp.path}${Platform.pathSeparator}'
-          'Vela-SHUO${Platform.pathSeparator}Tray');
-      await folder.create(recursive: true);
-      _offIcon = '${folder.path}${Platform.pathSeparator}proxy-off.ico';
-      _onIcon = '${folder.path}${Platform.pathSeparator}proxy-on.ico';
-      await File(_offIcon!).writeAsBytes(
-          await VelaTrayIconBuilder.icon(connected: false), flush: true);
-      await File(_onIcon!).writeAsBytes(
-          await VelaTrayIconBuilder.icon(connected: true), flush: true);
-      await trayManager.setIcon(_offIcon!);
+      await trayManager.setIcon(_offIcon);
       await trayManager.setToolTip('Vela v1.1.0 · 代理已关闭');
       trayManager.addListener(this);
       _initialized = true;
@@ -139,7 +70,7 @@ class VelaWindowsTrayController with TrayListener {
     // an optimistic button click or an unverified "connected" animation.
     if (_lastConnected != active) {
       _lastConnected = active;
-      await trayManager.setIcon(active ? _onIcon! : _offIcon!);
+      await trayManager.setIcon(active ? _onIcon : _offIcon);
     }
     await trayManager.setToolTip(active
         ? 'Vela v1.1.0 · 系统代理已开启'
