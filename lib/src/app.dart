@@ -419,7 +419,7 @@ class _DesktopNav extends StatelessWidget {
         color: _blue, fontSize: 12, letterSpacing: 2,
       )),
      ],
-    SizedBox(height: 46),
+    SizedBox(height: extended ? 46 : 25),
     for (final i in _ShellState.navOrder)
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -432,7 +432,7 @@ class _DesktopNav extends StatelessWidget {
             onTap: () => onSelect(i),
             borderRadius: BorderRadius.circular(13),
             child: Container(
-              height: 52,
+              height: extended ? 52 : 70,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(13),
                 border: Border.all(
@@ -445,13 +445,33 @@ class _DesktopNav extends StatelessWidget {
                     ? MainAxisAlignment.start : MainAxisAlignment.center,
                 children: [
                   if (extended) SizedBox(width: 15),
-                  Icon(
-                    selected == i
-                        ? _ShellState.destinations[i].$2
-                        : _ShellState.destinations[i].$1,
-                    color: selected == i ? _blue : _muted, size: 22,
-                  ),
-                  if (extended) ...[
+                   if (!extended)
+                     Column(mainAxisSize: MainAxisSize.min, children: [
+                       Icon(selected == i
+                           ? _ShellState.destinations[i].$2
+                           : _ShellState.destinations[i].
+                  ,
+                         color: selected == i
+                             ? const Color(0xFF89E8FF) : const Color(0xFFD1DFEE),
+                         size: 24),
+                       const SizedBox(height: 5),
+                       Text(_ShellState.destinations[i].$3,
+                         style: TextStyle(
+                           color: selected == i
+                               ? const Color(0xFFE4F6FF)
+                               : const Color(0xFFB8CBDE),
+                           fontSize: 11,
+                           fontWeight: selected == i
+                               ? FontWeight.bold : FontWeight.w500)),
+                     ])
+                   else Icon(
+                     selected == i
+                         ? _ShellState.destinations[i].$2
+                         : _ShellState.destinations[i].
+                  ,
+                     color: selected == i ? _blue : _muted, size: 22,
+                   ),
+                   if (extended) ...[
                     SizedBox(width: 15),
                     Text(_ShellState.destinations[i].$3,
                       style: TextStyle(
