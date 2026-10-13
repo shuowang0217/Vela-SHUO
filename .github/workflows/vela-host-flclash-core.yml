@@ -2,7 +2,7 @@ name: Vela Windows + Android CI
 
 on:
   push:
-    branches: [main, release/v1.0.0, feature/v1.1.0-multi-subscriptions-tray, feature/v1.1.1-ocean-branding, feature/v1.2.0-voyage-map, feature/v1.2.1-chart-glass]
+    branches: [main, release/v1.0.0, feature/v1.1.0-multi-subscriptions-tray, feature/v1.1.1-ocean-branding, feature/v1.2.0-voyage-map, feature/v1.2.1-chart-glass, feature/v1.3.0-reference-ui]
   workflow_dispatch:
 
 permissions:
@@ -59,7 +59,7 @@ jobs:
           grep -q 'runApp(VelaShuoApp(' lib/main.dart
           grep -q 'home: _Shell(settings: settings' lib/src/app.dart
           grep -q 'class VelaVoyageMap extends StatefulWidget' lib/src/home/vela_voyage_map.dart
-          grep -q 'class VelaVoyageDashboard extends StatefulWidget' lib/src/home/vela_voyage_dashboard.dart
+          grep -q 'class VelaReferenceDashboard extends StatefulWidget' lib/src/home/vela_reference_dashboard.dart
           grep -q 'class _DesktopHome extends StatelessWidget' lib/src/app.dart
           ! grep -R -q 'VelaShell\|WindowHeaderContainer\|FlClash dashboard' lib/src/app.dart
           # The old Vela parser, isolated runner and subscription config
