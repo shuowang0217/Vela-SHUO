@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../theme/vela_palettes.dart';
 
-/// Shared visual language for the two approved stellar pages. Every color is
+/// Shared maritime visual language for Vela pages. Every color is
 /// derived from the existing eight Vela palettes, including light themes.
 class StellarAtmosphere extends StatelessWidget {
   const StellarAtmosphere({super.key, required this.child});
@@ -136,68 +136,88 @@ class StellarPlanetGlyph extends StatelessWidget {
   }
 }
 
+/// Quiet contour waves and chart guides, rather than a star field.
 class _StellarFieldPainter extends CustomPainter {
-  _StellarFieldPainter(this.accent, this.dark);
+  const _StellarFieldPainter(this.accent, this.dark);
   final Color accent;
   final bool dark;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final random = math.Random(12411);
-    for (var i = 0; i < 75; i++) {
-      final x = random.nextDouble() * size.width;
-      final y = random.nextDouble() * size.height;
-      final radius = i % 8 == 0 ? 1.5 : .65;
-      canvas.drawCircle(Offset(x, y), radius, Paint()
-        ..color = accent.withValues(alpha: dark ? .20 : .08));
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..color = accent.withValues(alpha: dark ? .14 : .075);
+    for (var row = 0; row < 7; row++) {
+      final y = size.height * (.16 + row * .13);
+      final wave = Path()..moveTo(0, y);
+      for (var x = 0.0; x <= size.width; x += 8) {
+        wave.lineTo(x, y + math.sin(x * .014 + row * 1.6) * 11);
+      }
+      canvas.drawPath(wave, paint);
     }
-    final ray = Paint()
-      ..strokeWidth = .7
-      ..color = accent.withValues(alpha: dark ? .14 : .08);
-    for (var i = 0; i < 3; i++) {
-      final offset = size.width * (.2 + i * .3);
-      canvas.drawLine(
-          Offset(offset, 0), Offset(offset + size.width * .22, size.height), ray);
+    // Faint dotted shipping lane; graphic decoration only.
+    final lane = Paint()
+      ..color = accent.withValues(alpha: dark ? .23 : .12);
+    for (var i = 0; i < 28; i++) {
+      final x = size.width * (i + .5) / 29;
+      final y = size.height * (.17 + .23 * math.sin(i * .11));
+      canvas.drawCircle(Offset(x, y), 1.25, lane);
     }
   }
+
   @override
   bool shouldRepaint(covariant _StellarFieldPainter other) =>
       other.accent != accent || other.dark != dark;
 }
 
+/// A compact sailboat emblem, using theme colors in light and dark mode.
 class _PlanetPainter extends CustomPainter {
-  _PlanetPainter(this.accent, this.dark);
+  const _PlanetPainter(this.accent, this.dark);
   final Color accent;
   final bool dark;
+
   @override
   void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width * .5, size.height * .5);
-    final radius = math.min(size.width, size.height) * .35;
-    canvas.drawCircle(c, radius * 1.35, Paint()
-      ..color = accent.withValues(alpha: .17)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * .42));
-    final rect = Rect.fromCircle(center: c, radius: radius);
-    canvas.drawCircle(c, radius, Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(-.48, -.54),
-        colors: [
-          Color.lerp(accent, Colors.white, .43)!,
-          accent,
-          Color.lerp(accent, Colors.black, .72)!,
-        ],
-      ).createShader(rect));
+    final unit = math.min(size.width, size.height) / 100;
     canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.rotate(-.3);
-    final orbit = Rect.fromCenter(center: Offset.zero,
-        width: radius * 2.85, height: radius * .62);
-    canvas.drawOval(orbit, Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = accent.withValues(alpha: .65));
+    canvas.translate((size.width - 100 * unit) / 2,
+        (size.height - 100 * unit) / 2);
+    canvas.scale(unit);
+
+    canvas.drawCircle(const Offset(50, 50), 46, Paint()
+      ..color = accent.withValues(alpha: dark ? .18 : .10));
+    canvas.drawArc(const Rect.fromLTWH(7, 8, 86, 86), -.3, 2.8, false,
+        Paint()..color = accent.withValues(alpha: .35)
+          ..style = PaintingStyle.stroke..strokeWidth = 1.5);
+
+    final mast = Paint()..color = accent..strokeWidth = 3
+        ..strokeCap = StrokeCap.round;
+    canvas.drawLine(const Offset(51, 16), const Offset(51, 71), mast);
+    final mainsail = Path()
+      ..moveTo(54, 19)..lineTo(77, 65)..lineTo(54, 65)..close();
+    canvas.drawPath(mainsail, Paint()..color =
+        Color.lerp(accent, Colors.white, dark ? .48 : .26)!);
+    final jib = Path()
+      ..moveTo(48, 27)..lineTo(48, 65)..lineTo(29, 65)..close();
+    canvas.drawPath(jib, Paint()..color = accent.withValues(alpha: .84));
+
+    final hull = Path()
+      ..moveTo(23, 71)..quadraticBezierTo(50, 78, 81, 70)
+      ..lineTo(73, 82)..quadraticBezierTo(48, 88, 30, 81)
+      ..close();
+    canvas.drawPath(hull, Paint()..color = accent);
+    final wake = Paint()..color = accent.withValues(alpha: .50)
+      ..strokeWidth = 2..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(const Rect.fromLTWH(18, 80, 30, 9),
+        .12, 2.8, false, wake);
+    canvas.drawArc(const Rect.fromLTWH(55, 80, 28, 9),
+        .25, 2.8, false, wake);
     canvas.restore();
   }
+
   @override
   bool shouldRepaint(covariant _PlanetPainter old) =>
-      accent != old.accent || dark != old.dark;
+      old.accent != accent || old.dark != dark;
 }
