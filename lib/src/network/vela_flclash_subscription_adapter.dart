@@ -478,6 +478,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _storageBusy = true;
     _emit();
     try {
+      await _pendingWrites;
       final clean = _cleanProfileName(name);
       final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
       final next = [..._profiles, _currentProfile(id, clean)];
@@ -531,6 +532,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _storageBusy = true;
     _emit();
     try {
+      await _pendingWrites;
       final active = _activeProfileId == id ? null : _activeProfileId;
       await _library.write(next, active);
       _profiles = next;
@@ -564,6 +566,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _storageBusy = true;
     _emit();
     try {
+      await _pendingWrites;
       // Save the user's last selection and stars before switching.
       final next = [..._profiles];
       if (oldRaw != null && oldActive != null) {
@@ -573,6 +576,16 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       final ok = await _import(
           () => backend.importText(target.raw), source: target.raw);
       if (!ok) throw StateError('Could not apply selected profile');
+      final quota = target.usage;
+      if (quota != null && quota['total'] != null) {
+        backend.subscriptionUsage = FlClashSubscriptionUsage(
+          upload: quota['upload'] ?? 0,
+          download: quota['download'] ?? 0,
+          total: quota['total']!,
+          expire: quota['expire'],
+        );
+      }
+      _updatedAt = target.updatedAt;
       _favoriteNames
         ..clear()
         ..addAll(target.favorites.where(
@@ -651,6 +664,13 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
           }
           _activeProfileId = saved.id;
           _profileName = saved.name;
+          _updatedAt = saved.updatedAt;
+          final quota = saved.usage;
+          if (quota != null && quota['total'] != null) {
+            backend.subscriptionUsage = FlClashSubscriptionUsage(
+              upload: quota['upload'] ?? 0, download: quota['download'] ?? 0,
+              total: quota['total']!, expire: quota['expire']);
+          }
           _stored = true;
           _emit();
           return true;
@@ -715,6 +735,9 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
           await selectNode(index);
         }
         _stored = true;
+        // Finish migrating the legacy favorites and chosen node to the new
+        // encrypted multi-airport record (not just the old v2 snapshot).
+        _queueCurrentSave();
       }
       return ok;
     } catch (_) {
@@ -732,6 +755,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _storageBusy = true;
     _emit();
     try {
+      await _pendingWrites;
       final quota = backend.subscriptionUsage;
       await _store.write(jsonEncode({
         'v': 2,
@@ -778,6 +802,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _storageBusy = true;
     _emit();
     try {
+      await _pendingWrites;
       await _store.delete();
       if (_activeProfileId != null) {
         final next = _profiles.where((p) => p.id != _activeProfileId).toList();
