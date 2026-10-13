@@ -1450,7 +1450,7 @@ class _AndroidVpnCard extends StatelessWidget {
           children: [
             Text(vpn.phaseText, style: TextStyle(color: _foreground,
                 fontSize: 18, fontWeight: FontWeight.w700)),
-            Text('Mihomo · Android VpnService · TUN',
+            Text('Vela · Android VPN 航线',
                 style: TextStyle(color: _muted, fontSize: 11)),
           ],
         )),
@@ -1604,8 +1604,8 @@ class _RealConnectionCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(estimated == null
-              ? '节点地理位置未知，地球保持原视角'
-              : '地球航线位置由节点名称估算 · 非 IP 定位',
+              ? '当前节点未提供地区信息'
+              : '航线地区由节点名称推测，并非精确定位',
             style: TextStyle(fontSize: 11, color: _muted),
           ),
           if (connection.error != null) Padding(
