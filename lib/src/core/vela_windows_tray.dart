@@ -75,8 +75,10 @@ class VelaWindowsTrayController with TrayListener {
         ? 'Vela v1.1.0 · 系统代理已开启'
         : 'Vela v1.1.0 · 系统代理已关闭');
     await trayManager.setContextMenu(Menu(items: [
-      MenuItem(key: 'open', label: '打开 Vela 窗口'),
+      MenuItem(key: 'open', label: '显示主窗口'),
       MenuItem.separator(),
+      MenuItem(key: 'state', label: active ? '状态：代理已开启' : '状态：代理已关闭',
+          disabled: true),
       MenuItem(key: 'enable', label: '开启代理',
           disabled: _busy || link == null || link.busy ||
               link.proxy.active || !link.available),
@@ -84,7 +86,7 @@ class VelaWindowsTrayController with TrayListener {
           disabled: _busy || link == null || link.busy ||
               (!link.proxy.active && !link.core.isListening)),
       MenuItem.separator(),
-      MenuItem(key: 'exit', label: '退出软件'),
+      MenuItem(key: 'exit', label: '安全退出 Vela'),
     ]));
   }
 
@@ -134,7 +136,9 @@ class VelaWindowsTrayController with TrayListener {
 
   @override
   void onTrayIconRightMouseDown() {
-    // Windows tray_manager automatically shows the assigned right-click menu.
+    // tray_manager 0.5.3 emits the mouse event but does NOT automatically
+    // open the native Win32 popup. Explicitly call TrackPopupMenu via IPC.
+    unawaited(trayManager.popUpContextMenu());
   }
 
   @override
