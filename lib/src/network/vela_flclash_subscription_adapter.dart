@@ -536,7 +536,25 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       await _library.write(next, active);
       _profiles = next;
       _activeProfileId = active;
-      if (active == null) _stored = false;
+      if (active == null) {
+        // Removing the active airport must not leave an unsaved, still
+        // connectable native profile behind.
+        backend.imported = false;
+        backend.nodes = const [];
+        backend.groups = const [];
+        backend.groupMembers = const {};
+        backend.activeName = null;
+        backend.activeGroup = null;
+        backend.subscriptionUsage = null;
+        backend.lastImportedSource = null;
+        _raw = null;
+        _sessionUrl = null;
+        _profileName = null;
+        _selection = null;
+        _favoriteNames.clear();
+        _current = VelaSubscriptionPhase.idle;
+        _stored = false;
+      }
       _emit();
       return true;
     } catch (_) {
