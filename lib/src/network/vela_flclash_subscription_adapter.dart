@@ -701,7 +701,10 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       if (obj is! Map || obj['v'] != 2 || obj['raw'] is! String) {
         return false;
       }
-      final ok = await importFromText(obj['raw'] as String);
+      // Restore is already holding the vault guard. Call the native importer
+      // directly rather than the public import method (which is guarded).
+      final ok = await _import(() => backend.importText(obj['raw'] as String),
+          source: obj['raw'] as String);
       if (ok) {
         // A previously saved subscription header is trusted only inside the
         // user-opted-in encrypted vault, NEVER inside untrusted YAML.
@@ -751,9 +754,14 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
         if (index >= 0 && index < nodes.length) {
           await selectNode(index);
         }
+        // Migration writes an actual named airport so next launch restores
+        // the full collection, its selected node, stars and quota.
+        if (_raw == null || !await _saveNewImported(
+            raw: _raw!, name: _profileName,
+            usage: _quotaMap(backend.subscriptionUsage))) {
+          return false;
+        }
         _stored = true;
-        // Finish migrating the legacy favorites and chosen node to the new
-        // encrypted multi-airport record (not just the old v2 snapshot).
         _queueCurrentSave();
       }
       return ok;
