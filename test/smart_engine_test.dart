@@ -257,6 +257,42 @@ void main() {
     }
   });
 
+  test('proxy page full-node action combines latency and downloads '
+      'even while Smart AI filters a different country', () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 5);
+    final delay = _BatchProbe();
+    final speed = _SpeedProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link,
+      probe: delay, downloadProbe: speed,
+    );
+    try {
+      // Node-* names do not match the Smart page's JP-only filter.
+      smart.setAiMode(true);
+      expect(smart.canTestAll, true);
+      await smart.testAllNodes(includeAllCountries: true);
+
+      expect(delay.calls, 1);
+      expect(smart.scanned, 5);
+      expect(smart.total, 5);
+      expect(smart.successful, 3);
+      expect(smart.failed, 2);
+      expect(speed.tested, [
+        'Node-0', 'Node-1', 'Node-2', 'Node-3', 'Node-4']);
+      expect(smart.downloadsTested, 5);
+      expect(smart.downloadsSuccessful, 5);
+      expect(smart.resultAt(0)?.lastMs, 100);
+      expect(smart.resultAt(1)?.reachable, false);
+      expect(smart.downloadAt(1)?.megabytesPerSecond,
+          closeTo(8.175, .001));
+      expect(smart.status, contains('下载成功 5'));
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
   test('FlClash native latency batch updates real nodes without per-node RPC',
       () async {
     final (folder, core, sub, proxy, link) = await setup(count: 9);
