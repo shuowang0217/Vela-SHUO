@@ -191,6 +191,8 @@ class VelaSmartController extends ChangeNotifier {
 
   Map<int, VelaNodeHealth> get results => Map.unmodifiable(_results);
   VelaDownloadSample? downloadAt(int index) => _downloads[index];
+  int get downloadsTested => _downloads.length;
+  int get downloadsSuccessful => _downloads.values.where((s) => s.ok).length;
   bool _downloading = false;
   int? _downloadIndex;
   String? _downloadStatus;
@@ -434,16 +436,20 @@ class VelaSmartController extends ChangeNotifier {
     }
   }
 
-  /// FlClash-like one-click benchmark of EVERY imported node. At most two
-  /// isolated sing-box children run concurrently, including while the
-  /// main Windows proxy is connected. No action touches that live proxy.
-  Future<void> testAllNodes({bool automatic = false}) async {
+  /// FlClash Go measures latency and download separately for every node.
+  /// The Proxy screen uses includeAllCountries to benchmark the complete
+  /// imported subscription, independent of Smart AI country filtering.
+  /// In-flight downloads are limited to two without interrupting live VPN.
+  Future<void> testAllNodes({
+    bool automatic = false,
+    bool includeAllCountries = false,
+  }) async {
     if (!canTestAll) { return; }
     _results.clear();
     _downloads.clear();
     _cursor = 0;
     final indices = List<int>.generate(count, (i) => i)
-        .where(_eligible).toList();
+        .where((i) => includeAllCountries || _eligible(i)).toList();
     if (indices.isEmpty) {
       _status = '所选国家没有匹配的节点，保持当前连接';
       _emit();
