@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/network/flclash_core_api.dart';
 import 'package:vela_shuo/src/subscription/flclash_profile_downloader.dart';
+import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/network/flclash_windows_backend.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
