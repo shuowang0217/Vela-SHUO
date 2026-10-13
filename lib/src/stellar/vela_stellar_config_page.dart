@@ -495,62 +495,70 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
     );
   }
 
-  Widget _profileCard(BuildContext context, {required bool selected,
-      num? used, num? total, double? percent, required bool online}) {
+  Widget _profileCard(BuildContext context, VelaStoredProfile profile, {
+    required bool selected, required bool online,
+  }) {
     final t = VelaThemeRuntime.active;
-    final sub = widget.subscription!;
-    final remote = _native?.remoteProviderCount ?? 0;
-    return StellarPanel(selected: selected, padding: const EdgeInsets.all(17),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          StellarPlanetGlyph(size: 58),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(_native?.profileName ?? '当前配置', style: TextStyle(color: t.text,
-                fontWeight: FontWeight.bold, fontSize: 19)),
-              const SizedBox(height: 4),
-              StellarLabel(online ? '● 正在连接' : '● 已载入 FlClash 核心',
-                accent: true),
-            ],
-          )),
-          PopupMenuButton<String>(
-            tooltip: '配置菜单',
-            onSelected: (action) {
-              if (action == 'update') _refresh();
-              if (action == 'replace') _openImporter();
-              if (action == 'manage') _showManagement();
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(value: 'update',
-                  enabled: !online && !_busy,
-                  child: const Text('更新当前配置')),
-              const PopupMenuItem(value: 'replace',
-                  child: Text('替换配置')),
-              const PopupMenuItem(value: 'manage',
-                  child: Text('保存和管理')),
-            ],
-          ),
+    final usage = profile.usage;
+    final total = usage?['total'];
+    final used = usage == null ? null :
+        (usage['upload'] ?? 0) + (usage['download'] ?? 0);
+    final fraction = total != null && total > 0 && used != null
+        ? (used / total).clamp(0.0, 1.0).toDouble() : null;
+    return InkWell(
+      key: ValueKey('airport_card_${profile.id}'),
+      borderRadius: BorderRadius.circular(18),
+      onTap: _busy || selected ? null : () => _activateAirport(profile.id),
+      child: StellarPanel(selected: selected,
+        padding: const EdgeInsets.all(17),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            StellarPlanetGlyph(size: 42),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(profile.name, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: t.text,
+                      fontWeight: FontWeight.bold, fontSize: 17)),
+                const SizedBox(height: 4),
+                StellarLabel(online ? '● 代理正在使用'
+                    : selected ? '● 当前机场' : '点击切换机场',
+                    accent: selected),
+              ])),
+            PopupMenuButton<String>(
+              key: ValueKey('airport_menu_${profile.id}'),
+              tooltip: '机场操作',
+              onSelected: (value) => _handleAirportMenu(profile, value),
+              itemBuilder: (_) => [
+                PopupMenuItem(value: 'switch', enabled: !selected,
+                    child: const Text('切换到此机场')),
+                const PopupMenuItem(value: 'rename',
+                    child: Text('重命名机场')),
+                const PopupMenuItem(value: 'delete',
+                    child: Text('删除机场')),
+              ],
+            ),
+          ]),
+          const SizedBox(height: 14),
+          Text(used != null && total != null
+              ? '${_humanBytes(used)} / ${_humanBytes(total)}'
+              : '未提供套餐用量',
+            style: TextStyle(color: t.text, fontSize: 13)),
+          const SizedBox(height: 7),
+          LinearProgressIndicator(value: fraction ?? 0, minHeight: 5,
+              borderRadius: BorderRadius.circular(8),
+              backgroundColor: t.line, color: t.accent),
+          const SizedBox(height: 11),
+          Wrap(spacing: 12, runSpacing: 7, children: [
+            if (profile.nodeCount != null)
+              _iconLabel(Icons.hub_outlined, '${profile.nodeCount} 个节点'),
+            _iconLabel(Icons.schedule_outlined,
+                _elapsed(profile.updatedAt)),
+            _iconLabel(Icons.lock_outline, '已加密保存'),
+          ]),
         ]),
-        const SizedBox(height: 17),
-        if (percent != null && used != null && total != null) ...[
-          Text('${_humanBytes(used)} / ${_humanBytes(total)}',
-            style: TextStyle(color: t.text)),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(value: percent, minHeight: 6,
-            borderRadius: BorderRadius.circular(8),
-            backgroundColor: t.line),
-          const SizedBox(height: 10),
-        ],
-        Wrap(spacing: 15, runSpacing: 8, children: [
-          _iconLabel(Icons.public_outlined, '${sub.nodes.length} 个节点'),
-          _iconLabel(Icons.hub_outlined, '$remote 个在线提供者'),
-          _iconLabel(Icons.schedule_outlined,
-              _elapsed(sub.lastUpdatedAt)),
-          _iconLabel(Icons.shield_outlined,
-              sub.storedOnDevice ? '已加密保存' : '仅当前会话'),
-        ]),
-      ]),
+      ),
     );
   }
 
