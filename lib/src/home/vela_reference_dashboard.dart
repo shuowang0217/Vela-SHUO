@@ -95,7 +95,9 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
   Future<void> _probeDelay() async {
     final native = _native;
     if (native?.backend.imported != true ||
-        _testingDelay || !mounted) return;
+        _testingDelay || !mounted) {
+      return;
+    }
     final connected = widget.connection?.connected == true ||
         widget.androidVpn?.connected == true;
     final selected = widget.subscription.selected?.name;
