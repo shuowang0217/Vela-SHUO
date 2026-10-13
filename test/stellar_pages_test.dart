@@ -20,9 +20,11 @@ void main() {
         openConfig: () {},
       )),
     ));
-    expect(find.text('全球加速'), findsOneWidget);
-    expect(find.text('星图尚未载入'), findsOneWidget);
+    expect(find.text('航线连接'), findsOneWidget);
+    expect(find.text('航线尚未载入'), findsOneWidget);
     expect(find.byKey(const ValueKey('stellar_open_config')), findsOneWidget);
+    expect(find.textContaining('FlClash'), findsNothing);
+    expect(find.textContaining('星图'), findsNothing);
     await tester.pump(const Duration(milliseconds: 100));
   });
 
