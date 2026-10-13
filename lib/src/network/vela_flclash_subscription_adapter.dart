@@ -767,8 +767,10 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
             usage: _quotaMap(backend.subscriptionUsage))) {
           return false;
         }
+        // _saveNewImported already wrote the migrated favorites and
+        // selected node atomically. A second queued write would mark the
+        // restored snapshot "unsaved" during the same startup frame.
         _stored = true;
-        _queueCurrentSave();
       }
       return ok;
     } catch (_) {
