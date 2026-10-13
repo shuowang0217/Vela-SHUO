@@ -240,9 +240,9 @@ class _VoyagePainter extends CustomPainter {
           Paint()
             ..filterQuality = FilterQuality.high
             ..colorFilter = const ColorFilter.matrix([
-              .42, 0, 0, 0, 6,
-              0, .50, 0, 0, 8,
-              0, 0, .63, 0, 8,
+              .83, 0, 0, 0, 3,
+              0, .92, 0, 0, 3,
+              0, 0, 1.02, 0, 2,
               0, 0, 0, 1, 0,
             ]));
         canvas.drawImageRect(night, nightSrc, dst,
@@ -250,10 +250,10 @@ class _VoyagePainter extends CustomPainter {
             ..filterQuality = FilterQuality.high
             ..blendMode = BlendMode.screen
             ..colorFilter = const ColorFilter.matrix([
-              2.0, 0, 0, 0, -12,
-              0, 1.8, 0, 0, -10,
-              0, 0, 1.4, 0, -12,
-              0, 0, 0, .90, 0,
+              1.85, 0, 0, 0, -11,
+              0, 1.52, 0, 0, -10,
+              0, 0, 1.17, 0, -12,
+              0, 0, 0, .74, 0,
             ]));
       }
 
@@ -297,6 +297,38 @@ class _VoyagePainter extends CustomPainter {
           canvas.drawPath(path, coast);
         }
       }
+    }
+
+    // Warm satellite sunrise, fog banks and a softly illuminated horizon.
+    // These are atmosphere layers over the real bundled Blue Marble texture,
+    // not an invented network connection or geolocation.
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height * .38),
+      Paint()..shader = const LinearGradient(
+        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+        colors: [Color(0x9B669ABE), Color(0x444B739F),
+          Color(0x00567C9D)],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height * .38)));
+    canvas.drawRect(Offset.zero & size,
+      Paint()..shader = RadialGradient(
+        center: const Alignment(.94, -.86),
+        radius: 1.16,
+        colors: [const Color(0xAAD5ECF8),
+          const Color(0x245F9FCF), Colors.transparent],
+        stops: const [0, .39, 1],
+      ).createShader(Offset.zero & size));
+
+    final fogPaint = Paint()
+      ..color = const Color(0xFFD3E9F2).withValues(alpha: .22)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 37);
+    for (final cloud in const <(double,double,double,double)>[
+      (.02,.008,.18,.065),(.26,.022,.23,.052),
+      (.48,.036,.27,.048),(.76,.016,.34,.060),
+      (-.09,.88,.36,.12),(.17,.96,.25,.095),
+      (.76,.87,.33,.14),(.95,.97,.22,.12),
+    ]) {
+      canvas.drawOval(Rect.fromLTWH(size.width * cloud.$1,
+          size.height * cloud.$2, size.width * cloud.$3,
+          size.height * cloud.$4), fogPaint);
     }
 
     // Sparse chart meridians give the water depth without cluttering the map.
