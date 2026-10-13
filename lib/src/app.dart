@@ -24,6 +24,7 @@ import 'package:vela_shuo/src/core/vela_core_settings_card.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/ocean_scene.dart';
+import 'package:vela_shuo/src/home/vela_voyage_dashboard.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_proxy_page.dart';
@@ -295,12 +296,20 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       androidVpn: androidVpn, windowExitGuard: widget.windowExitGuard,
       goHome: () => navigate(0),
     ),
-    _ => _HomePage(
-      demo: demo, desktop: desktop,
-      connection: connection, subscription: subscription, smart: smart,
-      androidVpn: androidVpn, traffic: traffic,
-      showNodes: () => navigate(1), showSmart: () => navigate(2),
-    ),
+    _ => widget.core is VelaFlClashCoreController && subscription != null
+        ? VelaVoyageDashboard(
+            subscription: subscription!,
+            connection: connection, androidVpn: androidVpn, traffic: traffic,
+            showNodes: () => navigate(1),
+            showConfig: () => navigate(4),
+            showSmart: () => navigate(2),
+          )
+        : _HomePage(
+            demo: demo, desktop: desktop,
+            connection: connection, subscription: subscription, smart: smart,
+            androidVpn: androidVpn, traffic: traffic,
+            showNodes: () => navigate(1), showSmart: () => navigate(2),
+          ),
   };
 
   @override
@@ -323,7 +332,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                 Container(
                   width: extended ? 190 : 90,
                   decoration: BoxDecoration(
-                    color: _panel.withValues(alpha: .84),
+                    color: const Color(0xDE0B2541),
                     border: Border(right: BorderSide(color: _line)),
                   ),
                   child: _DesktopNav(
