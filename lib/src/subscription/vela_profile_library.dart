@@ -40,7 +40,9 @@ class VelaStoredProfile {
 
   static VelaStoredProfile? fromJson(Object? object) {
     if (object is! Map || object['id'] is! String ||
-        object['name'] is! String || object['raw'] is! String) return null;
+        object['name'] is! String || object['raw'] is! String) {
+      return null;
+    }
     final id = object['id'] as String;
     final name = (object['name'] as String).trim();
     final raw = object['raw'] as String;
@@ -70,16 +72,20 @@ class VelaProfileLibrary {
 
   Future<({List<VelaStoredProfile> profiles, String? activeId})> read() async {
     final saved = await vault.read();
-    if (saved == null) return (profiles: <VelaStoredProfile>[], activeId: null);
-    if (saved.length > maxPayloadLength) throw const FormatException(
-        'Encrypted profile index exceeds safe limits');
+    if (saved == null) {
+      return (profiles: <VelaStoredProfile>[], activeId: null);
+    }
+    if (saved.length > maxPayloadLength) {
+      throw const FormatException('Encrypted profile index exceeds safe limits');
+    }
     final parsed = jsonDecode(saved);
     if (parsed is! Map || parsed['v'] != 1 || parsed['profiles'] is! List) {
       throw const FormatException('Invalid encrypted profile index');
     }
     final values = parsed['profiles'] as List;
-    if (values.length > maxProfiles) throw const FormatException(
-        'Too many saved subscriptions');
+    if (values.length > maxProfiles) {
+      throw const FormatException('Too many saved subscriptions');
+    }
     final profiles = <VelaStoredProfile>[];
     final ids = <String>{};
     for (final value in values) {
