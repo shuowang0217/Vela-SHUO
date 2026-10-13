@@ -32,6 +32,7 @@ class VelaWindowExitGuard extends WindowListener {
   final Future<void> Function() _allowCloseWindow;
   final Future<void> Function() _destroyWindow;
   Future<bool> Function()? shutdownConnection;
+  Future<bool> Function()? hideToTray;
   bool _closing = false;
   bool _minimizing = false;
 
@@ -41,10 +42,15 @@ class VelaWindowExitGuard extends WindowListener {
   }
 
   /// Does not touch the connection, proxy journal, or core process.
+  /// X hides to notification area; only the - button minimizes to taskbar.
   Future<bool> minimizeOnClose() async {
     if (_closing || _minimizing) return false;
     _minimizing = true;
     try {
+      final hidden = await hideToTray?.call();
+      if (hidden == true) return true;
+      // If Explorer or the tray plugin is unavailable, keep Vela reachable
+      // on the taskbar instead of hiding it without a restore control.
       await _minimizeWindow();
       return true;
     } catch (_) {
