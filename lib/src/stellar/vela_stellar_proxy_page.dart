@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../android/vela_android_vpn.dart';
 import '../core/vela_connection_coordinator.dart';
 import '../home/demo_connection.dart';
-import '../home/globe.dart';
+import '../home/ocean_scene.dart';
 import '../network/vela_flclash_subscription_adapter.dart';
 import '../smart/vela_smart_controller.dart';
 import '../subscription/vela_subscription_controller.dart';
@@ -60,7 +60,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
   String _flag(String region) => switch (region) {
     '日本' => '🇯🇵', '香港' => '🇭🇰', '新加坡' => '🇸🇬',
     '美国' => '🇺🇸', '台湾' => '🇹🇼', '韩国' => '🇰🇷',
-    '欧洲' => '🌍', _ => '✦',
+    '欧洲' => '🇪🇺', _ => '⚓',
   };
 
   Future<void> _choose(int index) async {
@@ -78,7 +78,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
       widget.smart?.manualSelection();
     } else {
       final message = vpn?.error ?? conn?.error ??
-          sub.error ?? 'FlClash 未确认节点选择';
+          sub.error ?? '尚未确认节点选择';
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)));
     }
@@ -107,6 +107,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
           final flclash = sub is VelaFlClashSubscriptionController
               ? sub : null;
           final nativeGroups = flclash?.backend.groups ?? const <String>[];
+           final airportName = flclash?.profileName ?? '当前机场';
           final groupNames = ['全部节点',
             ...nativeGroups.where((name) => name != 'GLOBAL'
                 && (flclash?.backend.groupMembers[name]?.isNotEmpty ?? false))
@@ -139,15 +140,15 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      Expanded(child: StellarSectionHeading('全球加速',
-                        online ? '连接更大的世界 · FlClash 实时代理已接通'
-                            : '连接更大的世界 · 由 FlClash 驱动你的航线')),
+                      Expanded(child: StellarSectionHeading('航线连接',
+                        online ? '扬帆远航 · 当前机场已接通'
+                            : '选择机场与节点，开启你的海上航程')),
                       if (!narrow) StellarLabel(
                         online ? '●  已连接' : '○  待命',
                         accent: online, size: 13),
                     ]),
                     const SizedBox(height: 16),
-                    _hero(context, online, nodes.length, narrow),
+                    _hero(context, online, nodes.length, narrow, airportName),
                     const SizedBox(height: 16),
                     if (nodes.isNotEmpty) ...[
                       _groupNavigation(context, groupNames, group, narrow),
@@ -155,7 +156,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                       _activeRoute(context, online),
                       const SizedBox(height: 16),
                       Row(children: [
-                        Expanded(child: Text('节点星图',
+                        Expanded(child: Text('航线节点',
                             style: TextStyle(color: t.text,
                                 fontWeight: FontWeight.bold, fontSize: 18))),
                         StellarLabel('共 ${nodes.length} 条线路 · 筛选结果 ${filtered.length}'),
@@ -165,7 +166,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                         key: const ValueKey('stellar_proxy_search'),
                         onChanged: (v) => setState(() => _query = v),
                         decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.travel_explore_outlined),
+                          prefixIcon: const Icon(Icons.route_outlined),
                           hintText: '搜索节点名称、地区或协议',
                           filled: true,
                           fillColor: t.surface,
@@ -233,7 +234,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     );
   }
 
-  Widget _hero(BuildContext context, bool online, int count, bool narrow) {
+  Widget _hero(BuildContext context, bool online, int count,
+       bool narrow, String airportName) {
     final t = VelaThemeRuntime.active;
     final selected = widget.subscription?.selected;
     final latency = selected == null ? null
@@ -252,7 +254,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
             height: narrow ? 300 : 460,
             child: IgnorePointer(child: Opacity(
               opacity: t.dark ? .87 : .55,
-              child: VelaGlobe(demo: widget.demo),
+              child: VelaOceanScene(demo: widget.demo),
             )),
           ),
           Positioned.fill(child: DecoratedBox(
@@ -268,7 +270,9 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                 Row(children: [
                   StellarPlanetGlyph(size: 43),
                   const SizedBox(width: 10),
-                  Expanded(child: Text(online ? '地球已接通' : '等待启航',
+                  Expanded(child: Text(online ? '已接通 · $airportName'
+                       : '待启航 · $airportName',
+                     maxLines: 2, overflow: TextOverflow.ellipsis,
                     style: TextStyle(color: t.text, fontSize: narrow ? 18 : 22,
                       fontWeight: FontWeight.bold))),
                 ]),
@@ -277,7 +281,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                   maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: t.accent, fontSize: 15)),
                 const SizedBox(height: 12),
-                StellarLabel('真实节点  $count    ·    FlClash / Mihomo'),
+                StellarLabel('可用航线节点  $count'),
                 const SizedBox(height: 6),
                 StellarLabel(latency == null
                     ? '最近延迟  尚未测速'
@@ -296,7 +300,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                 color: online ? Colors.greenAccent : t.muted)),
               const SizedBox(width: 8),
               Expanded(child: Text(
-                online ? '当前网络正在通过 FlClash 连接'
+                online ? '正在通过 $airportName 扬帆连接'
                     : '请选择节点，并在首页启动真实连接',
                 style: TextStyle(color: t.text, fontSize: 12))),
               if (online && widget.traffic != null)
@@ -318,10 +322,10 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
         Row(children: [
           Icon(Icons.hub_outlined, color: t.accent, size: 19),
           const SizedBox(width: 8),
-          Text('代理星系', style: TextStyle(color: t.text,
+          Text('航线分组', style: TextStyle(color: t.text,
               fontWeight: FontWeight.w600)),
           const Spacer(),
-          StellarLabel('按 FlClash 原生代理组浏览'),
+          StellarLabel('按航线分组筛选节点'),
         ]),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 7, children: [
@@ -334,7 +338,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
             ),
         ]),
         const SizedBox(height: 5),
-        StellarLabel('分组仅筛选列表；实际连接由 FlClash GLOBAL 节点选择控制。',
+        StellarLabel('分组只影响列表筛选，不会自动切换正在使用的节点。',
           size: 11),
       ],
     ));
@@ -427,7 +431,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                       message: health?.samples == null
                           ? '尚未进行延迟测速'
                           : health!.reachable
-                              ? 'FlClash 原生延迟测试'
+                              ? '节点延迟已验证'
                               : (latencyError ?? '节点延迟测试失败'),
                       child: Text(
                         health?.samples == null ? '延迟 —'
@@ -515,7 +519,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('星图全节点测速',
+              Text('航线全节点测速',
                   style: TextStyle(color: t.text, fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
               StellarLabel(smart == null ? '当前平台尚未接入批量测速'
@@ -554,10 +558,10 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
       const SizedBox(height: 16),
       StellarPlanetGlyph(size: 74),
       const SizedBox(height: 12),
-      Text('星图尚未载入', style: TextStyle(color: t.text,
+      Text('航线尚未载入', style: TextStyle(color: t.text,
         fontSize: 19, fontWeight: FontWeight.bold)),
       const SizedBox(height: 6),
-      StellarLabel('导入 FlClash 订阅后，真实节点将在这里点亮'),
+      StellarLabel('添加机场订阅后，航线节点将在这里呈现'),
       const SizedBox(height: 14),
       StellarAction(
         key: const ValueKey('stellar_open_config'),
