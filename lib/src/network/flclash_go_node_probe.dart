@@ -2,6 +2,7 @@ import '../smart/vela_node_probe.dart';
 import '../smart/vela_download_probe.dart';
 import '../subscription/vela_subscription_parser.dart';
 import 'flclash_windows_backend.dart';
+import 'flclash_core_api.dart';
 
 /// FlClash Go-backed measurements. The original Vela Smart page is unchanged;
 /// no separate Vela Mihomo process or proprietary protocol translator is used.
@@ -45,9 +46,17 @@ class FlClashGoNodeProbe
       final result = await backend.api.invoke('velaTestDownload',
           arguments: {'proxy-name': node.name},
           timeout: const Duration(seconds: 55));
+      // The native endpoint reports a safe reason code for a failed probe.
+      // Keep it for the node card instead of hiding every failure behind
+      // "下载失败". This method is shared by single and all-node scans.
+      if (result is Map && result['ok'] == false) {
+        final reason = result['reason'];
+        return VelaDownloadSample(
+            ok: false, reason: reason is String ? reason : null);
+      }
       if (result is! Map || result['ok'] != true ||
           result['mbps'] is! num || result['bytes'] is! num) {
-        return const VelaDownloadSample(ok: false);
+        return const VelaDownloadSample(ok: false, reason: 'invalid_sample');
       }
       final mbps = (result['mbps'] as num).toDouble();
       final bytes = (result['bytes'] as num).toInt();
@@ -56,11 +65,15 @@ class FlClashGoNodeProbe
       // every provider to return exactly one MiB.
       if (!mbps.isFinite || mbps <= 0 ||
           bytes < 256 * 1024 || bytes > 1024 * 1024) {
-        return const VelaDownloadSample(ok: false);
+        return const VelaDownloadSample(ok: false, reason: 'short_sample');
       }
       return VelaDownloadSample(ok: true, mbps: mbps, bytes: bytes);
+    } on FlClashCoreFailure catch (error) {
+      return VelaDownloadSample(ok: false,
+          reason: error.code == 'transport_error'
+              ? 'transport_error' : 'network');
     } catch (_) {
-      return const VelaDownloadSample(ok: false);
+      return const VelaDownloadSample(ok: false, reason: 'transport_error');
     }
   }
 
