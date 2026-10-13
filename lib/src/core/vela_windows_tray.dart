@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/material.dart' hide MenuItem;
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -139,8 +138,8 @@ class VelaWindowsTrayController with TrayListener {
   }
 
   @override
-  void onTrayMenuItemClick(MenuItem item) {
-    switch (item.key) {
+  void onTrayMenuItemClick(MenuItem menuItem) {
+    switch (menuItem.key) {
       case 'open':
         unawaited(showWindow());
         break;
