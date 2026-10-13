@@ -341,7 +341,9 @@ class _VoyagePainter extends CustomPainter {
         wrapped -= 360;
       }
       if (wrapped < left || wrapped > right ||
-          lat < bottom || lat > top) return;
+          lat < bottom || lat > top) {
+        return;
+      }
       _label(canvas, label, project(wrapped, lat),
           muted
               ? const TextStyle(color: Color(0xFF80BEDC), fontSize: 13,
