@@ -77,6 +77,19 @@ class _SpeedProbe implements VelaNodeDownloadProbe {
   }
 }
 
+class _GatedDownloadProbe implements VelaNodeDownloadProbe {
+  final Completer<void> gate = Completer<void>();
+  final List<String> tested = [];
+
+  @override
+  Future<VelaDownloadSample> measureDownload(VelaSubscriptionNode node) async {
+    tested.add(node.name);
+    await gate.future;
+    return const VelaDownloadSample(
+        ok: true, mbps: 65.4, bytes: VelaHttpsDownloadTransport.sampleBytes);
+  }
+}
+
 class _BothProbe implements VelaFullNodeProbe {
   final List<String> names = [];
   @override
@@ -253,6 +266,36 @@ void main() {
       sub.dispose();
       core.dispose();
       proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+  test('batch delays appear before the all-node download phase completes',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 4);
+    final delay = _BatchProbe();
+    final download = _GatedDownloadProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link,
+      probe: delay, downloadProbe: download,
+    );
+    try {
+      final pending = smart.testAllNodes(includeAllCountries: true);
+      await Future<void>.delayed(Duration.zero);
+      expect(smart.scanning, true);
+      expect(smart.resultAt(0)?.lastMs, 100);
+      expect(smart.resultAt(1)?.reachable, false);
+      expect(smart.resultAt(2)?.lastMs, 102);
+      expect(smart.downloadAt(0), isNull);
+      expect(smart.scanned, 0);
+      download.gate.complete();
+      await pending;
+      expect(smart.scanned, 4);
+      expect(smart.downloadsSuccessful, 4);
+      expect(smart.resultAt(0)?.samples, 1);
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
       await folder.delete(recursive: true);
     }
   });
