@@ -413,41 +413,84 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
               ]),
               const SizedBox(height: 12),
               Row(children: [
-                Expanded(child: StellarLabel(node.protocol.toUpperCase())),
-                if (health?.samples != null)
-                  Tooltip(
-                    message: health!.reachable
-                        ? 'FlClash 原生延迟测试'
-                        : (latencyError ?? '节点测试失败'),
-                    child: Text(health.reachable ? '$delay ms'
-                        : (latencyError ?? '失败'),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: health.reachable
-                        ? (delay! < 250 ? const Color(0xFF38C9A4)
-                            : const Color(0xFFE6A54C))
-                        : const Color(0xFFD47575), fontSize: 12)),
-                  )
-                else StellarLabel('尚未测速'),
-                if (picked) ...[
-                  const SizedBox(width: 7),
-                  Icon(Icons.check_circle, color: t.accent, size: 16),
-                ],
-              ]),
-              if (download != null) ...[
-                const SizedBox(height: 5),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: StellarLabel(download.ok &&
-                          download.megabytesPerSecond != null
-                      ? '↓ ${download.megabytesPerSecond!.toStringAsFixed(2)} MB/s'
-                      : '下载失败'),
+                Expanded(child: Row(children: [
+                  Flexible(child: StellarLabel(node.protocol.toUpperCase())),
+                  if (picked) ...[
+                    const SizedBox(width: 7),
+                    Icon(Icons.check_circle, color: t.accent, size: 16),
+                  ],
+                ])),
+                const SizedBox(width: 8),
+                Column(crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Tooltip(
+                      message: health?.samples == null
+                          ? '尚未进行延迟测速'
+                          : health!.reachable
+                              ? 'FlClash 原生延迟测试'
+                              : (latencyError ?? '节点延迟测试失败'),
+                      child: Text(
+                        health?.samples == null ? '延迟 —'
+                            : health!.reachable ? '延迟 $delay ms'
+                            : '延迟超时',
+                        style: TextStyle(fontSize: 12,
+                          color: health?.samples == null ? t.muted
+                              : health!.reachable
+                                  ? (delay! < 250
+                                      ? const Color(0xFF38C9A4)
+                                      : const Color(0xFFE6A54C))
+                                  : const Color(0xFFD47575)),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      download == null ? '下载 —'
+                          : download.ok &&
+                                  download.megabytesPerSecond != null
+                              ? '下载 ${download.megabytesPerSecond!.toStringAsFixed(2)} MB/s'
+                              : '下载失败',
+                      style: TextStyle(fontSize: 12,
+                        color: download == null ? t.muted
+                            : download.ok
+                                ? const Color(0xFF38C9A4)
+                                : const Color(0xFFD47575)),
+                    ),
+                  ],
                 ),
-              ],
+              ]),
             ],
           ),
         ),
       )),
     );
+  }
+
+  /// One action measures both metrics for every imported node. The Smart
+  /// page's AI country filter does not affect the Proxy page benchmark.
+  Future<void> _runAllMeasurements() async {
+    final smart = widget.smart;
+    if (smart == null || !smart.canTestAll) return;
+    if (smart.count > 50) {
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('确认全节点测速'),
+          content: Text('将为全部 ${smart.count} 个节点分别检测延迟和下载速度。'
+              '每节点通常下载约 1 MiB，部分失败线路可能尝试多个下载地址，'
+              '实际流量可能更高。继续吗？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialog).pop(false),
+              child: const Text('取消')),
+            FilledButton(
+              onPressed: () => Navigator.of(dialog).pop(true),
+              child: const Text('开始测速')),
+          ],
+        ),
+      );
+      if (!mounted || accepted != true || !smart.canTestAll) return;
+    }
+    await smart.testAllNodes(includeAllCountries: true);
   }
 
   Widget _testBar(BuildContext context, bool narrow) {
@@ -456,56 +499,53 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     final running = smart?.scanning == true;
     final progress = smart == null || smart.total == 0
         ? 0.0 : (smart.scanned / math.max(1, smart.total)).clamp(0.0, 1.0);
-    return StellarPanel(child: Column(children: [
-      Row(children: [
-        Icon(Icons.bolt_rounded, color: t.accent),
-        const SizedBox(width: 7),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('星图延迟测试', style: TextStyle(color: t.text,
-                fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            StellarLabel(running
-                ? '正在由 FlClash 测试 ${smart!.total} 个节点…'
-                : smart == null
-                    ? '当前平台尚未接入批量测速'
-                    : smart.status?.isNotEmpty == true
-                        ? smart.status!
-                        : '由 FlClash 原生线路检测，结果不作模拟'),
+    final action = FilledButton.icon(
+      key: const ValueKey('stellar_full_benchmark'),
+      onPressed: running ? smart!.cancelScan
+          : smart?.canTestAll == true ? _runAllMeasurements : null,
+      icon: Icon(running ? Icons.stop_rounded : Icons.speed_rounded, size: 18),
+      label: Text(running ? '停止测速' : '全节点测速 · 延迟 + 下载'),
+    );
+    return StellarPanel(child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Icon(Icons.bolt_rounded, color: t.accent),
+          const SizedBox(width: 7),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('星图全节点测速',
+                  style: TextStyle(color: t.text, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              StellarLabel(smart == null ? '当前平台尚未接入批量测速'
+                  : running ? '正在为所有节点测试延迟和下载速度…'
+                  : smart.status?.isNotEmpty == true
+                      ? smart.status!
+                      : '同时测量每条线路的延迟与真实下载速度'),
+            ],
+          )),
+          if (!narrow) ...[
+            const SizedBox(width: 12),
+            action,
           ],
-        )),
-        if (!narrow)
-          SizedBox(width: 110, child: LinearProgressIndicator(
-            value: progress, minHeight: 5,
-            borderRadius: BorderRadius.circular(7))),
-        const SizedBox(width: 9),
-        FilledButton.icon(
-          key: const ValueKey('stellar_latency_test'),
-          onPressed: running ? smart!.cancelScan
-            : smart?.canTestAll == true
-                ? () => smart!.testAllLatencies() : null,
-          icon: Icon(running ? Icons.stop_rounded : Icons.bolt_rounded, size: 17),
-          label: Text(running ? '停止' : '延迟测试'),
-        ),
-      ]),
-      if (narrow && running) ...[
-        const SizedBox(height: 10),
-        LinearProgressIndicator(value: progress),
+        ]),
+        if (narrow) ...[
+          const SizedBox(height: 12),
+          SizedBox(width: double.infinity, child: action),
+        ],
+        if (running || (smart?.total ?? 0) > 0) ...[
+          const SizedBox(height: 12),
+          LinearProgressIndicator(value: progress, minHeight: 5,
+              borderRadius: BorderRadius.circular(6)),
+          const SizedBox(height: 7),
+          StellarLabel('已测 ${smart!.scanned}/${smart.total}'
+              ' · 延迟成功 ${smart.successful}'
+              ' · 下载成功 ${smart.downloadsSuccessful}'
+              '/${smart.downloadsTested}'),
+        ],
       ],
-      const SizedBox(height: 10),
-      Row(children: [
-        Expanded(child: StellarLabel(
-          smart?.downloadStatus ?? '选中节点后，可单独测试 HTTPS 下载速度')),
-        const SizedBox(width: 8),
-        OutlinedButton.icon(
-          key: const ValueKey('stellar_download_test'),
-          onPressed: smart?.canTestSelectedDownload == true
-              ? () => smart!.testSelectedDownload() : null,
-          icon: const Icon(Icons.download_rounded, size: 17),
-          label: Text(smart?.downloading == true ? '测速中' : '下载测速'),
-        ),
-      ]),
-    ]));
+    ));
   }
 
   Widget _emptyState(BuildContext context) {
