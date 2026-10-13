@@ -340,7 +340,9 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
 
   VelaStoredProfile _currentProfile(String id, String name) {
     final raw = _raw;
-    if (raw == null) throw StateError('No imported profile');
+    if (raw == null) {
+      throw StateError('No imported profile');
+    }
     return VelaStoredProfile(
       id: id, name: name, raw: raw, selectedName: selected?.name,
       favorites: _favoriteNames.toList()..sort(),
