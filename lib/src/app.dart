@@ -281,7 +281,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       demo: demo, settings: widget.settings,
       diagnostics: widget.diagnostics, core: widget.core,
       subscription: subscription, connection: connection,
-      androidVpn: androidVpn, goHome: () => navigate(0),
+      androidVpn: androidVpn, windowExitGuard: widget.windowExitGuard,
+      goHome: () => navigate(0),
     ),
     _ => _HomePage(
       demo: demo, desktop: desktop,
@@ -1092,7 +1093,7 @@ class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.demo, required this.settings, this.diagnostics, this.core,
     this.subscription, this.connection, this.androidVpn,
-    required this.goHome,
+    this.windowExitGuard, required this.goHome,
   });
   final VelaDemoController demo;
   final SettingsController settings;
@@ -1101,6 +1102,7 @@ class _SettingsPage extends StatelessWidget {
   final VelaSubscriptionController? subscription;
   final VelaConnectionCoordinator? connection;
   final VelaAndroidVpnController? androidVpn;
+  final VelaWindowExitGuard? windowExitGuard;
   final VoidCallback goHome;
 
   @override
@@ -1150,6 +1152,46 @@ class _SettingsPage extends StatelessWidget {
               ? '可授权 Android 系统 VPN；真实连接以服务状态为准'
               : '真实系统代理连接测试 · 尚非 TUN/VPN 全局代理'),
         ),
+        if (Platform.isWindows && windowExitGuard != null) ...[
+          Divider(height: 1, color: _line),
+          ListTile(
+            key: const ValueKey('windows_exit_action'),
+            leading: Icon(Icons.power_settings_new_rounded, color: _blue),
+            title: const Text('退出程序'),
+            subtitle: const Text('点击窗口 × 只会最小化；这里才会断开代理并退出'),
+            trailing: OutlinedButton(
+              onPressed: () async {
+                final accepted = await showDialog<bool>(
+                  context: context,
+                  builder: (dialog) => AlertDialog(
+                    title: const Text('退出 Vela-SHUO？'),
+                    content: const Text('将断开当前连接、恢复 Windows 系统代理设置，'
+                        '然后安全关闭程序。'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(dialog).pop(false),
+                        child: const Text('取消'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.of(dialog).pop(true),
+                        child: const Text('退出'),
+                      ),
+                    ],
+                  ),
+                );
+                if (accepted != true || !context.mounted) return;
+                final restored = await windowExitGuard!.closeSafely();
+                if (!restored && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content:
+                        Text('未能安全恢复系统代理，程序仍在运行，请检查后重试。')),
+                  );
+                }
+              },
+              child: const Text('安全退出'),
+            ),
+          ),
+        ],
       ])),
       SizedBox(height: 16),
       _GlassCard(child: Column(
