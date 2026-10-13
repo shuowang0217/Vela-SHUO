@@ -92,8 +92,12 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
       final colors = VelaThemeRuntime.active;
       final subscription = widget.controller;
       final core = widget.core;
+      final runtimeActive = core.isListening ||
+          widget.androidVpn?.active == true;
       final busy = subscription.loading || subscription.vaultBusy ||
-          core.busy || core.isListening || widget.androidVpn?.active == true;
+          core.busy || runtimeActive;
+      final importingBusy = subscription.loading || subscription.vaultBusy ||
+          core.busy || (_offlineMode && runtimeActive);
       return Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
@@ -203,7 +207,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
             TextField(
               key: const ValueKey('subscription_url_input'),
               controller: _url,
-              enabled: !busy,
+              enabled: !importingBusy,
               obscureText: !_showUrl && !_offlineMode,
               maxLines: _offlineMode ? 4 : 1,
               enableSuggestions: false,
@@ -225,19 +229,25 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
             const SizedBox(height: 10),
             FilledButton.icon(
               key: const ValueKey('subscription_import'),
-              onPressed: busy ? null : () async {
+              onPressed: importingBusy ? null : () async {
                 final value = _url.text.trim();
                 if (value.isEmpty) {
                   return;
                 }
-                if (_offlineMode) {
-                  await subscription.importFromText(value);
-                } else {
-                  await subscription.importFromUrl(value);
-                }
-                // Do not retain subscription access tokens in text input.
+                final ok = _offlineMode
+                    ? await subscription.importFromText(value)
+                    : subscription is VelaFlClashSubscriptionController
+                        ? await subscription.importFromUrlNamed(value,
+                            stageOnly: runtimeActive)
+                        : await subscription.importFromUrl(value);
+                // Do not retain subscription tokens in the visible input.
                 if (mounted) {
-                  _url.clear();
+                  if (ok) _url.clear();
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(ok
+                        ? '机场获取成功，已自动加密保存'
+                        : subscription.error ?? '获取机场失败'),
+                  ));
                 }
               },
               icon: const Icon(Icons.download_rounded, size: 19),
@@ -253,7 +263,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text(ok
-                        ? '订阅更新成功，已尽量恢复原节点与收藏；需要时请更新加密存档'
+                        ? '订阅已更新并自动保存'
                         : subscription.error ?? '订阅更新失败，原节点列表仍保留'),
                   ));
                 },
@@ -451,9 +461,9 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               ),
             ],
             const SizedBox(height: 12),
-            Text('星标收藏仅调整列表顺序，不会自动切换节点。'
-                '如需重启保留收藏，点击「加密保存本机」或「更新加密存档」。'
-                '订阅及收藏仅通过系统安全存储加密保存，不保存订阅 URL。',
+            Text('获取成功后机场自动加密保存；选择的节点与收藏也会自动保存。'
+                '连接中可获取新机场，切换请在配置页点击目标机场。'
+                '不会在本地保存原始订阅 URL。',
                 style: TextStyle(color: colors.muted, fontSize: 11)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [
@@ -469,7 +479,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                 } : null,
                 icon: const Icon(Icons.lock_outline),
                 label: Text(subscription.storedOnDevice
-                    ? '更新加密存档' : '加密保存本机'),
+                    ? '立即同步加密存档' : '手动补存档'),
               ),
               OutlinedButton.icon(
                 key: const ValueKey('clear_subscription_securely'),
