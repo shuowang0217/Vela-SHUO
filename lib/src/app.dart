@@ -23,7 +23,7 @@ import 'package:vela_shuo/src/smart/vela_smart_panel.dart';
 import 'package:vela_shuo/src/core/vela_core_settings_card.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
-import 'package:vela_shuo/src/home/globe.dart';
+import 'package:vela_shuo/src/home/ocean_scene.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_proxy_page.dart';
@@ -563,7 +563,7 @@ class _DesktopHome extends StatelessWidget {
                   right: -globeSize * .10,
                   width: globeSize,
                   height: globeSize,
-                  child: IgnorePointer(child: VelaGlobe(demo: demo)),
+                  child: IgnorePointer(child: VelaOceanScene(demo: demo)),
                 ),
                 Positioned(top: 20, right: 12, child: subscription?.selected
                     != null ? _RealTag() : _DemoTag()),
@@ -946,7 +946,7 @@ class _MobileHome extends StatelessWidget {
       SizedBox(height: 7),
       SizedBox(
         height: math.min(MediaQuery.sizeOf(context).width, 400),
-        child: VelaGlobe(demo: demo),
+        child: VelaOceanScene(demo: demo),
       ),
       SizedBox(height: 8),
       Platform.isAndroid
@@ -1046,7 +1046,7 @@ class _SmartPage extends StatelessWidget {
     if (smart != null && subscription?.nodes.isNotEmpty == true) {
       return _ScreenPadding(child: ListView(children: [
         _ScreenHeading('智能优选', Platform.isAndroid
-            ? 'FlClash 原生测速 · VPN 连接保护'
+            ? '真实节点测速 · VPN 连接保护'
             : '真实 HTTPS 测速 · 稳定优先'),
         SizedBox(height: 18),
         _RealTag(),
@@ -1424,8 +1424,8 @@ class _AndroidVpnTag extends StatelessWidget {
       color: _blue.withValues(alpha: .13),
       border: Border.all(color: _blue.withValues(alpha: .35)),
     ),
-    child: Text(vpn.connected ? 'Android Mihomo VPN · 已连接'
-        : 'Android Mihomo VPN · Beta',
+    child: Text(vpn.connected ? 'Android VPN · 已连接'
+        : 'Android VPN · 待命',
         style: const TextStyle(fontSize: 10)),
   );
 }
@@ -1550,31 +1550,14 @@ class _RealConnectionCard extends StatelessWidget {
       );
       return;
     }
-    // One-click after clear, explicit user consent to changing WinINet.
-    final consent = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('允许接管 Windows 系统代理？'),
-        content: const Text(
-          'Vela-SHUO 将先验证选中的节点，验证成功后才把本机 HTTP 系统代理'
-          '设置为 127.0.0.1:20808。\n\n'
-          '软件会保存当前代理设置并在断开时恢复；'
-          '如果你正在使用其他代理软件，其设置可能暂时被替换。'
-          '目前仅接管遵循 Windows 代理设置的应用，并非 VPN/TUN 全局代理。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('允许并连接'),
-          ),
-        ],
-      ),
-    );
-    if (consent == true) await connection.connect();
+    // One click starts the existing verified system-proxy connection path.
+    // Native proxy backup, HTTPS verification and rollback are unchanged.
+    final connected = await connection.connect();
+    if (!connected && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(connection.error ?? '代理连接失败，请检查线路状态')),
+      );
+    }
   }
 
   @override
@@ -1599,7 +1582,7 @@ class _RealConnectionCard extends StatelessWidget {
                   color: color, fontWeight: FontWeight.bold,
                   fontSize: compact ? 21 : 26,
                 )),
-                Text('Mihomo · 真实线路与系统代理',
+                Text('当前航线 · Windows 系统代理',
                     style: TextStyle(color: _muted, fontSize: 12)),
               ],
             )),
