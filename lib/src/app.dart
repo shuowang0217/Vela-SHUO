@@ -335,8 +335,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
               Positioned.fill(child: AnimatedBuilder(
                 animation: Listenable.merge([
                   subscription!,
-                  if (connection != null) connection!,
-                  if (androidVpn != null) androidVpn!,
+                  ?connection,
+                  ?androidVpn,
                 ]),
                 builder: (context, _) => VelaVoyageMap(
                   connected: connection?.connected == true ||
@@ -449,8 +449,7 @@ class _DesktopNav extends StatelessWidget {
                      Column(mainAxisSize: MainAxisSize.min, children: [
                        Icon(selected == i
                            ? _ShellState.destinations[i].$2
-                           : _ShellState.destinations[i].
-                  ,
+                           : _ShellState.destinations[i].$1,
                          color: selected == i
                              ? const Color(0xFF89E8FF) : const Color(0xFFD1DFEE),
                          size: 24),
@@ -467,8 +466,7 @@ class _DesktopNav extends StatelessWidget {
                    else Icon(
                      selected == i
                          ? _ShellState.destinations[i].$2
-                         : _ShellState.destinations[i].
-                  ,
+                         : _ShellState.destinations[i].$1,
                      color: selected == i ? _blue : _muted, size: 22,
                    ),
                    if (extended) ...[
