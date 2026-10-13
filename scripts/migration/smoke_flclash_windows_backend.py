@@ -208,13 +208,14 @@ rules:
         # endpoint. No public network / credential is needed for this test.
         class Local204(BaseHTTPRequestHandler):
             def do_GET(self):
-                if self.path in ("/download", "/download-truncated"):
+                if self.path in ("/download", "/download-short", "/download-truncated"):
                     size = 1048576 if self.path == "/download" else 320 * 1024
-                    # The truncated fixture advertises a full MiB, then
-                    # closes: actual measured bytes, not Content-Length, win.
+                    # A correctly sized smaller body is a valid sample.
+                    # A truncated response must fail safely, as in the
+                    # FlClash-Custom io.Copy error-checking code.
                     self.send_response(200)
                     self.send_header("Content-Type", "application/octet-stream")
-                    self.send_header("Content-Length", "1048576")
+                    self.send_header("Content-Length", str(1048576 if self.path != "/download-short" else size))
                     self.end_headers()
                     payload = bytes(range(256)) * 256
                     for _ in range((size + len(payload) - 1) // len(payload)):
@@ -274,7 +275,7 @@ rules:
             # an active browser-facing mixed-port listener.
             for suffix, minimum, maximum in (
                 ("/download", 1048576, 1048576),
-                ("/download-truncated", 256 * 1024, 1048576),
+                ("/download-short", 320 * 1024, 320 * 1024),
             ):
                 sample = call("velaTestDownload", {
                     "proxy-name": "Local Socks Test",
@@ -284,6 +285,13 @@ rules:
                 assert sample["ok"] is True, "Native FlClash download failed"
                 assert minimum <= sample["bytes"] <= maximum
                 assert sample["mbps"] > 0, "Sample throughput was not measured"
+            truncated = call("velaTestDownload", {
+                "proxy-name": "Local Socks Test",
+                "test-url": "http://127.0.0.1:%d/download-truncated" %
+                            endpoint_204.server_port,
+            }, timeout=35)
+            assert truncated["ok"] is False, (
+                "FlClash-Custom must reject incomplete HTTP body transfers")
             missing = call("velaTestDownload", {
                 "proxy-name": "NOT_CONFIGURED",
                 "test-url": "http://127.0.0.1:%d/download" %
