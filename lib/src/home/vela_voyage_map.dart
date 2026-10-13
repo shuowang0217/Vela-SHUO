@@ -57,8 +57,9 @@ class VelaVoyageTarget {
 }
 
 class _VoyageAssets {
-  const _VoyageAssets(this.coastlines, this.night);
+  const _VoyageAssets(this.coastlines, this.day, this.night);
   final List<List<Offset>> coastlines;
+  final ui.Image day;
   final ui.Image night;
 }
 
@@ -88,6 +89,7 @@ class _VelaVoyageMapState extends State<VelaVoyageMap>
     final results = await Future.wait([
       rootBundle.loadString('assets/maps/world_110m.json'),
       rootBundle.load('assets/earth/earth_night_lights.png'),
+      rootBundle.load('assets/earth/earth_day.jpg'),
     ]);
     final decoded = jsonDecode(results[0] as String) as List<dynamic>;
     final coast = <List<Offset>>[
@@ -98,16 +100,22 @@ class _VelaVoyageMapState extends State<VelaVoyageMap>
                 (point[1] as num).toDouble()),
         ],
     ];
-    final bytes = results[1] as ByteData;
-    final codec = await ui.instantiateImageCodec(
-      bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
-    );
-    try {
-      final frame = await codec.getNextFrame();
-      return _VoyageAssets(coast, frame.image);
-    } finally {
-      codec.dispose();
+    Future<ui.Image> decode(ByteData bytes) async {
+      final codec = await ui.instantiateImageCodec(
+        bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+      );
+      try {
+        final frame = await codec.getNextFrame();
+        return frame.image;
+      } finally {
+        codec.dispose();
+      }
     }
+    final pair = await Future.wait([
+      decode(results[1] as ByteData),
+      decode(results[2] as ByteData),
+    ]);
+    return _VoyageAssets(coast, pair[1], pair[0]);
   }
 
   @override
@@ -204,7 +212,10 @@ class _VoyagePainter extends CustomPainter {
     );
     final earth = assets;
     if (earth != null) {
-      final image = earth.night;
+      final night = earth.night;
+      final day = earth.day;
+      // Night city lights and twilight relief are composited from the
+      // actual bundled maps; this isn't a flat filled polygon illustration.
       // Equirectangular texture, duplicated across the antimeridian.
       for (var turn = -1; turn <= 2; turn++) {
         final west = math.max(left, -180.0 + turn * 360);
@@ -213,21 +224,49 @@ class _VoyagePainter extends CustomPainter {
         final westSource = west - turn * 360;
         final eastSource = east - turn * 360;
         final src = Rect.fromLTRB(
-          (westSource + 180) * image.width / 360,
-          (90 - top) * image.height / 180,
-          (eastSource + 180) * image.width / 360,
-          (90 - bottom) * image.height / 180,
+          (westSource + 180) * day.width / 360,
+          (90 - top) * day.height / 180,
+          (eastSource + 180) * day.width / 360,
+          (90 - bottom) * day.height / 180,
         );
         final dst = Rect.fromPoints(project(west, top), project(east, bottom));
-        canvas.drawImageRect(image, src, dst,
-          Paint()..filterQuality = FilterQuality.medium
-              ..color = Colors.white.withValues(alpha: .76));
+        final nightSrc = Rect.fromLTRB(
+          (westSource + 180) * night.width / 360,
+          (90 - top) * night.height / 180,
+          (eastSource + 180) * night.width / 360,
+          (90 - bottom) * night.height / 180,
+        );
+        canvas.drawImageRect(day, src, dst,
+          Paint()
+            ..filterQuality = FilterQuality.high
+            ..colorFilter = const ColorFilter.matrix([
+              .42, 0, 0, 0, 6,
+              0, .50, 0, 0, 8,
+              0, 0, .63, 0, 8,
+              0, 0, 0, 1, 0,
+            ]));
+        canvas.drawImageRect(night, nightSrc, dst,
+          Paint()
+            ..filterQuality = FilterQuality.high
+            ..blendMode = BlendMode.screen
+            ..colorFilter = const ColorFilter.matrix([
+              2.0, 0, 0, 0, -12,
+              0, 1.8, 0, 0, -10,
+              0, 0, 1.4, 0, -12,
+              0, 0, 0, .90, 0,
+            ]));
       }
 
-      // A sharp coastal tracing, grounded in local bundled Natural Earth data.
-      final coast = Paint()..color = const Color(0xFF46C7F3)
-        .withValues(alpha: .72)
-        ..style = PaintingStyle.stroke..strokeWidth = 1.2
+      // Glow the real shoreline: light blooms behind a crisp pale-blue edge.
+      final coastGlow = Paint()
+        ..color = const Color(0xFF41C9EC).withValues(alpha: .35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 7.8
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+      final coast = Paint()
+        ..color = const Color(0xFF9FE6FF).withValues(alpha: .72)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.25
         ..isAntiAlias = true;
       for (final ring in earth.coastlines) {
         if (ring.length < 2) continue;
@@ -253,8 +292,26 @@ class _VoyagePainter extends CustomPainter {
           previous = position;
           started = true;
         }
-        if (started) canvas.drawPath(path, coast);
+        if (started) {
+          canvas.drawPath(path, coastGlow);
+          canvas.drawPath(path, coast);
+        }
       }
+    }
+
+    // Sparse chart meridians give the water depth without cluttering the map.
+    final chartGrid = Paint()
+      ..color = const Color(0xFF5BC2ED).withValues(alpha: .12)
+      ..strokeWidth = .8;
+    final firstMeridian = (left / 10).ceil() * 10;
+    for (var lon = firstMeridian.toDouble(); lon < right; lon += 10) {
+      final x = project(lon, 20).dx;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), chartGrid);
+    }
+    final firstParallel = (bottom / 10).ceil() * 10;
+    for (var lat = firstParallel.toDouble(); lat < top; lat += 10) {
+      final y = project(120, lat).dy;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), chartGrid);
     }
 
     // Overlay sea contour guides. They are decorative, not boundaries.
@@ -269,6 +326,39 @@ class _VoyagePainter extends CustomPainter {
       }
       canvas.drawPath(wave, contour);
     }
+
+    // Geographic labels are tied to actual map coordinates, not hard-coded
+    // screen positions. Small countries hidden outside the current viewport.
+    final cityLabel = const TextStyle(color: Color(0xFFDEEFFA),
+      fontSize: 17, fontWeight: FontWeight.w600,
+      shadows: [Shadow(color: Color(0xFF001327), blurRadius: 11)]);
+    void mapLabel(String label, double lon, double lat, {bool muted = false}) {
+      var wrapped = lon;
+      while (wrapped < left) {
+        wrapped += 360;
+      }
+      while (wrapped > right) {
+        wrapped -= 360;
+      }
+      if (wrapped < left || wrapped > right ||
+          lat < bottom || lat > top) return;
+      _label(canvas, label, project(wrapped, lat),
+          muted
+              ? const TextStyle(color: Color(0xFF80BEDC), fontSize: 13,
+                  shadows: [Shadow(color: Color(0xFF001327), blurRadius: 9)])
+              : cityLabel);
+    }
+    mapLabel('中国大陆', 106, 35);
+    mapLabel('日本', 138.4, 38.9);
+    mapLabel('韩国', 126.1, 37.7);
+    mapLabel('台湾', 121.0, 23.8);
+    mapLabel('东海', 129, 27, muted: true);
+    mapLabel('黄海', 123.5, 34.8, muted: true);
+    mapLabel('菲律宾海', 143, 18, muted: true);
+    mapLabel('太平洋', 180, 10, muted: true);
+    mapLabel('美国', -117.5, 42);
+    mapLabel('英国', -2.3, 54);
+    mapLabel('新加坡', 103.6, 2.4);
 
     // The departing boat is near China until a real connection starts.
     final departure = project(start.dx, start.dy);
@@ -318,8 +408,8 @@ class _VoyagePainter extends CustomPainter {
     final heading = hasRoute
         ? math.atan2(next.dy - prev.dy, next.dx - prev.dx)
         : -.85;
-    _sailboat(canvas, boatAt, heading, math.max(0.70,
-        math.min(size.width / 960, size.height / 600)));
+    _sailboat(canvas, boatAt, heading, math.max(.88,
+        math.min(size.width / 780, size.height / 520) * 1.36));
 
     final labelStyle = const TextStyle(
       color: Color(0xFFB8E5FF), fontSize: 14,
@@ -329,7 +419,7 @@ class _VoyagePainter extends CustomPainter {
       _label(canvas, target!.label,
         destination + const Offset(12, -26), labelStyle);
     }
-    _label(canvas, 'E A S T  A S I A  ·  海洋航图',
+    _label(canvas, 'VELA  ·  OCEAN NAVIGATION CHART',
       Offset(size.width * .05, size.height - 43),
       const TextStyle(color: Color(0xFF89B7D6), fontSize: 10,
         letterSpacing: 1.8));
