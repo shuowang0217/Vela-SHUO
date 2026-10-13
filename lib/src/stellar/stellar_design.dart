@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/vela_palettes.dart';
 
@@ -42,33 +43,35 @@ class StellarPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = VelaThemeRuntime.active;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      padding: padding ?? const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.lerp(t.surface, t.accent, selected ? .17 : .035)!,
-            t.surface.withValues(alpha: t.dark ? .92 : .98),
-          ],
-        ),
-        border: Border.all(
-          color: selected ? t.accent.withValues(alpha: .86)
-              : t.line.withValues(alpha: .68),
-          width: selected ? 1.4 : 1,
-        ),
-        boxShadow: selected ? [
-          BoxShadow(
-            color: t.accent.withValues(alpha: t.dark ? .16 : .08),
-            blurRadius: 20,
-            spreadRadius: 1,
+    // Shared airport/node cards must also show the scene behind them.
+    // A backdrop-filtered translucent tint preserves text contrast.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: padding ?? const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.lerp(t.surface, t.accent, selected ? .20 : .05)!
+                    .withValues(alpha: t.dark ? .72 : .80),
+                t.surface.withValues(alpha: t.dark ? .56 : .72),
+              ],
+            ),
+            border: Border.all(
+              color: selected ? t.accent.withValues(alpha: .85)
+                  : t.line.withValues(alpha: .56),
+              width: selected ? 1.4 : 1,
+            ),
           ),
-        ] : null,
+          child: child,
+        ),
       ),
-      child: child,
     );
   }
 }
