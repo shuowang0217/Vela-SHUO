@@ -278,7 +278,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               ]),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                key: const ValueKey('saved_profile_selector'),
+                key: ValueKey('saved_profile_selector_${subscription.activeProfileId ?? 'unsaved'}'),
                 initialValue: subscription.profiles.any(
                     (p) => p.id == subscription.activeProfileId)
                     ? subscription.activeProfileId : null,
