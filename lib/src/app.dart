@@ -10,6 +10,7 @@ import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/core/vela_window_exit_guard.dart';
+import 'package:vela_shuo/src/core/vela_windows_tray.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
@@ -47,12 +48,14 @@ class VelaShuoApp extends StatelessWidget {
     this.core,
     this.systemProxy,
     this.windowExitGuard,
+    this.windowsTray,
   });
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
   final VelaSystemProxyManager? systemProxy;
   final VelaWindowExitGuard? windowExitGuard;
+  final VelaWindowsTrayController? windowsTray;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -72,7 +75,7 @@ class VelaShuoApp extends StatelessWidget {
         darkTheme: _theme(Brightness.dark, palette),
         home: _Shell(settings: settings, diagnostics: diagnostics,
           core: core, systemProxy: systemProxy,
-          windowExitGuard: windowExitGuard),
+          windowExitGuard: windowExitGuard, windowsTray: windowsTray),
       );
     },
   );
@@ -100,12 +103,13 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
 
 class _Shell extends StatefulWidget {
   const _Shell({required this.settings, this.diagnostics,
-    this.core, this.systemProxy, this.windowExitGuard});
+    this.core, this.systemProxy, this.windowExitGuard, this.windowsTray});
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
   final VelaSystemProxyManager? systemProxy;
   final VelaWindowExitGuard? windowExitGuard;
+  final VelaWindowsTrayController? windowsTray;
 
   @override
   State<_Shell> createState() => _ShellState();
@@ -181,6 +185,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         subscription!.addListener(syncRealGlobe);
         connection!.addListener(syncRealGlobe);
         widget.windowExitGuard?.shutdownConnection = connection!.shutdown;
+        widget.windowsTray?.attachConnection(connection!);
       }
       // Android uses the same FlClash Go IPC and measurement algorithms as
       // Windows. Its Android VpnService does not have a WinINet coordinator.
@@ -1158,7 +1163,8 @@ class _SettingsPage extends StatelessWidget {
             key: const ValueKey('windows_exit_action'),
             leading: Icon(Icons.power_settings_new_rounded, color: _blue),
             title: const Text('退出程序'),
-            subtitle: const Text('点击窗口 × 只会最小化；这里才会断开代理并退出'),
+            subtitle: const Text('点击 × 隐藏到系统托盘；点击 — 最小化到任务栏。'
+                '托盘右键可开启/关闭代理与安全退出。'),
             trailing: OutlinedButton(
               onPressed: () async {
                 final accepted = await showDialog<bool>(
