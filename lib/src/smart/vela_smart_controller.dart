@@ -421,7 +421,7 @@ class VelaSmartController extends ChangeNotifier {
       _downloads[index] = result;
       _downloadStatus = result.ok && result.mbps != null
           ? '样本下载成功：${result.mbps!.toStringAsFixed(1)} Mbps（仅1 MiB）'
-          : '样本下载失败或超时，未生成速度数值';
+          : result.failureLabel;
       return result.ok;
     } catch (_) {
       if (!_disposed && generation == _generation) {
