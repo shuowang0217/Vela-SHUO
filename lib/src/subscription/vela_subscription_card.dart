@@ -241,7 +241,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                             stageOnly: runtimeActive)
                         : await subscription.importFromUrl(value);
                 // Do not retain subscription tokens in the visible input.
-                if (mounted) {
+                if (context.mounted) {
                   if (ok) _url.clear();
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text(ok
