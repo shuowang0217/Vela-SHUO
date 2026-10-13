@@ -24,7 +24,6 @@ import 'package:vela_shuo/src/core/vela_core_settings_card.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/ocean_scene.dart';
-import 'package:vela_shuo/src/home/vela_voyage_dashboard.dart';
 import 'package:vela_shuo/src/home/vela_reference_dashboard.dart';
 import 'package:vela_shuo/src/home/vela_voyage_map.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
