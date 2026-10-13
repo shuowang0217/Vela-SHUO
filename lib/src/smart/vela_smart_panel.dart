@@ -76,7 +76,7 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('SHUO Smart · FlClash 定制优选',
+            Text('SHUO Smart · 智能航线优选',
                 style: TextStyle(color: theme.text,
                     fontWeight: FontWeight.w600, fontSize: 17)),
             const SizedBox(height: 8),
