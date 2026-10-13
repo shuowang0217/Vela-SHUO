@@ -1,8 +1,8 @@
-name: Vela-owned UI with pinned FlClash network core
+name: Vela v1.0.0 - Windows and Android (FlClash core)
 
 on:
   push:
-    branches: [migration/vela-host-flclash-core]
+    branches: [main, release/v1.0.0]
   workflow_dispatch:
 
 permissions:
