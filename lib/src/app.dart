@@ -239,7 +239,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
 
   static const destinations = <(IconData, IconData, String)>[
     (Icons.home_outlined, Icons.home_rounded, '首页'),
-    (Icons.language_outlined, Icons.language_rounded, '代理'),
+    (Icons.sailing_outlined, Icons.sailing_rounded, '代理'),
     (Icons.auto_graph_outlined, Icons.auto_graph_rounded, '智能优选'),
     (Icons.settings_outlined, Icons.settings_rounded, '设置'),
     (Icons.layers_outlined, Icons.layers_rounded, '配置'),
@@ -1485,7 +1485,7 @@ class _AndroidVpnCard extends StatelessWidget {
         const SizedBox(height: 8),
         SizedBox(width: double.infinity, child: OutlinedButton.icon(
           key: const ValueKey('vela_android_internet_test'),
-          icon: const Icon(Icons.public),
+          icon: const Icon(Icons.route_rounded),
           label: const Text('测试 VPN 真实联网'),
           onPressed: () async {
             final ok = await vpn.testConnectivity();
@@ -1572,7 +1572,7 @@ class _RealConnectionCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Icon(Icons.language_rounded, color: color,
+            Icon(Icons.sailing_rounded, color: color,
                 size: compact ? 32 : 42),
             const SizedBox(width: 13),
             Expanded(child: Column(
@@ -1639,7 +1639,7 @@ class _RealConnectionCard extends StatelessWidget {
             const SizedBox(height: 8),
             SizedBox(width: double.infinity, child: OutlinedButton.icon(
               key: const ValueKey('vela_real_internet_test'),
-              icon: const Icon(Icons.public),
+              icon: const Icon(Icons.route_rounded),
               label: const Text('测试当前节点联网'),
               onPressed: connection.busy || connection.core.probing ? null : () async {
                 final ok = await connection.core.verifyRemote();
