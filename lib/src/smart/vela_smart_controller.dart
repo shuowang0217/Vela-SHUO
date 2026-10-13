@@ -554,6 +554,17 @@ class VelaSmartController extends ChangeNotifier {
       return;
     }
     final nativeSamples = batch;
+    final delaysPublished = all && !latencyOnly && nativeSamples != null;
+    // Batch URLTest returns all delays first. Publish them immediately so
+    // every card can show latency while slower downloads remain in progress.
+    if (delaysPublished) {
+      for (final index in indices) {
+        final sample = nativeSamples[nodes[index].name] ??
+            const VelaLatencySample(ok: false);
+        _results[index] = VelaNodeHealth.first(index, sample, _clock());
+      }
+      _emit();
+    }
 
     Future<void> worker() async {
       while (!_disposed && !_cancelRequested && run == _generation) {
@@ -567,7 +578,12 @@ class VelaSmartController extends ChangeNotifier {
             sample = nativeSamples[nodes[index].name] ??
                 const VelaLatencySample(ok: false);
             if (!latencyOnly && _downloadProbe != null) {
-              speed = await _downloadProbe.measureDownload(nodes[index]);
+              // A broken CDN must not erase the node's valid URLTest delay.
+              try {
+                speed = await _downloadProbe.measureDownload(nodes[index]);
+              } catch (_) {
+                speed = const VelaDownloadSample(ok: false);
+              }
             }
           } else if (all && !latencyOnly && _fullProbe != null) {
             final measured = await _fullProbe.measureBoth(nodes[index]);
@@ -584,10 +600,12 @@ class VelaSmartController extends ChangeNotifier {
         }
         if (_disposed || _cancelRequested || run != _generation) { return; }
         if (speed != null) { _downloads[index] = speed; }
-        final previous = _results[index];
-        _results[index] = previous == null
-            ? VelaNodeHealth.first(index, sample, _clock())
-            : previous.add(sample, _clock());
+        if (!delaysPublished) {
+          final previous = _results[index];
+          _results[index] = previous == null
+              ? VelaNodeHealth.first(index, sample, _clock())
+              : previous.add(sample, _clock());
+        }
         // Latency and download samples have independent success semantics.
         // An unreachable CDN must not turn a reachable FlClash node into
         // "latency failed", which previously hid every healthy delay score.
