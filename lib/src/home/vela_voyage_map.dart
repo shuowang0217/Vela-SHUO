@@ -176,7 +176,6 @@ class _VoyagePainter extends CustomPainter {
   final double progress;
 
   static const start = Offset(122.5, 30.3); // China coast, offshore.
-  static const ink = Color(0xFF061B31);
   static const cyan = Color(0xFF4AF2F0);
 
   @override
