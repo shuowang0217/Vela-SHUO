@@ -353,7 +353,9 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   /// Does not retain the HTTPS source URL or trigger an automatic connection.
   Future<bool> saveAsProfile(String name) async {
     if (_raw == null || !canSwitchProfiles ||
-        _profiles.length >= VelaProfileLibrary.maxProfiles) return false;
+        _profiles.length >= VelaProfileLibrary.maxProfiles) {
+      return false;
+    }
     _storageBusy = true;
     _emit();
     try {
