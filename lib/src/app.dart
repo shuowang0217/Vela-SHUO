@@ -25,6 +25,7 @@ import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/ocean_scene.dart';
 import 'package:vela_shuo/src/home/vela_voyage_dashboard.dart';
+import 'package:vela_shuo/src/home/vela_voyage_map.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_proxy_page.dart';
@@ -298,6 +299,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     ),
     _ => widget.core is VelaFlClashCoreController && subscription != null
         ? VelaVoyageDashboard(
+            showMap: false,
             subscription: subscription!,
             connection: connection, androidVpn: androidVpn, traffic: traffic,
             showNodes: () => navigate(1),
@@ -317,6 +319,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     builder: (context, constraints) {
       final desktop = constraints.maxWidth >= 820;
       final extended = constraints.maxWidth >= 1250;
+      final voyageHome = tab == 0 &&
+          widget.core is VelaFlClashCoreController && subscription != null;
       return Scaffold(
         backgroundColor: _background,
         body: DecoratedBox(
@@ -326,22 +330,42 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
               colors: [_background, VelaThemeRuntime.active.raised, _background],
             ),
           ),
-          child: SafeArea(
-            child: Row(children: [
-              if (desktop)
-                Container(
-                  width: extended ? 190 : 90,
-                  decoration: BoxDecoration(
-                    color: const Color(0xDE0B2541),
-                    border: Border(right: BorderSide(color: _line)),
-                  ),
-                  child: _DesktopNav(
-                    selected: tab, extended: extended, onSelect: navigate,
-                  ),
+          child: Stack(children: [
+            if (voyageHome)
+              Positioned.fill(child: AnimatedBuilder(
+                animation: Listenable.merge([
+                  subscription!,
+                  if (connection != null) connection!,
+                  if (androidVpn != null) androidVpn!,
+                ]),
+                builder: (context, _) => VelaVoyageMap(
+                  connected: connection?.connected == true ||
+                      androidVpn?.connected == true,
+                  nodeName: subscription?.selected?.name,
                 ),
+              )),
+            SafeArea(child: Row(children: [
+              if (desktop)
+                ClipRect(child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                  child: Container(
+                    width: extended ? 190 : 90,
+                    decoration: BoxDecoration(
+                      color: voyageHome ? const Color(0x65071931)
+                          : const Color(0xDE0B2541),
+                      border: Border(right: BorderSide(
+                        color: voyageHome
+                            ? const Color(0x805DA6D0) : _line,
+                      )),
+                    ),
+                    child: _DesktopNav(
+                      selected: tab, extended: extended, onSelect: navigate,
+                    ),
+                  ),
+                )),
               Expanded(child: page(desktop)),
-            ]),
-          ),
+            ])),
+          ]),
         ),
         bottomNavigationBar: desktop ? null : Container(
           decoration: BoxDecoration(
