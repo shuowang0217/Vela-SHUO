@@ -77,6 +77,28 @@ class _SpeedProbe implements VelaNodeDownloadProbe {
   }
 }
 
+// Models the native single-node download path: overlapping downloads are
+// treated as busy, while consecutive calls all succeed.
+class _SingleFlightDownloadProbe implements VelaNodeDownloadProbe {
+  int active = 0;
+  int maxActive = 0;
+  final List<String> tested = [];
+
+  @override
+  Future<VelaDownloadSample> measureDownload(VelaSubscriptionNode node) async {
+    active++;
+    if (active > maxActive) maxActive = active;
+    tested.add(node.name);
+    final exclusive = active == 1;
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+    active--;
+    return exclusive
+        ? const VelaDownloadSample(ok: true, mbps: 65.4,
+            bytes: VelaHttpsDownloadTransport.sampleBytes)
+        : const VelaDownloadSample(ok: false, reason: 'busy');
+  }
+}
+
 class _GatedDownloadProbe implements VelaNodeDownloadProbe {
   final Completer<void> gate = Completer<void>();
   final List<String> tested = [];
@@ -268,6 +290,42 @@ void main() {
       proxy.dispose();
       await folder.delete(recursive: true);
     }
+  });
+
+  test('all-node native downloads use the working single-node path '
+      'without overlapping RPCs', () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 6);
+    final delay = _BatchProbe();
+    final speed = _SingleFlightDownloadProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link,
+      probe: delay, downloadProbe: speed,
+    );
+    try {
+      await smart.testAllNodes(includeAllCountries: true);
+      expect(delay.calls, 1);
+      expect(speed.maxActive, 1);
+      expect(speed.tested, [
+        'Node-0', 'Node-1', 'Node-2', 'Node-3', 'Node-4', 'Node-5']);
+      expect(smart.downloadsTested, 6);
+      expect(smart.downloadsSuccessful, 6);
+      expect(smart.resultAt(1)?.reachable, false);
+      expect(smart.downloadAt(1)?.ok, true);
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+  test('native download error labels are safe, while latency stays valid', () {
+    const reason = VelaDownloadSample(ok: false, reason: 'timeout');
+    expect(reason.failureLabel, '下载超时');
+    const busy = VelaDownloadSample(ok: false, reason: 'busy');
+    expect(busy.failureLabel, '测速内核忙');
+    const unknown = VelaDownloadSample(
+        ok: false, reason: 'https://example.invalid/secret');
+    expect(unknown.failureLabel, '下载失败');
   });
 
   test('batch delays appear before the all-node download phase completes',
