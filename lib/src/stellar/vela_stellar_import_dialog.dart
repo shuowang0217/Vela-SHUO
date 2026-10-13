@@ -12,9 +12,11 @@ class VelaStellarImportDialog extends StatefulWidget {
   const VelaStellarImportDialog({
     super.key,
     required this.controller,
+    this.stageOnly = false,
   });
 
   final VelaSubscriptionController controller;
+  final bool stageOnly;
 
   @override
   State<VelaStellarImportDialog> createState() =>
@@ -53,9 +55,13 @@ class _VelaStellarImportDialogState extends State<VelaStellarImportDialog> {
       _error = null;
     });
     try {
-      // The FlClash controller downloads and installs the actual Mihomo
-      // profile; we do not infer success from an HTTP 200 alone.
-      final ok = await widget.controller.importFromUrl(_url.text.trim());
+      // Connected imports are downloaded into the encrypted airport list;
+      // applying a profile is a separate explicit user choice.
+      final native = widget.controller;
+      final ok = native is VelaFlClashSubscriptionController
+          ? await native.importFromUrlNamed(_url.text.trim(),
+              name: _name.text, stageOnly: widget.stageOnly)
+          : await native.importFromUrl(_url.text.trim());
       if (!mounted) return;
       if (!ok) {
         setState(() {
@@ -63,10 +69,6 @@ class _VelaStellarImportDialogState extends State<VelaStellarImportDialog> {
               'FlClash 订阅导入失败，请检查 URL 或网络';
         });
         return;
-      }
-      if (widget.controller is VelaFlClashSubscriptionController) {
-        (widget.controller as VelaFlClashSubscriptionController)
-            .setProfileName(_name.text);
       }
       Navigator.of(context).pop(true);
     } catch (_) {
@@ -80,7 +82,7 @@ class _VelaStellarImportDialogState extends State<VelaStellarImportDialog> {
   @override
   Widget build(BuildContext context) {
     final t = VelaThemeRuntime.active;
-    final replacing = widget.controller.nodes.isNotEmpty;
+    final existing = widget.controller.nodes.isNotEmpty;
     return Dialog(
       key: const ValueKey('stellar_import_dialog'),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
@@ -110,7 +112,9 @@ class _VelaStellarImportDialogState extends State<VelaStellarImportDialog> {
                 ),
               ]),
               const SizedBox(height: 5),
-              Text('将新航线交给 FlClash 原生内核',
+              Text(widget.stageOnly
+                  ? '连接中安全获取订阅，不改变正在使用的机场'
+                  : '新机场自动保存，不覆盖已有配置',
                 style: TextStyle(color: t.muted, fontSize: 12)),
               const SizedBox(height: 20),
               TextFormField(
@@ -162,13 +166,15 @@ class _VelaStellarImportDialogState extends State<VelaStellarImportDialog> {
                 },
                 onFieldSubmitted: (_) => _submit(),
               ),
-              if (replacing) ...[
+              if (existing) ...[
                 const SizedBox(height: 10),
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Icon(Icons.info_outline_rounded, size: 15, color: t.muted),
                   const SizedBox(width: 6),
                   Expanded(child: Text(
-                    '导入成功后替换当前活动配置，建议先备份旧订阅。',
+                    widget.stageOnly
+                        ? '新机场将保存到列表，点击机场卡片可切换并自动重连。'
+                        : '新机场加入列表，已有订阅保持保存。',
                     style: TextStyle(fontSize: 11, color: t.muted))),
                 ]),
               ],
