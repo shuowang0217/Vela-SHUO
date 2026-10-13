@@ -14,7 +14,7 @@ concurrency:
 
 env:
   FLUTTER_VERSION: '3.47.4'
-  FLCLASH_SHA: '4b59eca853778d4e7be3de26589252889c899bc5'
+  FLCLASH_SHA: '086d91b619538809d4b0aa86b57c7dc85e9d16ce'
   FLCLASH_MIHOMO_SHA: '8597778c7df410ebe88c57e59eaab32d203156df'
 
 jobs:
@@ -64,7 +64,7 @@ jobs:
           path: vela
       - uses: actions/checkout@v4
         with:
-          repository: chen08209/FlClash
+          repository: shuowang0217/FlClash-Custom
           ref: ${{ env.FLCLASH_SHA }}
           submodules: recursive
           path: flclash
@@ -173,7 +173,7 @@ jobs:
           path: vela
       - uses: actions/checkout@v4
         with:
-          repository: chen08209/FlClash
+          repository: shuowang0217/FlClash-Custom
           ref: ${{ env.FLCLASH_SHA }}
           submodules: recursive
           path: flclash
