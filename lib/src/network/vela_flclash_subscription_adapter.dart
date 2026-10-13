@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:async';
 import 'dart:convert';
 
 import '../subscription/flclash_profile_downloader.dart';
@@ -298,7 +297,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
         if (_closed) return false;
         // Persist the exact fetched Mihomo configuration; its validity will
         // be checked by the same native loader when this airport is selected.
-        return _saveNewImported(raw: fetched.content,
+        return await _saveNewImported(raw: fetched.content,
             name: name, usage: _quotaMap(fetched.usage), activate: false);
       } catch (_) {
         _lastError = '订阅获取失败，原机场和代理连接保持不变';
