@@ -448,7 +448,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                           : download.ok &&
                                   download.megabytesPerSecond != null
                               ? '下载 ${download.megabytesPerSecond!.toStringAsFixed(2)} MB/s'
-                              : '下载失败',
+                              : download.failureLabel,
                       style: TextStyle(fontSize: 12,
                         color: download == null ? t.muted
                             : download.ok
