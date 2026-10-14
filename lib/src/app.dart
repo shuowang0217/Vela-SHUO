@@ -364,9 +364,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                     ),
                   ),
                 )),
-              Expanded(child: page(desktop)),
+              Expanded(child: desktop && Platform.isWindows && !voyageHome
+                  ? Padding(padding: const EdgeInsets.only(top: 84),
+                      child: page(desktop))
+                  : page(desktop)),
             ])),
-            if (voyageHome && desktop && Platform.isWindows)
+            if (desktop && Platform.isWindows)
               const Positioned(left: 0, right: 0, top: 0, height: 90,
                 child: _VelaReferenceTitlebar()),
           ]),
@@ -467,8 +470,8 @@ class _DesktopNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(children: [
-    SizedBox(height: voyageMode ? 146 : 32),
-    if (!voyageMode) ...[
+    SizedBox(height: voyageMode || Platform.isWindows ? 146 : 32),
+    if (!voyageMode && !Platform.isWindows) ...[
       VelaBrandLogo(size: 68),
       if (extended) ...[
         const SizedBox(height: 8),
