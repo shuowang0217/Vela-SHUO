@@ -400,7 +400,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                               fontWeight: FontWeight.w700, fontSize: 15)),
                           const SizedBox(height: 5),
                           const StellarLabel(
-                              '导入新的订阅或 Mihomo 配置 · 本机安全管理'),
+                              '导入机场订阅或配置文件 · 本机安全管理'),
                         ],
                       )),
                       IconButton.filledTonal(
