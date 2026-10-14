@@ -451,13 +451,17 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
         } catch (_) {
           delay = null;
         }
-        if (mounted) setState(() {
-          _commonLatencies[entry.$2.name] = delay;
-        });
+        if (mounted) {
+          setState(() {
+            _commonLatencies[entry.$2.name] = delay;
+          });
+        }
       }
     } finally {
       _updatingCommon = false;
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
