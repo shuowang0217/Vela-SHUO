@@ -73,7 +73,7 @@ class VelaRoutingModeSelector extends StatelessWidget {
               padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
-                color: t.surface.withValues(alpha: t.dark ? .24 : .38),
+                color: t.surface.withValues(alpha:  .50),
                 border: Border.all(color: t.text.withValues(alpha: .12)),
               ),
               child: Row(children: [
