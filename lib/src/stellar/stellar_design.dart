@@ -28,7 +28,7 @@ class StellarPanel extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           padding: padding ?? const EdgeInsets.all(16),
@@ -39,21 +39,23 @@ class StellarPanel extends StatelessWidget {
               colors: [
                 Color.lerp(t.surface, t.accent,
                     selected ? .19 : .065)!
-                    .withValues(alpha: t.dark ? .18 : .38),
-                t.surface.withValues(alpha: t.dark ? .10 : .25),
+                    .withValues(alpha: t.dark ? .72 : .88),
+                t.surface.withValues(alpha: t.dark ? .58 : .79),
               ],
             ),
             border: Border.all(
               color: selected ? t.accent.withValues(alpha: .78)
-                  : t.text.withValues(alpha: .16),
+                  : t.text.withValues(alpha: t.dark ? .32 : .24),
               width: selected ? 1.4 : 1,
             ),
-            boxShadow: selected ? [
+            boxShadow: [
               BoxShadow(
-                color: t.accent.withValues(alpha: t.dark ? .16 : .08),
-                blurRadius: 20, spreadRadius: 1,
+                color: selected ? t.accent.withValues(alpha: .19)
+                    : Colors.black.withValues(alpha: t.dark ? .22 : .10),
+                blurRadius: selected ? 20 : 14,
+                offset: const Offset(0, 4),
               ),
-            ] : null,
+            ],
           ),
           child: child,
         ),
