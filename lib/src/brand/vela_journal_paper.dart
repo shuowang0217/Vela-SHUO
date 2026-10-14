@@ -10,12 +10,14 @@ class VelaJournalPaper extends StatelessWidget {
     super.key, required this.child,
     this.padding=const EdgeInsets.all(18),
     this.radius=17, this.selected=false, this.hovered=false,
+    this.stamped=false,
   });
   final Widget child;
   final EdgeInsetsGeometry padding;
   final double radius;
   final bool selected;
   final bool hovered;
+  final bool stamped;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +52,12 @@ class VelaJournalPaper extends StatelessWidget {
         painter: VelaJournalInkBorder(
           color: t.dark ? t.accentSoft : t.text,
           radius: radius, selected: selected || hovered),
-        child: Padding(padding: padding, child: child),
+        child: Stack(children: [
+          if (stamped) const Positioned(
+            right: 10, top: 7, child: Opacity(
+              opacity: .50, child: VelaPostmark(size: 76))),
+          Padding(padding: padding, child: child),
+        ]),
       ),
     );
   }

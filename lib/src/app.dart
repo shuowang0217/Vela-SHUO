@@ -599,9 +599,12 @@ class _DesktopNav extends StatelessWidget {
         ),
       ),
     Spacer(),
-    if (extended && MediaQuery.sizeOf(context).height > 770)
-      const Padding(padding: EdgeInsets.fromLTRB(8, 4, 8, 17),
-        child: VelaLighthouseSketch()),
+    if (extended && MediaQuery.sizeOf(context).height > 680)
+      Padding(padding: const EdgeInsets.fromLTRB(8, 3, 8, 13),
+        child: SizedBox(height: MediaQuery.sizeOf(context).height > 800
+          ? 133 : 95,
+          child: const FittedBox(fit: BoxFit.contain,
+            child: VelaLighthouseSketch()))),
   ]);
 }
 
@@ -813,9 +816,11 @@ class _DemoTag extends StatelessWidget {
 class _GlassCard extends StatefulWidget {
   const _GlassCard({
     required this.child, this.padding = const EdgeInsets.all(18),
+    this.stamped = false,
   });
   final Widget child;
   final EdgeInsets padding;
+  final bool stamped;
 
   @override
   State<_GlassCard> createState() => _GlassCardState();
@@ -834,6 +839,7 @@ class _GlassCardState extends State<_GlassCard> {
         filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
         child: VelaJournalPaper(
           hovered: _hover,
+          stamped: widget.stamped,
           padding: widget.padding,
           child: widget.child,
         ),
@@ -871,6 +877,7 @@ class _ConnectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _GlassCard(
+    stamped: true,
     padding: EdgeInsets.all(compact ? 16 : 20),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
@@ -1771,6 +1778,7 @@ class _RealConnectionCard extends StatelessWidget {
             ? const Color(0xFFE78986) : _blue;
     final estimated = VelaDemoNode.approximateFromName(connection.nodeName);
     return _GlassCard(
+      stamped: true,
       padding: EdgeInsets.all(compact ? 16 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
