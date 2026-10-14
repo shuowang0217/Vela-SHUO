@@ -352,7 +352,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
           SafeArea(child: Row(children: [
             if (desktop)
               ClipRect(child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
                 child: Container(
                   width: extended ? 190 : 90,
                   decoration: BoxDecoration(
@@ -369,7 +369,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
           ])),
         ]),
         bottomNavigationBar: desktop ? null : ClipRect(child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
           child: Container(
           decoration: BoxDecoration(
             color: _panel.withValues(alpha:
@@ -414,7 +414,7 @@ class _EarthBackdrop extends StatelessWidget {
       final side = math.max(width * 1.65, height * 1.45);
       final cx = width * (desktop ? .66 : .58);
       final cy = height * (desktop ? .52 : .40);
-      final tokens = VelaThemeRuntime.active;
+      // Draw a single undimmed Earth; all frosting is clipped to cards.
       return ClipRect(child: Stack(fit: StackFit.expand, children: [
         ColoredBox(color: _background),
         Positioned(
@@ -422,28 +422,6 @@ class _EarthBackdrop extends StatelessWidget {
           width: side, height: side,
           child: IgnorePointer(child: VelaGlobe(demo: demo)),
         ),
-        DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
-          begin: Alignment.centerLeft, end: Alignment.centerRight,
-          colors: tokens.dark
-              ? [
-                  _background.withValues(alpha: .36),
-                  _background.withValues(alpha: .14),
-                  _background.withValues(alpha: .07),
-                ]
-              : [
-                  _background.withValues(alpha: .50),
-                  _background.withValues(alpha: .31),
-                  _background.withValues(alpha: .21),
-                ],
-        ))),
-        DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
-          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [
-            _background.withValues(alpha: .18),
-            Colors.transparent,
-            _background.withValues(alpha: .22),
-          ],
-        ))),
       ]));
     },
   );
@@ -756,7 +734,7 @@ class _GlassCard extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(18),
     child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+      filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
       child: Container(
         padding: padding,
         decoration: BoxDecoration(
