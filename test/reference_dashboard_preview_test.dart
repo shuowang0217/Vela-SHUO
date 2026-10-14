@@ -1,8 +1,5 @@
-import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/home/vela_reference_dashboard.dart';
@@ -10,7 +7,7 @@ import 'package:vela_shuo/src/home/vela_voyage_map.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 
 void main() {
-  testWidgets('capture 1536x1024 live Flutter dashboard for reference review',
+  testWidgets('layout 1536x1024 matches key design regions',
       (tester) async {
     tester.view.physicalSize = const Size(1536, 1024);
     tester.view.devicePixelRatio = 1.0;
@@ -51,14 +48,6 @@ void main() {
     expect(find.text('当前航线'), findsOneWidget);
     expect(find.text('连接信息'), findsOneWidget);
     expect(find.text('常用节点'), findsOneWidget);
-    final boundary = tester.renderObject<RenderRepaintBoundary>(
-        find.byKey(key));
-    final image = await boundary.toImage(pixelRatio: 1);
-    final data = await image.toByteData(format: ui.ImageByteFormat.png);
-    expect(data, isNotNull);
-    await File('reference-preview.png').writeAsBytes(
-        data!.buffer.asUint8List());
-    image.dispose();
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }
