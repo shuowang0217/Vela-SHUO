@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../brand/vela_sail_mark.dart';
 import 'demo_connection.dart';
 import 'flight_route.dart';
+import 'vela_world_cities.dart';
 
 /// Camera for a precisely georeferenced 2:1 equirectangular world map.
 @immutable
@@ -64,6 +65,7 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
   Offset _routeFrom = VelaWorldCamera.beijing;
   Offset _routeTo = VelaWorldCamera.beijing;
   VelaDemoNode? _destination;
+  VelaWorldCity? _destinationCity;
   VelaPhase? _lastPhase;
   String? _lastNode;
   bool _returning = false;
@@ -118,7 +120,9 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
     if (!mounted) return;
     final phase = widget.demo.phase;
     final node = widget.demo.selected;
-    if (_lastPhase == phase && _lastNode == node.id) return;
+    final realName = widget.demo.realNodeName;
+    final key = '${node.id}:${realName ?? node.title}';
+    if (_lastPhase == phase && _lastNode == key) return;
     if (phase == VelaPhase.idle || phase == VelaPhase.error) {
       if (_sail.value > .001 && !_returning) {
         _returning = true;
@@ -129,7 +133,8 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
         _focus(VelaWorldCamera.beijing);
       }
     } else {
-      final sameNode = _destination?.id == node.id;
+      final city = VelaWorldCityCatalog.resolve(realName ?? node.title, node);
+      final sameNode = _destinationCity?.label == city.label;
       final resumeReturn = sameNode && _returning;
       _returning = false;
       _homebound = false;
@@ -137,7 +142,8 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
         // The route starts at the current boat position if retargeted.
         _routeFrom = _destination == null
             ? VelaWorldCamera.beijing : _currentBoatLocation;
-        _routeTo = Offset(node.longitude, node.latitude);
+        _routeTo = city.coordinate;
+        _destinationCity = city;
         _destination = node;
         _sail.forward(from: 0);
       } else if (resumeReturn) {
@@ -146,10 +152,10 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
         // Core may confirm connected before the visual voyage is finished.
         _sail.forward();
       }
-      _focus(Offset(node.longitude, node.latitude));
+      _focus(city.coordinate);
     }
     _lastPhase = phase;
-    _lastNode = node.id;
+    _lastNode = key;
     setState(() {});
   }
 
@@ -192,11 +198,9 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
           return ClipRect(child: Stack(fit: StackFit.expand, children: [
             const ColoredBox(color: Color(0xFF071929)),
             _WorldTiles(camera: camera,
-              asset: 'assets/earth/earth_day.jpg', show: true,
-              darkTint: dark),
+              asset: 'assets/earth/earth_watercolor_day.jpg', show: !dark),
             _WorldTiles(camera: camera,
-              asset: 'assets/earth/earth_night_lights.png', show: dark,
-              cityLights: true),
+              asset: 'assets/earth/earth_watercolor_night.jpg', show: dark),
             IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
@@ -209,7 +213,7 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
             ))),
             CustomPaint(painter: _WorldRoutePainter(
               camera: camera, from: _routeFrom, to: _routeTo,
-              label: _destination?.mapLabel ?? 'WORLD',
+              label: _destinationCity?.label ?? 'BEIJING',
               progress: Curves.easeInOutCubic.transform(_sail.value),
               active: active, homebound: _homebound, dark: dark,
             ), child: const SizedBox.expand()),
@@ -257,8 +261,7 @@ class _WorldTiles extends StatelessWidget {
       duration: const Duration(milliseconds: 950),
       curve: Curves.easeInOutCubic,
       child: ColorFiltered(
-        colorFilter: cityLights
-            ? _lightsAlpha : darkTint ? _midnightTerrain : _natural,
+        colorFilter: _natural,
         child: Stack(clipBehavior: Clip.none, children: [
           for (final index in const [-1, 0, 1])
             Positioned(
@@ -292,6 +295,7 @@ class _WorldRoutePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final home = camera.project(VelaWorldCamera.beijing);
+    _drawCityNames(canvas);
     _marker(canvas, home, 'BEIJING', const Color(0xFFE3B777),
       showLabel: !active || homebound);
     if (!active || (from - to).distance < .01) return;
@@ -323,6 +327,46 @@ class _WorldRoutePainter extends CustomPainter {
     canvas.restore();
   }
 
+  void _drawCityNames(Canvas canvas) {
+    // Keep the atlas readable; don't pile overlapping names in East Asia.
+    final occupied = <Rect>[];
+    for (final city in VelaWorldCityCatalog.cityList) {
+      if (city.label == 'BEIJING' || city.label == label) continue;
+      final center = camera.project(city.coordinate);
+      if (center.dx < 15 || center.dx > camera.size.width - 75 ||
+          center.dy < 16 || center.dy > camera.size.height - 16) {
+        continue;
+      }
+      final place = Rect.fromLTWH(center.dx, center.dy - 13, 90, 23);
+      if (occupied.any((rect) => rect.overlaps(place))) continue;
+      occupied.add(place);
+      final dot = Paint()
+        ..color = dark ? const Color(0xFFDBCA9C) : const Color(0xFF355B5A);
+      canvas.drawCircle(center, 2, dot);
+      _placeText(canvas, center + const Offset(7, -16),
+          city.label, tiny: true);
+    }
+  }
+
+  void _placeText(Canvas canvas, Offset position, String value,
+      {bool tiny = false}) {
+    final painter = TextPainter(
+      text: TextSpan(text: value, style: TextStyle(
+        color: dark ? const Color(0xFFEADCB9) : const Color(0xFF284B55),
+        fontFamily: 'Georgia',
+        fontSize: tiny ? 9 : 11,
+        fontWeight: tiny ? FontWeight.w500 : FontWeight.w700,
+        letterSpacing: tiny ? .75 : 1.0,
+        shadows: dark ? const [Shadow(
+          color: Color(0xFF102537), blurRadius: 5)] : null,
+      )), textDirection: TextDirection.ltr, maxLines: 1,
+    )..layout();
+    painter.paint(canvas, Offset(
+      position.dx.clamp(0.0, math.max(0.0, camera.size.width - painter.width)),
+      position.dy.clamp(0.0, math.max(0.0, camera.size.height - painter.height)),
+    ));
+  }
+
   void _marker(Canvas canvas, Offset position, String label, Color color,
       {required bool showLabel}) {
     if (position.dx < -180 || position.dx > camera.size.width + 180 ||
@@ -335,20 +379,7 @@ class _WorldRoutePainter extends CustomPainter {
     if (!showLabel) {
       return;
     }
-    final painter = TextPainter(
-      text: TextSpan(text: label, style: TextStyle(
-        color: dark ? const Color(0xFFEAF6FF) : const Color(0xFF163451),
-        fontSize: 10, letterSpacing: 1.4, fontWeight: FontWeight.w700,
-      )),
-      textDirection: TextDirection.ltr,
-      maxLines: 1,
-    )..layout();
-    painter.paint(canvas, Offset(
-      (position.dx + 13).clamp(0.0,
-        math.max(0.0, camera.size.width - painter.width)),
-      (position.dy - 16).clamp(0.0,
-        math.max(0.0, camera.size.height - painter.height)),
-    ));
+    _placeText(canvas, position + const Offset(13, -16), label);
   }
 
   @override

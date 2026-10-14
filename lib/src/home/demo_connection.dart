@@ -113,6 +113,7 @@ class VelaDemoController extends ChangeNotifier {
   bool _realVisual = false;
   bool get realVisual => _realVisual;
   String? _realLabel;
+  String? get realNodeName => _realLabel;
 
   /// Real core state drives the globe; never start a fake success timer.
   /// Country location is only an inferred visual approximation.
