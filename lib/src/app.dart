@@ -1504,8 +1504,8 @@ class _AndroidVpnTag extends StatelessWidget {
       color: _blue.withValues(alpha: .13),
       border: Border.all(color: _blue.withValues(alpha: .35)),
     ),
-    child: Text(vpn.connected ? 'Android Mihomo VPN · 已连接'
-        : 'Android Mihomo VPN · Beta',
+    child: Text(vpn.connected ? 'Vela VPN · 已连接'
+        : 'Vela VPN · Beta',
         style: const TextStyle(fontSize: 10)),
   );
 }
@@ -1530,7 +1530,7 @@ class _AndroidVpnCard extends StatelessWidget {
           children: [
             Text(vpn.phaseText, style: TextStyle(color: _foreground,
                 fontSize: 18, fontWeight: FontWeight.w700)),
-            Text('Mihomo · Android VpnService · TUN',
+            Text('当前航线 · ${subscription is VelaFlClashSubscriptionController ? ((subscription as VelaFlClashSubscriptionController).profileName ?? '未命名机场') : '未命名机场'}',
                 style: TextStyle(color: _muted, fontSize: 11)),
           ],
         )),
@@ -1679,7 +1679,7 @@ class _RealConnectionCard extends StatelessWidget {
                   color: color, fontWeight: FontWeight.bold,
                   fontSize: compact ? 21 : 26,
                 )),
-                Text('Vela 航线 · 真实线路与系统代理',
+                Text('当前航线 · ${connection.subscription is VelaFlClashSubscriptionController ? ((connection.subscription as VelaFlClashSubscriptionController).profileName ?? '未命名机场') : '未命名机场'}',
                     style: TextStyle(color: _muted, fontSize: 12)),
               ],
             )),
