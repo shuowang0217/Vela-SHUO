@@ -192,9 +192,11 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
           return ClipRect(child: Stack(fit: StackFit.expand, children: [
             const ColoredBox(color: Color(0xFF071929)),
             _WorldTiles(camera: camera,
-              asset: 'assets/earth/earth_day.jpg', show: !dark),
+              asset: 'assets/earth/earth_day.jpg', show: true,
+              darkTint: dark),
             _WorldTiles(camera: camera,
-              asset: 'assets/earth/earth_night_lights.png', show: dark),
+              asset: 'assets/earth/earth_night_lights.png', show: dark,
+              cityLights: true),
             IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
@@ -220,10 +222,33 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
 
 class _WorldTiles extends StatelessWidget {
   const _WorldTiles({required this.camera, required this.asset,
-    required this.show});
+    required this.show, this.darkTint = false, this.cityLights = false});
   final VelaWorldCamera camera;
   final String asset;
   final bool show;
+  final bool darkTint;
+  final bool cityLights;
+
+  // v1.3.0 night_lights.png contains only NASA-like city-light radiance.
+  // Black pixels must be transparent, or nighttime loses the continents.
+  static const _lightsAlpha = ColorFilter.matrix([
+    1, 0, 0, 0, 0,
+    0, 1, 0, 0, 0,
+    0, 0, 1, 0, 0,
+    .28, .55, .17, 0, 0,
+  ]);
+  static const _midnightTerrain = ColorFilter.matrix([
+    .30, .05, .02, 0, 0,
+    .02, .40, .04, 0, 0,
+    .01, .06, .51, 0, 0,
+    0, 0, 0, 1, 0,
+  ]);
+  static const _natural = ColorFilter.matrix([
+    1, 0, 0, 0, 0,
+    0, 1, 0, 0, 0,
+    0, 0, 1, 0, 0,
+    0, 0, 0, 1, 0,
+  ]);
 
   @override
   Widget build(BuildContext context) => IgnorePointer(
@@ -231,18 +256,22 @@ class _WorldTiles extends StatelessWidget {
       opacity: show ? 1 : 0,
       duration: const Duration(milliseconds: 950),
       curve: Curves.easeInOutCubic,
-      child: Stack(clipBehavior: Clip.none, children: [
-        for (final index in const [-1, 0, 1])
-          Positioned(
-            left: camera.tileLeft + index * camera.worldWidth,
-            top: camera.top,
-            width: camera.worldWidth,
-            height: camera.worldHeight,
-            child: Image.asset(asset,
-              fit: BoxFit.fill, filterQuality: FilterQuality.high,
-              gaplessPlayback: true),
-          ),
-      ]),
+      child: ColorFiltered(
+        colorFilter: cityLights
+            ? _lightsAlpha : darkTint ? _midnightTerrain : _natural,
+        child: Stack(clipBehavior: Clip.none, children: [
+          for (final index in const [-1, 0, 1])
+            Positioned(
+              left: camera.tileLeft + index * camera.worldWidth,
+              top: camera.top,
+              width: camera.worldWidth,
+              height: camera.worldHeight,
+              child: Image.asset(asset,
+                fit: BoxFit.fill, filterQuality: FilterQuality.high,
+                gaplessPlayback: true),
+            ),
+        ]),
+      ),
     ),
   );
 }
