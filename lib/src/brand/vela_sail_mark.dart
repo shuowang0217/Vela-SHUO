@@ -57,7 +57,7 @@ class VelaSailPainter extends CustomPainter {
     canvas.drawPath(outer, Paint()
       ..shader = LinearGradient(
         begin: Alignment.topLeft, end: Alignment.bottomRight,
-        colors: muted ? [primary, glow] :
+        colors: muted ? [primary, glow, glow, primary] :
           [navy, steel, pearl, gold],
         stops: const [0, .43, .78, 1],
       ).createShader(const Rect.fromLTWH(76, 10, 50, 110)));
