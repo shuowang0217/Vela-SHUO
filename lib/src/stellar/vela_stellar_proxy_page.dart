@@ -5,8 +5,6 @@ import '../android/vela_android_vpn.dart';
 import '../core/vela_connection_coordinator.dart';
 import '../home/demo_connection.dart';
 import '../network/vela_flclash_subscription_adapter.dart';
-import '../network/vela_routing_mode.dart';
-import 'vela_routing_mode_selector.dart';
 import '../smart/vela_smart_controller.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../subscription/vela_subscription_parser.dart';
@@ -20,14 +18,13 @@ import 'stellar_design.dart';
 class VelaStellarProxyPage extends StatefulWidget {
   const VelaStellarProxyPage({super.key, required this.demo,
     this.subscription, this.connection, this.androidVpn, this.smart,
-    this.traffic, this.routing, required this.openConfig});
+    this.traffic, required this.openConfig});
   final VelaDemoController demo;
   final VelaSubscriptionController? subscription;
   final VelaConnectionCoordinator? connection;
   final VelaAndroidVpnController? androidVpn;
   final VelaSmartController? smart;
   final VelaTrafficMonitor? traffic;
-  final VelaRoutingModeController? routing;
   final VoidCallback openConfig;
 
   @override
@@ -151,15 +148,6 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                     const SizedBox(height: 16),
                     _hero(context, online, nodes.length, narrow),
                     const SizedBox(height: 16),
-                    if (widget.routing != null) ...[
-                      VelaRoutingModeSelector(
-                        key: const ValueKey('voyage_routing_selector'),
-                        controller: widget.routing!,
-                        activeProfileId: flclash?.activeProfileId,
-                        locked: busy,
-                      ),
-                      const SizedBox(height: 16),
-                    ],
                     if (nodes.isNotEmpty) ...[
                       _groupNavigation(context, groupNames, group, narrow),
                       const SizedBox(height: 16),
