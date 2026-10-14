@@ -660,6 +660,23 @@ class _DesktopHome extends StatelessWidget {
                           connection: connection!, showNodes: showNodes)
                       : _ConnectionCard(demo: demo, showNodes: showNodes),
                 ),
+                if (routing != null)
+                  Positioned(
+                    key: const ValueKey('home_routing_position'),
+                    top: 365, right: 20,
+                    width: math.min(designWidth * .41, 460),
+                    child: VelaRoutingModeSelector(
+                      key: const ValueKey('home_routing_selector'),
+                      controller: routing!,
+                      activeProfileId:
+                          subscription is VelaFlClashSubscriptionController
+                              ? (subscription! as VelaFlClashSubscriptionController)
+                                  .activeProfileId
+                              : null,
+                      locked: connection?.busy == true ||
+                          smart?.scanning == true,
+                    ),
+                  ),
                 Positioned(
                   left: 12, right: 12, bottom: 18,
                   child: _Stats(demo: demo, showSmart: showSmart,
@@ -996,7 +1013,7 @@ class _MobileHome extends StatelessWidget {
   const _MobileHome({
     required this.demo, required this.showNodes, required this.showSmart,
     this.connection, this.subscription, this.smart, this.androidVpn,
-    this.traffic,
+    this.traffic, this.routing,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
@@ -1004,6 +1021,7 @@ class _MobileHome extends StatelessWidget {
   final VelaSmartController? smart;
   final VelaAndroidVpnController? androidVpn;
   final VelaTrafficMonitor? traffic;
+  final VelaRoutingModeController? routing;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
 
@@ -1042,6 +1060,20 @@ class _MobileHome extends StatelessWidget {
               ? _RealConnectionCard(connection: connection!,
                   showNodes: showNodes, compact: true)
               : _ConnectionCard(demo: demo, showNodes: showNodes, compact: true),
+      if (routing != null) ...[
+        const SizedBox(height: 12),
+        VelaRoutingModeSelector(
+          key: const ValueKey('home_routing_selector'),
+          controller: routing!,
+          activeProfileId:
+              subscription is VelaFlClashSubscriptionController
+                  ? (subscription! as VelaFlClashSubscriptionController)
+                      .activeProfileId
+                  : null,
+          locked: connection?.busy == true ||
+              androidVpn?.busy == true || smart?.scanning == true,
+        ),
+      ],
       SizedBox(height: 12),
       Row(children: [
         Expanded(child: _MetricCard(
