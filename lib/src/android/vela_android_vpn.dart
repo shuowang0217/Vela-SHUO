@@ -32,7 +32,7 @@ class VelaAndroidVpnController extends ChangeNotifier {
   String get phaseText => switch (_phase) {
     VelaAndroidVpnPhase.disconnected => 'VPN 未连接',
     VelaAndroidVpnPhase.preparing => '正在请求 Android VPN 授权…',
-    VelaAndroidVpnPhase.connecting => '正在建立 Mihomo VPN…',
+    VelaAndroidVpnPhase.connecting => '正在建立 Vela VPN…',
     VelaAndroidVpnPhase.connected => 'Android VPN 已连接',
     VelaAndroidVpnPhase.error => 'VPN 连接失败',
   };
@@ -168,7 +168,7 @@ class VelaAndroidVpnController extends ChangeNotifier {
         notifyListeners();
         return false;
       }
-      _error = '切换失败，FlClash 已恢复先前节点';
+      _error = '切换失败，已恢复先前节点';
       notifyListeners();
     }
     return false;
