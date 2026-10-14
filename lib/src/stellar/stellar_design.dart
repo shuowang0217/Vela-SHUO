@@ -57,8 +57,8 @@ class StellarPanel extends StatelessWidget {
               colors: [
                 Color.lerp(t.surface, t.accent,
                     selected ? .19 : .065)!
-                    .withValues(alpha: t.dark ? .35 : .67),
-                t.surface.withValues(alpha: t.dark ? .23 : .55),
+                    .withValues(alpha: t.dark ? .18 : .38),
+                t.surface.withValues(alpha: t.dark ? .10 : .25),
               ],
             ),
             border: Border.all(
