@@ -248,9 +248,9 @@ class _VoyagePainter extends CustomPainter {
           Paint()
             ..filterQuality = FilterQuality.high
             ..colorFilter = const ColorFilter.matrix([
-              .83, 0, 0, 0, 3,
-              0, .92, 0, 0, 3,
-              0, 0, 1.02, 0, 2,
+              .98, 0, 0, 0, 6,
+              0, 1.06, 0, 0, 3,
+              0, 0, 1.16, 0, 2,
               0, 0, 0, 1, 0,
             ]));
         canvas.drawImageRect(night, nightSrc, dst,
@@ -258,21 +258,21 @@ class _VoyagePainter extends CustomPainter {
             ..filterQuality = FilterQuality.high
             ..blendMode = BlendMode.screen
             ..colorFilter = const ColorFilter.matrix([
-              1.85, 0, 0, 0, -11,
-              0, 1.52, 0, 0, -10,
-              0, 0, 1.17, 0, -12,
-              0, 0, 0, .74, 0,
+              1.35, 0, 0, 0, -11,
+              0, 1.24, 0, 0, -10,
+              0, 0, 1.06, 0, -12,
+              0, 0, 0, .22, 0,
             ]));
       }
 
       // Glow the real shoreline: light blooms behind a crisp pale-blue edge.
       final coastGlow = Paint()
-        ..color = const Color(0xFF41C9EC).withValues(alpha: .35)
+        ..color = const Color(0xFF41C9EC).withValues(alpha: .21)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 7.8
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
       final coast = Paint()
-        ..color = const Color(0xFF9FE6FF).withValues(alpha: .72)
+        ..color = const Color(0xFF9FE6FF).withValues(alpha: .42)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.25
         ..isAntiAlias = true;
@@ -313,15 +313,15 @@ class _VoyagePainter extends CustomPainter {
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height * .38),
       Paint()..shader = const LinearGradient(
         begin: Alignment.topCenter, end: Alignment.bottomCenter,
-        colors: [Color(0x9B669ABE), Color(0x444B739F),
+        colors: [Color(0xA778AFD0), Color(0x28629DC4),
           Color(0x00567C9D)],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height * .38)));
     canvas.drawRect(Offset.zero & size,
       Paint()..shader = RadialGradient(
         center: const Alignment(.94, -.86),
         radius: 1.16,
-        colors: [const Color(0xAAD5ECF8),
-          const Color(0x245F9FCF), Colors.transparent],
+        colors: [const Color(0xBDEAF5FF),
+          const Color(0x326FACCE), Colors.transparent],
         stops: const [0, .39, 1],
       ).createShader(Offset.zero & size));
 
