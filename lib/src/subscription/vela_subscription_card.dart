@@ -39,6 +39,44 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
     if (port != null) _localPort.text = port.toString();
   }
 
+  Future<String?> _askProfileName(String title, {String initial = ''}) async {
+    final controller = TextEditingController(text: initial);
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 64,
+            decoration: const InputDecoration(
+                labelText: '订阅名称', border: OutlineInputBorder()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialog).pop(),
+              child: const Text('取消')),
+            FilledButton(
+              onPressed: () {
+                final name = controller.text.trim();
+                if (name.isNotEmpty) Navigator.of(dialog).pop(name);
+              },
+              child: const Text('保存')),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(value)));
+  }
+
   @override
   void dispose() {
     _url.clear();
@@ -54,8 +92,12 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
       final colors = VelaThemeRuntime.active;
       final subscription = widget.controller;
       final core = widget.core;
+      final runtimeActive = core.isListening ||
+          widget.androidVpn?.active == true;
       final busy = subscription.loading || subscription.vaultBusy ||
-          core.busy || core.isListening || widget.androidVpn?.active == true;
+          core.busy || runtimeActive;
+      final importingBusy = subscription.loading || subscription.vaultBusy ||
+          core.busy || (_offlineMode && runtimeActive);
       return Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
@@ -165,7 +207,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
             TextField(
               key: const ValueKey('subscription_url_input'),
               controller: _url,
-              enabled: !busy,
+              enabled: !importingBusy,
               obscureText: !_showUrl && !_offlineMode,
               maxLines: _offlineMode ? 4 : 1,
               enableSuggestions: false,
@@ -187,19 +229,25 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
             const SizedBox(height: 10),
             FilledButton.icon(
               key: const ValueKey('subscription_import'),
-              onPressed: busy ? null : () async {
+              onPressed: importingBusy ? null : () async {
                 final value = _url.text.trim();
                 if (value.isEmpty) {
                   return;
                 }
-                if (_offlineMode) {
-                  await subscription.importFromText(value);
-                } else {
-                  await subscription.importFromUrl(value);
-                }
-                // Do not retain subscription access tokens in text input.
-                if (mounted) {
-                  _url.clear();
+                final ok = _offlineMode
+                    ? await subscription.importFromText(value)
+                    : subscription is VelaFlClashSubscriptionController
+                        ? await subscription.importFromUrlNamed(value,
+                            stageOnly: runtimeActive)
+                        : await subscription.importFromUrl(value);
+                // Do not retain subscription tokens in the visible input.
+                if (context.mounted) {
+                  if (ok) _url.clear();
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(ok
+                        ? '机场获取成功，已自动加密保存'
+                        : subscription.error ?? '获取机场失败'),
+                  ));
                 }
               },
               icon: const Icon(Icons.download_rounded, size: 19),
@@ -215,7 +263,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text(ok
-                        ? '订阅更新成功，已尽量恢复原节点与收藏；需要时请更新加密存档'
+                        ? '订阅已更新并自动保存'
                         : subscription.error ?? '订阅更新失败，原节点列表仍保留'),
                   ));
                 },
@@ -226,6 +274,102 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               Text('仅在本次启动期间保留上次成功导入的 HTTPS 地址；'
                   '不写入本地存档、不自动更新，也不会自动启动代理或 VPN。',
                 style: TextStyle(color: colors.muted, fontSize: 11)),
+            ],
+            if (subscription is VelaFlClashSubscriptionController) ...[
+              const SizedBox(height: 18),
+              Row(children: [
+                Icon(Icons.folder_copy_outlined, color: colors.accent),
+                const SizedBox(width: 8),
+                Expanded(child: Text('已保存的订阅',
+                    style: TextStyle(color: colors.text,
+                        fontWeight: FontWeight.w600))),
+                Text('${subscription.profiles.length}/20',
+                    style: TextStyle(color: colors.muted, fontSize: 12)),
+              ]),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                key: ValueKey('saved_profile_selector_${subscription.activeProfileId ?? 'unsaved'}'),
+                initialValue: subscription.profiles.any(
+                    (p) => p.id == subscription.activeProfileId)
+                    ? subscription.activeProfileId : null,
+                hint: const Text('选择已加密保存的订阅'),
+                isExpanded: true,
+                items: [
+                  for (final p in subscription.profiles)
+                    DropdownMenuItem(value: p.id,
+                        child: Text(p.name,
+                            overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: busy ? null : (id) async {
+                  if (id == null) return;
+                  final ok = await subscription.activateProfile(id);
+                  _message(ok ? '已切换订阅（不会自动连接代理）'
+                      : subscription.error ?? '切换失败');
+                },
+              ),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                OutlinedButton.icon(
+                  key: const ValueKey('save_new_subscription'),
+                  onPressed: busy || !subscription.canSave ||
+                      subscription.profiles.length >= 20 ? null : () async {
+                    final name = await _askProfileName('另存为新订阅',
+                        initial: subscription.profileName ?? '');
+                    if (name == null) return;
+                    final ok = await subscription.saveAsProfile(name);
+                    _message(ok ? '订阅已加密保存，可随时切换'
+                        : subscription.error ?? '保存失败');
+                  },
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text('另存为新订阅'),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('rename_saved_subscription'),
+                  onPressed: busy || subscription.activeProfileId == null
+                      ? null : () async {
+                    final id = subscription.activeProfileId!;
+                    final name = await _askProfileName('重命名订阅',
+                        initial: subscription.profileName ?? '');
+                    if (name == null) return;
+                    final ok = await subscription.renameProfile(id, name);
+                    _message(ok ? '订阅已重命名' : '重命名失败');
+                  },
+                  icon: const Icon(Icons.drive_file_rename_outline),
+                  label: const Text('重命名'),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('remove_saved_subscription'),
+                  onPressed: busy || subscription.activeProfileId == null
+                      ? null : () async {
+                    final id = subscription.activeProfileId!;
+                    final accepted = await showDialog<bool>(
+                      context: context,
+                      builder: (dialog) => AlertDialog(
+                        title: const Text('删除已保存的订阅？'),
+                        content: const Text(
+                            '仅删除加密存档，不会修改当前已导入的节点；删除无法撤销。'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(dialog).pop(false),
+                            child: const Text('取消')),
+                          FilledButton(
+                            onPressed: () => Navigator.of(dialog).pop(true),
+                            child: const Text('删除')),
+                        ],
+                      ),
+                    );
+                    if (accepted != true) return;
+                    final ok = await subscription.removeProfile(id);
+                    _message(ok ? '已删除该订阅的加密存档' : '删除失败');
+                  },
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('删除当前存档'),
+                ),
+              ]),
+              const SizedBox(height: 8),
+              Text('切换订阅前请先断开代理或 VPN。每份存档分别保存节点选择与收藏；'
+                  '原始订阅网址仍然仅保留在本次运行内。',
+                  style: TextStyle(color: colors.muted, fontSize: 11)),
             ],
             // Native FlClash proxy-providers are separate from downloading
             // the outer subscription URL. Refreshes run in the Go backend
@@ -317,9 +461,9 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
               ),
             ],
             const SizedBox(height: 12),
-            Text('星标收藏仅调整列表顺序，不会自动切换节点。'
-                '如需重启保留收藏，点击「加密保存本机」或「更新加密存档」。'
-                '订阅及收藏仅通过系统安全存储加密保存，不保存订阅 URL。',
+            Text('获取成功后机场自动加密保存；选择的节点与收藏也会自动保存。'
+                '连接中可获取新机场，切换请在配置页点击目标机场。'
+                '不会在本地保存原始订阅 URL。',
                 style: TextStyle(color: colors.muted, fontSize: 11)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [
@@ -335,7 +479,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                 } : null,
                 icon: const Icon(Icons.lock_outline),
                 label: Text(subscription.storedOnDevice
-                    ? '更新加密存档' : '加密保存本机'),
+                    ? '立即同步加密存档' : '手动补存档'),
               ),
               OutlinedButton.icon(
                 key: const ValueKey('clear_subscription_securely'),

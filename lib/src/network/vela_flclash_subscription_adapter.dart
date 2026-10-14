@@ -5,6 +5,7 @@ import '../subscription/flclash_profile_downloader.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../subscription/vela_subscription_parser.dart';
 import '../subscription/vela_subscription_vault.dart';
+import '../subscription/vela_profile_library.dart';
 import 'flclash_windows_backend.dart';
 import 'vela_flclash_core_adapter.dart';
 
@@ -17,11 +18,28 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     required this.backend,
     required VelaFlClashCoreController core,
     VelaSubscriptionVault? vault,
+    VelaSubscriptionVault? profileVault,
+    FlClashProfileDownloader? downloader,
   })  : _store = vault ?? VelaDeviceSubscriptionVault(),
+        _downloader = downloader,
+        _library = VelaProfileLibrary(profileVault ??
+            (vault == null ? VelaDeviceProfileVault() :
+                VelaMemoryProfileVault())),
         super(core: core);
 
   final FlClashWindowsBackend backend;
+  final FlClashProfileDownloader? _downloader;
+  Future<void> _pendingWrites = Future<void>.value();
+  bool _addingProfile = false;
   final VelaSubscriptionVault _store;
+  final VelaProfileLibrary _library;
+  List<VelaStoredProfile> _profiles = [];
+  String? _activeProfileId;
+  List<VelaStoredProfile> get profiles => List.unmodifiable(_profiles);
+  String? get activeProfileId => _activeProfileId;
+  bool get canSwitchProfiles =>
+      !loading && !_storageBusy && !_addingProfile &&
+      !backend.listenerStarted && !_closed;
   VelaSubscriptionPhase _current = VelaSubscriptionPhase.idle;
   String? _lastError;
   String? _raw;
@@ -43,6 +61,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     if (_profileName == next) return;
     _profileName = next;
     _stored = false;
+    _queueCurrentSave();
     _emit();
   }
   // Favorites are presentation state, keyed by stable native Mihomo names.
@@ -83,6 +102,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     final name = nodes[index].name;
     if (!_favoriteNames.add(name)) _favoriteNames.remove(name);
     _stored = false;
+    _queueCurrentSave();
     _emit();
     return true;
   }
@@ -174,6 +194,11 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       _updatedAt = DateTime.now();
       _stored = false;
       _current = VelaSubscriptionPhase.ready;
+      // A freshly imported subscription must have a usable default node.
+      if (_selection == null && loaded.isNotEmpty &&
+          await backend.selectNode(loaded.first.name)) {
+        _selection = 0;
+      }
       _emit();
       return true;
     } catch (_) {
@@ -185,21 +210,154 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     }
   }
 
-  @override
-  Future<bool> importFromText(String source) => _import(
-      () => backend.importText(source), source: source);
+  Map<String, int>? _quotaMap(FlClashSubscriptionUsage? quota) {
+    if (quota == null) return null;
+    return {
+      'upload': quota.upload, 'download': quota.download,
+      'total': quota.total,
+      if (quota.expire != null) 'expire': quota.expire!,
+    };
+  }
+
+  /// Queued snapshots prevent rapid node/star changes from writing old state
+  /// over a later profile selection. Never stores the original token URL.
+  void _queueCurrentSave() {
+    final id = _activeProfileId;
+    if (id == null || _raw == null || _closed) return;
+    final index = _profiles.indexWhere((p) => p.id == id);
+    if (index < 0) return;
+    final copy = [..._profiles];
+    copy[index] = _currentProfile(id, copy[index].name);
+    _profiles = copy;
+    _stored = false;
+    _pendingWrites = _pendingWrites.then((_) async {
+      await _library.write(copy, id);
+      if (_activeProfileId == id && !_closed) {
+        _stored = true;
+        _emit();
+      }
+    }).catchError((Object _) {
+      _lastError = '自动保存失败，请检查系统安全存储';
+      _emit();
+    });
+  }
+
+  Future<bool> _saveNewImported({
+    required String raw, String? name, Map<String, int>? usage,
+    bool activate = true,
+  }) async {
+    if (_closed) return false;
+    await _pendingWrites;
+    if (_profiles.length >= VelaProfileLibrary.maxProfiles) {
+      _lastError = '最多保存20个机场，请先删除不需要的订阅';
+      _emit();
+      return false;
+    }
+    final clean = (name ?? '').trim();
+    final title = clean.isNotEmpty
+        ? (clean.length > 64 ? clean.substring(0, 64) : clean)
+        : '机场 ${_profiles.length + 1}';
+    final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final profile = VelaStoredProfile(
+      id: id, name: title, raw: raw,
+      selectedName: activate ? selected?.name : null,
+      favorites: const [],
+      usage: usage,
+      updatedAt: DateTime.now(),
+      nodeCount: activate ? nodes.length : null,
+    );
+    final next = [..._profiles, profile];
+    final active = activate ? id : _activeProfileId;
+    try {
+      await _library.write(next, active);
+      _profiles = next;
+      if (activate) {
+        _activeProfileId = id;
+        _profileName = title;
+        _stored = true;
+      }
+      _lastError = null;
+      _emit();
+      return true;
+    } catch (_) {
+      _lastError = '机场自动加密保存失败；请检查系统安全存储';
+      _emit();
+      return false;
+    }
+  }
+
+  /// Connected import only fetches/stores the new airport; it never replaces
+  /// the active native Mihomo profile until the user chooses that airport.
+  Future<bool> importFromUrlNamed(String url,
+      {String? name, bool stageOnly = false}) async {
+    if (_closed || loading || _storageBusy || _addingProfile) return false;
+    if (stageOnly || backend.listenerStarted) {
+      _addingProfile = true;
+      _lastError = null;
+      _emit();
+      try {
+        final fetched = await (_downloader ??
+            FlClashProfileDownloader(
+              mode: downloadMode, localHttpProxyPort: localHttpProxyPort))
+            .downloadWithMetadata(url.trim());
+        if (_closed) return false;
+        // Persist the exact fetched Mihomo configuration; its validity will
+        // be checked by the same native loader when this airport is selected.
+        return await _saveNewImported(raw: fetched.content,
+            name: name, usage: _quotaMap(fetched.usage), activate: false);
+      } catch (_) {
+        _lastError = '订阅获取失败，原机场和代理连接保持不变';
+        _emit();
+        return false;
+      } finally {
+        _addingProfile = false;
+        _emit();
+      }
+    }
+    final ok = await _import(
+        () => backend.importUrl(url.trim(), mode: downloadMode,
+            localHttpProxyPort: localHttpProxyPort),
+        sourceUrl: url.trim());
+    if (!ok || _raw == null) return false;
+    _favoriteNames.clear();
+    _stored = false;
+    final stored = await _saveNewImported(
+        raw: _raw!, name: name,
+        usage: _quotaMap(backend.subscriptionUsage));
+    return stored;
+  }
 
   @override
-  Future<bool> importFromUrl(String url) => _import(
-      () => backend.importUrl(url.trim(),
-          mode: downloadMode, localHttpProxyPort: localHttpProxyPort),
-      sourceUrl: url.trim());
+  Future<bool> importFromText(String source) async {
+    if (_closed || loading || _storageBusy || backend.listenerStarted) {
+      return false;
+    }
+    final ok = await _import(() => backend.importText(source), source: source);
+    if (!ok || _raw == null) return false;
+    _favoriteNames.clear();
+    _stored = false;
+    return _saveNewImported(raw: _raw!);
+  }
+
+  @override
+  Future<bool> importFromUrl(String url) =>
+      importFromUrlNamed(url);
 
   @override
   Future<bool> refreshLastUrl() {
     final url = _sessionUrl;
     if (url == null || !canRefresh) return Future.value(false);
-    return importFromUrl(url);
+    // A refresh updates the active unsaved working copy, not a new profile.
+    return _refreshActiveFromUrl(url);
+  }
+
+  Future<bool> _refreshActiveFromUrl(String url) async {
+    if (backend.listenerStarted) return false;
+    final ok = await _import(() => backend.importUrl(url,
+        mode: downloadMode, localHttpProxyPort: localHttpProxyPort),
+        sourceUrl: url);
+    if (ok) _queueCurrentSave();
+    return ok;
   }
 
   /// Same native FlClash provider.Update() used by FlClash itself.
@@ -227,6 +385,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       _updatedAt = DateTime.now();
       _stored = false;
       _current = VelaSubscriptionPhase.ready;
+      _queueCurrentSave();
       _emit();
       return true;
     } catch (_) {
@@ -247,6 +406,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     if (accepted) {
       _selection = index;
       _lastError = null;
+      _queueCurrentSave();
     } else {
       _lastError = 'FlClash 节点组不允许选择当前节点';
     }
@@ -273,6 +433,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     if (_closed || index < 0 || index >= nodes.length) return false;
     backend.activeName = nodes[index].name;
     _selection = index;
+    _queueCurrentSave();
     _emit();
     return true;
   }
@@ -285,8 +446,214 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       return false;
     }
     _selection = index;
+    _queueCurrentSave();
     _emit();
     return true;
+  }
+
+  String _cleanProfileName(String name) {
+    final value = name.trim();
+    if (value.isEmpty || value.length > 64) {
+      throw const FormatException('订阅名称须为1-64个字符');
+    }
+    return value;
+  }
+
+  VelaStoredProfile _currentProfile(String id, String name) {
+    final raw = _raw;
+    if (raw == null) {
+      throw StateError('No imported profile');
+    }
+    return VelaStoredProfile(
+      id: id, name: name, raw: raw, selectedName: selected?.name,
+      favorites: _favoriteNames.toList()..sort(),
+      usage: _quotaMap(backend.subscriptionUsage),
+      updatedAt: _updatedAt,
+      nodeCount: nodes.length,
+    );
+  }
+
+  /// Saves the current imported profile as a distinct named subscription.
+  /// Does not retain the HTTPS source URL or trigger an automatic connection.
+  Future<bool> saveAsProfile(String name) async {
+    if (_raw == null || !canSwitchProfiles ||
+        _profiles.length >= VelaProfileLibrary.maxProfiles) {
+      return false;
+    }
+    _storageBusy = true;
+    _emit();
+    try {
+      await _pendingWrites;
+      final clean = _cleanProfileName(name);
+      final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+      final next = [..._profiles, _currentProfile(id, clean)];
+      await _library.write(next, id);
+      _profiles = next;
+      _activeProfileId = id;
+      _profileName = clean;
+      _stored = true;
+      _lastError = null;
+      _emit();
+      return true;
+    } catch (_) {
+      _lastError = '无法保存新订阅：检查名称、数量限制与系统加密存储';
+      _emit();
+      return false;
+    } finally {
+      _storageBusy = false;
+      _emit();
+    }
+  }
+
+  Future<bool> renameProfile(String id, String name) async {
+    if (!canSwitchProfiles) return false;
+    _storageBusy = true;
+    _emit();
+    try {
+      final clean = _cleanProfileName(name);
+      final index = _profiles.indexWhere((profile) => profile.id == id);
+      if (index < 0) return false;
+      final next = [..._profiles];
+      next[index] = next[index].copyWith(name: clean);
+      await _library.write(next, _activeProfileId);
+      _profiles = next;
+      if (_activeProfileId == id) _profileName = clean;
+      _emit();
+      return true;
+    } catch (_) {
+      _lastError = '订阅重命名失败';
+      _emit();
+      return false;
+    } finally {
+      _storageBusy = false;
+      _emit();
+    }
+  }
+
+  Future<bool> removeProfile(String id) async {
+    if (!canSwitchProfiles) return false;
+    final next = _profiles.where((p) => p.id != id).toList();
+    if (next.length == _profiles.length) return false;
+    _storageBusy = true;
+    _emit();
+    try {
+      await _pendingWrites;
+      final active = _activeProfileId == id ? null : _activeProfileId;
+      await _library.write(next, active);
+      _profiles = next;
+      _activeProfileId = active;
+      if (active == null) {
+        // Removing the active airport must not leave an unsaved, still
+        // connectable native profile behind.
+        backend.imported = false;
+        backend.nodes = const [];
+        backend.groups = const [];
+        backend.groupMembers = const {};
+        backend.activeName = null;
+        backend.activeGroup = null;
+        backend.subscriptionUsage = null;
+        backend.lastImportedSource = null;
+        _raw = null;
+        _sessionUrl = null;
+        _profileName = null;
+        _selection = null;
+        _favoriteNames.clear();
+        _current = VelaSubscriptionPhase.idle;
+        _stored = false;
+      }
+      _emit();
+      return true;
+    } catch (_) {
+      _lastError = '删除加密订阅失败';
+      _emit();
+      return false;
+    } finally {
+      _storageBusy = false;
+      _emit();
+    }
+  }
+
+  /// Change the Mihomo profile ONLY when no Windows listener or Android VPN
+  /// owns the core. The caller must check Android VPN activity separately.
+  /// A failed import attempts to restore the old in-memory profile.
+  Future<bool> activateProfile(String id) async {
+    if (!canSwitchProfiles || _closed) return false;
+    if (_activeProfileId == id) return true;
+    final target = _profiles.where((p) => p.id == id).firstOrNull;
+    if (target == null) return false;
+    final oldRaw = _raw;
+    final oldActive = _activeProfileId;
+    final oldName = _profileName;
+    final oldSelected = selected?.name;
+    final oldFavorites = _favoriteNames.toList();
+    _storageBusy = true;
+    _emit();
+    try {
+      await _pendingWrites;
+      // Save the user's last selection and stars before switching.
+      final next = [..._profiles];
+      if (oldRaw != null && oldActive != null) {
+        final index = next.indexWhere((p) => p.id == oldActive);
+        if (index >= 0) next[index] = _currentProfile(oldActive, next[index].name);
+      }
+      final ok = await _import(
+          () => backend.importText(target.raw), source: target.raw);
+      if (!ok) throw StateError('Could not apply selected profile');
+      final quota = target.usage;
+      if (quota != null && quota['total'] != null) {
+        backend.subscriptionUsage = FlClashSubscriptionUsage(
+          upload: quota['upload'] ?? 0,
+          download: quota['download'] ?? 0,
+          total: quota['total']!,
+          expire: quota['expire'],
+        );
+      }
+      _updatedAt = target.updatedAt;
+      _favoriteNames
+        ..clear()
+        ..addAll(target.favorites.where(
+            (name) => nodes.any((node) => node.name == name)));
+      _selection = null;
+      if (target.selectedName != null) {
+        final i = nodes.indexWhere((n) => n.name == target.selectedName);
+        if (i >= 0 && await backend.selectNode(nodes[i].name)) {
+          _selection = i;
+        }
+      }
+      await _library.write(next, id);
+      _profiles = next;
+      _activeProfileId = id;
+      _profileName = target.name;
+      _stored = true;
+      _lastError = null;
+      _emit();
+      return true;
+    } catch (_) {
+      if (oldRaw != null) {
+        try {
+          await backend.importText(oldRaw);
+          _raw = oldRaw;
+          _favoriteNames
+            ..clear()
+            ..addAll(oldFavorites);
+          _selection = null;
+          if (oldSelected != null) {
+            final index = nodes.indexWhere((n) => n.name == oldSelected);
+            if (index >= 0 && await backend.selectNode(oldSelected)) {
+              _selection = index;
+            }
+          }
+        } catch (_) {}
+      }
+      _activeProfileId = oldActive;
+      _profileName = oldName;
+      _lastError = '订阅切换失败，已尝试恢复原订阅。请确认已断开 VPN 或代理';
+      _emit();
+      return false;
+    } finally {
+      _storageBusy = false;
+      _emit();
+    }
   }
 
   @override
@@ -297,13 +664,53 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _storageBusy = true;
     _emit();
     try {
+      final library = await _library.read();
+      _profiles = library.profiles;
+      _activeProfileId = library.activeId;
+      if (_profiles.isNotEmpty) {
+        final saved = _profiles.firstWhere(
+            (profile) => profile.id == _activeProfileId,
+            orElse: () => _profiles.first);
+        final applied = await _import(
+            () => backend.importText(saved.raw), source: saved.raw);
+        if (applied) {
+          _favoriteNames
+            ..clear()
+            ..addAll(saved.favorites.where(
+                (name) => nodes.any((node) => node.name == name)));
+          _selection = null;
+          if (saved.selectedName != null) {
+            final index = nodes.indexWhere((n) => n.name == saved.selectedName);
+            if (index >= 0 && await backend.selectNode(saved.selectedName!)) {
+              _selection = index;
+            }
+          }
+          _activeProfileId = saved.id;
+          _profileName = saved.name;
+          _updatedAt = saved.updatedAt;
+          final quota = saved.usage;
+          if (quota != null && quota['total'] != null) {
+            backend.subscriptionUsage = FlClashSubscriptionUsage(
+              upload: quota['upload'] ?? 0, download: quota['download'] ?? 0,
+              total: quota['total']!, expire: quota['expire']);
+          }
+          _stored = true;
+          _emit();
+          return true;
+        }
+      }
+      // Automatic migration: the original v1.0.0 single-profile snapshot
+      // remains readable until the user explicitly saves a named profile.
       final data = await _store.read();
       if (data == null || _closed) return false;
       final obj = jsonDecode(data);
       if (obj is! Map || obj['v'] != 2 || obj['raw'] is! String) {
         return false;
       }
-      final ok = await importFromText(obj['raw'] as String);
+      // Restore is already holding the vault guard. Call the native importer
+      // directly rather than the public import method (which is guarded).
+      final ok = await _import(() => backend.importText(obj['raw'] as String),
+          source: obj['raw'] as String);
       if (ok) {
         // A previously saved subscription header is trusted only inside the
         // user-opted-in encrypted vault, NEVER inside untrusted YAML.
@@ -353,6 +760,16 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
         if (index >= 0 && index < nodes.length) {
           await selectNode(index);
         }
+        // Migration writes an actual named airport so next launch restores
+        // the full collection, its selected node, stars and quota.
+        if (_raw == null || !await _saveNewImported(
+            raw: _raw!, name: _profileName,
+            usage: _quotaMap(backend.subscriptionUsage))) {
+          return false;
+        }
+        // _saveNewImported already wrote the migrated favorites and
+        // selected node atomically. A second queued write would mark the
+        // restored snapshot "unsaved" during the same startup frame.
         _stored = true;
       }
       return ok;
@@ -371,6 +788,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _storageBusy = true;
     _emit();
     try {
+      await _pendingWrites;
       final quota = backend.subscriptionUsage;
       await _store.write(jsonEncode({
         'v': 2,
@@ -385,6 +803,21 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
           if (quota.expire != null) 'expire': quota.expire,
         },
       }));
+      final id = _activeProfileId ??
+          DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+      final name = _profileName ?? '我的订阅';
+      final updated = _currentProfile(id, name);
+      final next = [..._profiles];
+      final index = next.indexWhere((p) => p.id == id);
+      if (index >= 0) {
+        next[index] = updated;
+      } else {
+        next.add(updated);
+      }
+      await _library.write(next, id);
+      _profiles = next;
+      _activeProfileId = id;
+      _profileName = name;
       _stored = true;
       return true;
     } catch (_) {
@@ -402,7 +835,14 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _storageBusy = true;
     _emit();
     try {
+      await _pendingWrites;
       await _store.delete();
+      if (_activeProfileId != null) {
+        final next = _profiles.where((p) => p.id != _activeProfileId).toList();
+        await _library.write(next, null);
+        _profiles = next;
+        _activeProfileId = null;
+      }
       _stored = false;
       return true;
     } catch (_) {
@@ -412,6 +852,10 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       _storageBusy = false;
       _emit();
     }
+  }
+
+  Future<void> flushPendingSaves() async {
+    await _pendingWrites;
   }
 
   @override

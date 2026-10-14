@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/network/flclash_core_api.dart';
 import 'package:vela_shuo/src/subscription/flclash_profile_downloader.dart';
+import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/network/flclash_windows_backend.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
@@ -115,6 +117,104 @@ proxy-providers:
 ''';
 
 void main() {
+  test('online fetch stages a second airport without interrupting active core',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('vela_staged_airport_');
+    addTearDown(() => dir.delete(recursive: true));
+    final vault = _Vault();
+    final backend = FlClashWindowsBackend(homeDir: dir.path,
+        transport: _NativeFlClash());
+    final core = VelaFlClashCoreController(backend);
+    final sub = VelaFlClashSubscriptionController(
+      backend: backend, core: core,
+      profileVault: vault, vault: _Vault(),
+      downloader: FlClashProfileDownloader(
+        mode: VelaSubscriptionDownloadMode.direct,
+        requestStep: (uri, route) async => FlClashProfileResponse(
+          200, Uint8List.fromList(utf8.encode(_profile)),
+          subscriptionUserInfo: 'upload=100; download=200; total=1000'),
+      ),
+    );
+    expect(await sub.importFromText(_profile), true);
+    final oldId = sub.activeProfileId!;
+    final oldName = backend.activeName;
+    backend.listenerStarted = true; // Simulate connected listener.
+    expect(await sub.importFromUrlNamed(
+        'https://example.test/sub?token=private-token',
+        name: '第二机场', stageOnly: true), true);
+    expect(sub.profiles, hasLength(2));
+    expect(sub.activeProfileId, oldId);
+    expect(backend.activeName, oldName);
+    expect(backend.listenerStarted, true);
+    expect(vault.payload, isNot(contains('private-token')));
+    expect(sub.profiles.last.usage?['total'], 1000);
+    backend.listenerStarted = false;
+    expect(await sub.activateProfile(sub.profiles.last.id), true);
+    expect(sub.profileName, '第二机场');
+    expect(backend.subscriptionUsage?.total, 1000);
+    sub.dispose();
+    core.dispose();
+  });
+
+  test('named profiles switch independently and restore active profile',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('vela_multi_profile_');
+    addTearDown(() => dir.delete(recursive: true));
+    final singleVault = _Vault();
+    final profileVault = _Vault();
+    final backend = FlClashWindowsBackend(homeDir: dir.path,
+        transport: _NativeFlClash());
+    final core = VelaFlClashCoreController(backend);
+    final sub = VelaFlClashSubscriptionController(
+        backend: backend, core: core,
+        vault: singleVault, profileVault: profileVault);
+
+    expect(await sub.importFromText(_profile), true);
+    expect(await sub.selectNode(0), true);
+    expect(sub.toggleFavorite(1), true);
+    // Successful imports now auto-save the active airport.
+    final japanId = sub.activeProfileId!;
+    expect(await sub.renameProfile(japanId, '日本订阅'), true);
+
+    expect(await sub.importFromText('$_profile\n# second profile'), true);
+    expect(sub.selectedIndex, 0); // Default route is usable immediately.
+    expect(sub.favoriteCount, 0);
+    expect(await sub.selectNode(1), true);
+    expect(sub.toggleFavorite(0), true);
+    final usaId = sub.activeProfileId!;
+    expect(await sub.renameProfile(usaId, '美国订阅'), true);
+    expect(sub.profiles, hasLength(2));
+
+    expect(await sub.activateProfile(japanId), true);
+    expect(sub.selected?.name, 'Japan');
+    expect(sub.isFavorite(1), true);
+    expect(sub.isFavorite(0), false);
+
+    expect(await sub.activateProfile(usaId), true);
+    expect(sub.selected?.name, 'USA');
+    expect(sub.isFavorite(0), true);
+    expect(sub.isFavorite(1), false);
+    sub.dispose();
+    core.dispose();
+
+    final restoredBackend = FlClashWindowsBackend(homeDir: dir.path,
+        transport: _NativeFlClash());
+    final restoredCore = VelaFlClashCoreController(restoredBackend);
+    final restored = VelaFlClashSubscriptionController(
+        backend: restoredBackend, core: restoredCore,
+        vault: singleVault, profileVault: profileVault);
+    expect(await restored.restoreSaved(), true);
+    expect(restored.profileName, '美国订阅');
+    expect(restored.selected?.name, 'USA');
+    expect(restored.isFavorite(0), true);
+    expect(restored.profiles, hasLength(2));
+    expect(await restored.renameProfile(japanId, '日本线路'), true);
+    expect(await restored.removeProfile(japanId), true);
+    expect(restored.profiles, hasLength(1));
+    restored.dispose();
+    restoredCore.dispose();
+  });
+
   test('opt-in encrypted profile snapshot also restores FlClash server quota',
       () async {
     final dir = await Directory.systemTemp.createTemp('vela_quota_snapshot_');
