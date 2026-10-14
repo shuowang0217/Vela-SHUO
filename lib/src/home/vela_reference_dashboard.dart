@@ -8,6 +8,7 @@ import '../android/vela_android_vpn.dart';
 import '../core/vela_connection_coordinator.dart';
 import '../network/vela_flclash_subscription_adapter.dart';
 import '../network/vela_routing_mode.dart';
+import 'vela_voyage_map.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../traffic/vela_traffic_monitor.dart';
 
@@ -48,6 +49,8 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
   int? _delayMs;
   String? _latencyNode;
   bool _testingDelay = false;
+  bool _updatingCommon = false;
+  final Map<String, int?> _commonLatencies = <String, int?>{};
 
   VelaFlClashSubscriptionController? get _native {
     final value = widget.subscription;
@@ -184,14 +187,14 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
     }
   }
 
+  /// The flattened 1536x1024 artwork is our *layout specification*, not a
+  /// screenshot pasted into the app. All panels remain actual Flutter widgets
+  /// with live node, proxy, time and transfer data.
   @override
   Widget build(BuildContext context) {
     final dependencies = <Listenable>[
-      widget.subscription,
-      ?widget.connection,
-      ?widget.androidVpn,
-      ?widget.traffic,
-      ?_routeModes,
+      widget.subscription, ?widget.connection, ?widget.androidVpn,
+      ?widget.traffic, ?_routeModes,
     ];
     return AnimatedBuilder(
       animation: Listenable.merge(dependencies),
@@ -200,54 +203,50 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
             widget.androidVpn?.connected == true;
         final busy = widget.connection?.busy == true ||
             widget.androidVpn?.busy == true;
-        final native = _native;
-        final airport = native?.profileName?.trim();
+        final airport = _native?.profileName?.trim();
         final airportName = airport == null || airport.isEmpty
             ? '未选择机场' : airport;
         final node = widget.subscription.selected?.name ?? '未选择节点';
-        final quota = native?.backend.subscriptionUsage;
-        final total = quota?.total;
-        final used = quota == null ? null : quota.upload + quota.download;
         return LayoutBuilder(builder: (context, bounds) {
-          // Desktop follows the approved image proportions. Android / narrow
-          // windows stack the SAME interactive components as scrollable cards.
-          if (bounds.maxWidth < 930 || bounds.maxHeight < 690) {
+          if (bounds.maxWidth < 920 || bounds.maxHeight < 620) {
             return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 28, 16, 26),
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 22),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _connectionHero(connected, busy, airportName, node),
-                  const SizedBox(height: 170),
-                  SizedBox(height: 236,
-                    child: _quotaCard(used, total, airportName)),
+                  const SizedBox(height: 200),
+                  SizedBox(height: 240, child: _routeCard(node)),
                   const SizedBox(height: 12),
-                  SizedBox(height: 306,
+                  SizedBox(height: 305,
                     child: _connectionInfo(connected, airportName, node)),
                   const SizedBox(height: 12),
-                  SizedBox(height: 315, child: _modeCard()),
+                  SizedBox(height: 315, child: _commonNodesCard()),
                 ]),
             );
           }
-
+          // Illustration: top-right status at x=1002,y=84;
+          // bottom three panes x=240,804,1155 and y=644...950.
+          // Our sidebar is outside these content coordinates.
           final w = bounds.maxWidth;
-          final gap = math.max(13.0, math.min(17.0, w * .012));
-          final usable = w - 42 - 2 * gap;
-          final widths = [usable * .425, usable * .265, usable * .31];
-          final bottomHeight = math.min(310.0, bounds.maxHeight * .335);
-          final leftHeight = bottomHeight * .84;
+          final gap = math.max(13.0, math.min(17.0, w * .014));
+          final available = w - 32 - 2 * gap;
+          final leftWidth = available * .43;
+          final middleWidth = available * .27;
+          final rightWidth = available - leftWidth - middleWidth;
+          final bottomHeight = math.min(308.0, bounds.maxHeight * .325);
           return Stack(children: [
-            Positioned(right: 19, top: 76, width: math.min(515, w * .40),
-              height: 174,
+            Positioned(right: 17, top: 82,
+              width: math.min(518, w * .42), height: 174,
               child: _connectionHero(connected, busy, airportName, node)),
-            Positioned(left: 21, bottom: 50, height: leftHeight,
-              width: widths[0],
-              child: _quotaCard(used, total, airportName)),
-            Positioned(left: 21 + widths[0] + gap,
-              bottom: 50, height: bottomHeight, width: widths[1],
+            Positioned(left: 16, bottom: 62, height: bottomHeight * .84,
+              width: leftWidth,
+              child: _routeCard(node)),
+            Positioned(left: 16 + leftWidth + gap, bottom: 62,
+              height: bottomHeight, width: middleWidth,
               child: _connectionInfo(connected, airportName, node)),
-            Positioned(right: 21, bottom: 50, height: bottomHeight,
-              width: widths[2],
-              child: _modeCard()),
+            Positioned(right: 16, bottom: 62, height: bottomHeight,
+              width: rightWidth,
+              child: _commonNodesCard()),
           ]);
         });
       },
@@ -330,80 +329,79 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
     );
   }
 
-  Widget _quotaCard(int? used, int? total, String airport) {
-    final usageFraction = used == null || total == null || total <= 0
-        ? null : (used / total).clamp(0.0, 1.0).toDouble();
-    final usedLabel = VelaTrafficMonitor.totalLabel(used);
-    final totalLabel = VelaTrafficMonitor.totalLabel(total);
-    return _frost(padding: const EdgeInsets.fromLTRB(22, 19, 22, 16),
+  String _destination(String node) {
+    final inferred = VelaVoyageTarget.fromNodeName(node);
+    return inferred?.label ?? (node == '未选择节点' ? '目的地待选择' : node);
+  }
+
+  String _destinationFlag(String node) {
+    final n = node.toLowerCase();
+    if (n.contains('日本') || n.contains('jp') || n.contains('tokyo')) return '🇯🇵';
+    if (n.contains('美国') || n.contains('us') || n.contains('los angeles')) return '🇺🇸';
+    if (n.contains('香港') || n.contains('hk')) return '🇭🇰';
+    if (n.contains('台湾') || n.contains('tw')) return '🇹🇼';
+    if (n.contains('新加坡') || n.contains('sg')) return '🇸🇬';
+    if (n.contains('英国') || n.contains('uk')) return '🇬🇧';
+    return '🌐';
+  }
+
+  Widget _routeCard(String node) {
+    final target = _destination(node);
+    final country = _destinationFlag(node);
+    return _frost(padding: const EdgeInsets.fromLTRB(24, 20, 24, 18),
+      radius: 24,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Row(children: [
-          const Icon(Icons.sailing_rounded, color: _white, size: 23),
-          const SizedBox(width: 9),
+        children: [
           const Text('当前航线', style: _heading),
           const Spacer(),
-          Flexible(child: Text(airport, maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: _muted, fontSize: 12))),
-        ]),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('机场套餐流量',
-              style: TextStyle(color: _muted, fontSize: 12)),
-            Flexible(child: Text(
-              usageFraction == null
-                  ? '机场未提供套餐用量'
-                  : '$usedLabel / $totalLabel',
-              style: const TextStyle(color: _white, fontSize: 12,
-                fontWeight: FontWeight.w600),
-              maxLines: 1, overflow: TextOverflow.ellipsis)),
-          ]),
-          const SizedBox(height: 10),
-          ClipRRect(borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: usageFraction ?? 0, minHeight: 7,
-              backgroundColor: const Color(0x844D7696),
-              valueColor: const AlwaysStoppedAnimation<Color>(_cyan),
+            _port('🇨🇳', '中国', '上海'),
+            Expanded(child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 13),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.sailing_rounded, color: _white, size: 36),
+                const SizedBox(height: 5),
+                Row(children: [
+                  Expanded(child: CustomPaint(
+                    size: const Size(double.infinity, 1),
+                    painter: _VelaRouteDashPainter())),
+                  const Icon(Icons.arrow_forward_rounded,
+                    color: _cyan, size: 16),
+                ]),
+                const SizedBox(height: 9),
+                Text(node == '未选择节点' ? '请先选择节点' : '跨洋航行',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: _muted, fontSize: 12)),
+                const SizedBox(height: 8),
+                ClipRRect(borderRadius: BorderRadius.circular(9),
+                  child: LinearProgressIndicator(
+                    value: widget.connection?.connected == true ||
+                        widget.androidVpn?.connected == true ? 1 : 0,
+                    backgroundColor: const Color(0x554D8EB1),
+                    valueColor: const AlwaysStoppedAnimation<Color>(_cyan),
+                    minHeight: 5)),
+              ]),
             )),
+            _port(country, target, ''),
+          ]),
+          const Spacer(),
         ]),
-        Row(children: [
-          Expanded(child: _rateBlock(Icons.arrow_downward_rounded,
-            '实时下载', _rate(widget.traffic?.downloadBytesPerSecond), _green)),
-          const SizedBox(width: 18),
-          Expanded(child: _rateBlock(Icons.arrow_upward_rounded,
-            '实时上传', _rate(widget.traffic?.uploadBytesPerSecond), _cyan)),
-        ]),
-      ]),
     );
   }
 
-  Widget _rateBlock(IconData icon, String title, String value, Color accent) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min, children: [
-      Row(children: [
-        Icon(icon, color: accent, size: 19),
-        const SizedBox(width: 6),
-        Text(title, style: const TextStyle(color: _muted, fontSize: 12)),
+  Widget _port(String flag, String country, String city) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 114),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(flag, style: const TextStyle(fontSize: 40)),
+        const SizedBox(height: 7),
+        Text(country, maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: _white, fontSize: 16,
+            fontWeight: FontWeight.w700)),
+        const SizedBox(height: 3),
+        Text(city, style: const TextStyle(color: _muted, fontSize: 12)),
       ]),
-      const SizedBox(height: 5),
-      FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
-        child: Text(value,
-          style: const TextStyle(color: _white, fontSize: 20,
-            fontFeatures: [FontFeature.tabularFigures()],
-            fontWeight: FontWeight.w700))),
-    ]);
-  }
-
-  String _rate(double? rate) {
-    if (rate == null || rate < 0) return '—';
-    if (rate >= 1048576) {
-      return '${(rate / 1048576).toStringAsFixed(2)} MB/s';
-    }
-    if (rate >= 1024) {
-      return '${(rate / 1024).toStringAsFixed(1)} KB/s';
-    }
-    return '${rate.toStringAsFixed(0)} B/s';
+    );
   }
 
   Widget _connectionInfo(bool connected, String airport, String node) {
@@ -445,79 +443,132 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
     ]));
   }
 
-  Widget _modeCard() {
-    final modes = _routeModes;
-    final current = modes?.current ?? VelaRoutingMode.global;
-    return _frost(padding: const EdgeInsets.symmetric(
-        horizontal: 19, vertical: 17),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Icon(Icons.shield_outlined, color: _pale, size: 23),
-            const SizedBox(width: 8),
-            const Text('代理模式', style: _heading),
-            const Spacer(),
-            if (modes?.busy == true)
-              const SizedBox(height: 16, width: 16,
-                child: CircularProgressIndicator(strokeWidth: 2,
-                  color: _cyan)),
-          ]),
-          const SizedBox(height: 13),
-          for (final mode in VelaRoutingMode.values) ...[
-            Expanded(child: Material(
-              color: current == mode
-                  ? const Color(0x7460CAEB)
-                  : const Color(0x23173652),
-              borderRadius: BorderRadius.circular(13),
-              child: InkWell(
-                key: ValueKey('v13_mode_${mode.wire}'),
-                onTap: modes?.busy == true ? null : () => _chooseMode(mode),
-                borderRadius: BorderRadius.circular(13),
-                child: Container(padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(13),
-                    border: Border.all(
-                      color: current == mode
-                        ? const Color(0xC879F5FA)
-                        : const Color(0x425C9EBB),
-                      width: current == mode ? 1.4 : 1),
+  Future<void> _refreshCommon() async {
+    final native = _native;
+    if (_updatingCommon || native == null || native.backend.imported != true) {
+      return;
+    }
+    _updatingCommon = true;
+    if (mounted) setState(() {});
+    try {
+      final candidates = _commonCandidates();
+      for (final entry in candidates) {
+        if (!mounted) break;
+        int? delay;
+        try {
+          delay = await native.backend.delay(entry.$2.name);
+        } catch (_) {
+          delay = null;
+        }
+        if (mounted) setState(() {
+          _commonLatencies[entry.$2.name] = delay;
+        });
+      }
+    } finally {
+      _updatingCommon = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  List<(int, VelaSubscriptionNode)> _commonCandidates() {
+    final nodes = widget.subscription.nodes;
+    final ids = <int>[
+      for (var i = 0; i < nodes.length; i++)
+        if (widget.subscription.isFavorite(i)) i,
+      for (var i = 0; i < nodes.length; i++)
+        if (!widget.subscription.isFavorite(i)) i,
+    ];
+    return [
+      for (final i in ids.take(5)) (i, nodes[i]),
+    ];
+  }
+
+  Future<void> _pickCommonNode(int index) async {
+    final vpn = widget.androidVpn;
+    final link = widget.connection;
+    bool ok;
+    if (vpn?.active == true) {
+      widget.openNodes();
+      return;
+    }
+    if (link?.connected == true) {
+      ok = await link!.switchNode(index);
+    } else {
+      ok = await widget.subscription.selectNode(index);
+    }
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('节点切换失败，请先断开连接后重试')));
+    }
+  }
+
+  Widget _commonNodesCard() {
+    final candidates = _commonCandidates();
+    final selected = widget.subscription.selectedIndex;
+    return _frost(
+      radius: 24,
+      padding: const EdgeInsets.fromLTRB(15, 16, 15, 13),
+      child: Column(children: [
+        Row(children: [
+          const Text('常用节点', style: _heading),
+          const Spacer(),
+          IconButton(
+            key: const ValueKey('reference_common_refresh'),
+            tooltip: '测试常用节点延迟',
+            onPressed: _updatingCommon ? null : _refreshCommon,
+            icon: _updatingCommon
+                ? const SizedBox(width: 17, height: 17,
+                    child: CircularProgressIndicator(strokeWidth: 2,
+                      color: _cyan))
+                : const Icon(Icons.refresh_rounded, color: _white, size: 22),
+          ),
+        ]),
+        const SizedBox(height: 5),
+        if (candidates.isEmpty)
+          Expanded(child: Center(child: TextButton.icon(
+            onPressed: widget.openConfig,
+            icon: const Icon(Icons.add_circle_outline),
+            label: const Text('导入订阅，添加节点'),
+          )))
+        else
+          for (final entry in candidates)
+            Expanded(child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Material(
+                color: selected == entry.$1
+                    ? const Color(0x554DC3E5)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                child: InkWell(
+                  key: ValueKey('reference_node_${entry.$1}'),
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => _pickCommonNode(entry.$1),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 9),
+                    child: Row(children: [
+                      SizedBox(width: 34, child: Text(
+                        _destinationFlag(entry.$2.name),
+                        style: const TextStyle(fontSize: 20))),
+                      Expanded(child: Text(entry.$2.name,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: _white, fontSize: 12))),
+                      if (selected == entry.$1)
+                        const Icon(Icons.check, size: 16, color: _cyan),
+                      const SizedBox(width: 6),
+                      Text(
+                        _commonLatencies[entry.$2.name] == null
+                            ? '—'
+                            : '${_commonLatencies[entry.$2.name]} ms',
+                        style: TextStyle(
+                          color: _commonLatencies[entry.$2.name] == null
+                              ? _muted : _green,
+                          fontSize: 12)),
+                    ]),
                   ),
-                  child: Row(children: [
-                    Icon(switch (mode) {
-                      VelaRoutingMode.rule => Icons.rule_rounded,
-                      VelaRoutingMode.global => Icons.public_rounded,
-                      VelaRoutingMode.direct => Icons.arrow_right_alt_rounded,
-                    }, size: 22, color: current == mode ? _cyan : _pale),
-                    const SizedBox(width: 10),
-                    Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(mode.label, style: const TextStyle(
-                          color: _white, fontSize: 14,
-                          fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 2),
-                        Text(mode.description, maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: _muted, fontSize: 10)),
-                      ],
-                    )),
-                    Icon(current == mode
-                        ? Icons.check_circle_rounded
-                        : Icons.circle_outlined,
-                      size: 18,
-                      color: current == mode ? _green
-                          : const Color(0xFF7C94AD)),
-                  ]),
                 ),
               ),
             )),
-            if (mode != VelaRoutingMode.direct) const SizedBox(height: 8),
-          ],
-        ],
-      ),
+      ]),
     );
   }
 
@@ -546,4 +597,20 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
 
   static const _heading = TextStyle(
     color: _white, fontSize: 17, fontWeight: FontWeight.w700);
+}
+
+class _VelaRouteDashPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = const Color(0xFF70D6F6)
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    for (var x = 0.0; x < size.width; x += 14) {
+      canvas.drawLine(Offset(x, 0), Offset(math.min(x + 7, size.width), 0), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_VelaRouteDashPainter oldDelegate) => false;
 }
