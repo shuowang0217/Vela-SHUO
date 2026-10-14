@@ -1,4 +1,5 @@
 // ignore_for_file: prefer_interpolation_to_compose_strings
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../subscription/vela_subscription_controller.dart';
@@ -66,11 +67,16 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
           : last.month.toString() + '/' + last.day.toString() + ' ' +
             last.hour.toString().padLeft(2, '0') + ':' +
             last.minute.toString().padLeft(2, '0');
-      return Container(
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: theme.surface,
-          border: Border.all(color: theme.line),
+          color: theme.surface.withValues(alpha:
+              theme.dark ? .29 : .62),
+          border: Border.all(color: theme.text.withValues(alpha: .18)),
           borderRadius: BorderRadius.circular(18),
         ),
         child: Column(
@@ -246,7 +252,7 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
                 style: TextStyle(color: theme.muted, fontSize: 11)),
           ],
         ),
-      );
+      )));
     },
   );
 
