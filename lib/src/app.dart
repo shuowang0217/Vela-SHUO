@@ -28,6 +28,7 @@ import 'package:vela_shuo/src/home/globe.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_proxy_page.dart';
+import 'package:vela_shuo/src/stellar/vela_routing_mode_selector.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_config_page.dart';
 
 Color get _background => VelaThemeRuntime.active.background;
@@ -317,7 +318,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     1 => VelaStellarProxyPage(
       demo: demo, subscription: subscription,
       connection: connection, androidVpn: androidVpn,
-      smart: smart, traffic: traffic, routing: routing,
+      smart: smart, traffic: traffic,
       openConfig: () => navigate(4)),
     2 => _SmartPage(demo: demo, smart: smart, subscription: subscription),
     4 => VelaStellarConfigPage(
@@ -333,7 +334,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     _ => _HomePage(
       demo: demo, desktop: desktop,
       connection: connection, subscription: subscription, smart: smart,
-      androidVpn: androidVpn, traffic: traffic,
+      androidVpn: androidVpn, traffic: traffic, routing: routing,
       showNodes: () => navigate(1), showSmart: () => navigate(2),
     ),
   };
@@ -579,6 +580,7 @@ class _HomePage extends StatelessWidget {
     this.smart,
     this.androidVpn,
     this.traffic,
+    this.routing,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
@@ -586,6 +588,7 @@ class _HomePage extends StatelessWidget {
   final VelaSmartController? smart;
   final VelaAndroidVpnController? androidVpn;
   final VelaTrafficMonitor? traffic;
+  final VelaRoutingModeController? routing;
   final bool desktop;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
@@ -597,13 +600,13 @@ class _HomePage extends StatelessWidget {
     builder: (context, _) => desktop && !Platform.isAndroid
       ? _DesktopHome(
           demo: demo, connection: connection, subscription: subscription,
-          smart: smart, traffic: traffic,
+          smart: smart, traffic: traffic, routing: routing,
           showNodes: showNodes, showSmart: showSmart,
         )
       : _MobileHome(
           demo: demo, connection: connection, subscription: subscription,
           smart: smart, androidVpn: androidVpn, traffic: traffic,
-          showNodes: showNodes, showSmart: showSmart,
+          routing: routing, showNodes: showNodes, showSmart: showSmart,
         ),
   );
 }
@@ -612,12 +615,14 @@ class _DesktopHome extends StatelessWidget {
   const _DesktopHome({
     required this.demo, required this.showNodes, required this.showSmart,
     this.connection, this.subscription, this.smart, this.traffic,
+    this.routing,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
   final VelaSubscriptionController? subscription;
   final VelaSmartController? smart;
   final VelaTrafficMonitor? traffic;
+  final VelaRoutingModeController? routing;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
 
