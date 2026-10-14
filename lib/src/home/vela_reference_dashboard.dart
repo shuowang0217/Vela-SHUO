@@ -10,6 +10,7 @@ import '../network/vela_flclash_subscription_adapter.dart';
 import '../network/vela_routing_mode.dart';
 import 'vela_voyage_map.dart';
 import '../subscription/vela_subscription_controller.dart';
+import '../subscription/vela_subscription_parser.dart';
 import '../traffic/vela_traffic_monitor.dart';
 
 const _white = Color(0xFFF0FAFF);
@@ -441,7 +442,9 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
     try {
       final candidates = _commonCandidates();
       for (final entry in candidates) {
-        if (!mounted) break;
+        if (!mounted) {
+          break;
+        }
         int? delay;
         try {
           delay = await native.backend.delay(entry.$2.name);
