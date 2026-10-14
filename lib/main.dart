@@ -52,6 +52,20 @@ void main() {
     VelaWindowsTrayController? tray;
     if (Platform.isWindows) {
       await windowManager.ensureInitialized();
+      // The supplied illustration uses a frameless title bar and a desktop
+      // 3:2-style canvas. Size is a preference, not a fixed monitor demand.
+      const windowOptions = WindowOptions(
+        size: Size(1440, 900),
+        minimumSize: Size(980, 680),
+        center: true,
+        titleBarStyle: TitleBarStyle.hidden,
+        windowButtonVisibility: false,
+        backgroundColor: Color(0xFF0C2A43),
+      );
+      await windowManager.waitUntilReadyToShow(windowOptions, () async {
+        await windowManager.show();
+        await windowManager.focus();
+      });
       exitGuard = VelaWindowExitGuard(core: core, proxy: systemProxy);
       await windowManager.setPreventClose(true);
       windowManager.addListener(exitGuard);
