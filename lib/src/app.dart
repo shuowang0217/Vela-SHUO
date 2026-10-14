@@ -298,35 +298,37 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       final desktop = constraints.maxWidth >= 820;
       final extended = constraints.maxWidth >= 1250;
       return Scaffold(
-        backgroundColor: _background,
-        body: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [_background, VelaThemeRuntime.active.raised, _background],
-            ),
-          ),
-          child: SafeArea(
-            child: Row(children: [
-              if (desktop)
-                Container(
+        backgroundColor: Colors.transparent,
+        extendBody: true,
+        body: Stack(fit: StackFit.expand, children: [
+          _EarthBackdrop(demo: demo),
+          SafeArea(child: Row(children: [
+            if (desktop)
+              ClipRect(child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
                   width: extended ? 190 : 90,
                   decoration: BoxDecoration(
-                    color: _panel.withValues(alpha: .84),
-                    border: Border(right: BorderSide(color: _line)),
+                    color: _panel.withValues(alpha:
+                        VelaThemeRuntime.active.dark ? .28 : .60),
+                    border: Border(right: BorderSide(
+                        color: _foreground.withValues(alpha: .17))),
                   ),
                   child: _DesktopNav(
-                    selected: tab, extended: extended, onSelect: navigate,
-                  ),
+                      selected: tab, extended: extended, onSelect: navigate),
                 ),
-              Expanded(child: page(desktop)),
-            ]),
-          ),
-        ),
-        bottomNavigationBar: desktop ? null : Container(
+              )),
+            Expanded(child: page(desktop)),
+          ])),
+        ]),
+        bottomNavigationBar: desktop ? null : ClipRect(child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
           decoration: BoxDecoration(
-            color: _panel,
-            border: Border(top: BorderSide(color: _line)),
+            color: _panel.withValues(alpha:
+                VelaThemeRuntime.active.dark ? .28 : .65),
+            border: Border(top: BorderSide(
+                color: _foreground.withValues(alpha: .18))),
           ),
           child: NavigationBar(
             height: 68,
@@ -345,8 +347,57 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                 ),
             ],
           ),
-        ),
+        ))),
       );
+    },
+  );
+}
+
+
+class _EarthBackdrop extends StatelessWidget {
+  const _EarthBackdrop({required this.demo});
+  final VelaDemoController demo;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = constraints.maxWidth;
+      final height = constraints.maxHeight;
+      final desktop = width >= 820;
+      final side = math.max(width * 1.65, height * 1.45);
+      final cx = width * (desktop ? .66 : .58);
+      final cy = height * (desktop ? .52 : .40);
+      final tokens = VelaThemeRuntime.active;
+      return ClipRect(child: Stack(fit: StackFit.expand, children: [
+        ColoredBox(color: _background),
+        Positioned(
+          left: cx - side / 2, top: cy - side / 2,
+          width: side, height: side,
+          child: IgnorePointer(child: VelaGlobe(demo: demo)),
+        ),
+        DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.centerLeft, end: Alignment.centerRight,
+          colors: tokens.dark
+              ? [
+                  _background.withValues(alpha: .66),
+                  _background.withValues(alpha: .23),
+                  _background.withValues(alpha: .13),
+                ]
+              : [
+                  _background.withValues(alpha: .78),
+                  _background.withValues(alpha: .53),
+                  _background.withValues(alpha: .39),
+                ],
+        ))),
+        DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+          colors: [
+            _background.withValues(alpha: .29),
+            Colors.transparent,
+            _background.withValues(alpha: .34),
+          ],
+        ))),
+      ]));
     },
   );
 }
@@ -534,7 +585,6 @@ class _DesktopHome extends StatelessWidget {
       final availableHeight = constraints.maxHeight;
       final designWidth = math.max(820.0, math.min(availableWidth - 24, 1320.0));
       const designHeight = 760.0;
-      final globeSize = math.min(designWidth * .94, 960.0);
 
       return Center(
         child: SizedBox(
@@ -547,13 +597,6 @@ class _DesktopHome extends StatelessWidget {
               width: designWidth,
               height: designHeight,
               child: Stack(clipBehavior: Clip.hardEdge, children: [
-                Positioned(
-                  top: -globeSize * .16,
-                  right: -globeSize * .10,
-                  width: globeSize,
-                  height: globeSize,
-                  child: IgnorePointer(child: VelaGlobe(demo: demo)),
-                ),
                 Positioned(top: 20, right: 12, child: subscription?.selected
                     != null ? _RealTag() : _DemoTag()),
                 Positioned(left: 22, top: 62, child: _HeroIdentity()),
@@ -620,7 +663,8 @@ class _DemoTag extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
     decoration: BoxDecoration(
-      color: _panel.withValues(alpha: .94),
+      color: _panel.withValues(alpha:
+          VelaThemeRuntime.active.dark ? .30 : .60),
       border: Border.all(color: _line),
       borderRadius: BorderRadius.circular(30),
     ),
@@ -644,13 +688,15 @@ class _GlassCard extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(18),
     child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
       child: Container(
         padding: padding,
         decoration: BoxDecoration(
-          color: _panel.withValues(alpha: .92),
+          color: _panel.withValues(alpha:
+              VelaThemeRuntime.active.dark ? .28 : .61),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _line),
+          border: Border.all(
+              color: _foreground.withValues(alpha: .19)),
         ),
         child: child,
       ),
@@ -933,10 +979,9 @@ class _MobileHome extends StatelessWidget {
             : _DemoTag(compact: true),
       ]),
       SizedBox(height: 7),
-      SizedBox(
-        height: math.min(MediaQuery.sizeOf(context).width, 400),
-        child: VelaGlobe(demo: demo),
-      ),
+      // Open sky for the single Earth background on mobile.
+      SizedBox(height: math.min(
+          MediaQuery.sizeOf(context).width * .42, 180)),
       SizedBox(height: 8),
       Platform.isAndroid
           ? _AndroidVpnCard(
