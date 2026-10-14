@@ -385,12 +385,12 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text(ok
-                        ? 'FlClash 已更新远程节点提供者，保留仍存在的选择和收藏'
+                        ? '远程节点已更新，保留仍存在的选择和收藏'
                         : subscription.error ?? '节点提供者更新失败'),
                   ));
                 },
                 icon: const Icon(Icons.sync_rounded, size: 19),
-                label: Text('更新 FlClash 远程节点提供者 '
+                label: Text('更新远程节点提供者 '
                     '(${subscription.remoteProviderCount})'),
               ),
             ],
