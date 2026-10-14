@@ -175,18 +175,6 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
     if (result) unawaited(_probeDelay());
   }
 
-  Future<void> _chooseMode(VelaRoutingMode mode) async {
-    final modes = _routeModes;
-    final native = _native;
-    if (modes == null || native == null) return;
-    final ok = await modes.setMode(mode, native.activeProfileId);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(modes.error ?? '模式切换失败，保持原模式'),
-      ));
-    }
-  }
-
   /// The flattened 1536x1024 artwork is our *layout specification*, not a
   /// screenshot pasted into the app. All panels remain actual Flutter widgets
   /// with live node, proxy, time and transfer data.
