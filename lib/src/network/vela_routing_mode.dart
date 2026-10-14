@@ -36,6 +36,7 @@ class VelaRoutingModeController extends ChangeNotifier {
   bool _closed = false;
   int _appliedRevision = -1;
   Future<void>? _restoreFuture;
+  Future<bool>? _inFlight;
   Future<bool> Function(VelaRoutingMode)? testingApply;
 
   /// Load only non-secret presentation preference; do not report it as
@@ -61,9 +62,11 @@ class VelaRoutingModeController extends ChangeNotifier {
   /// Reapply after a native profile import or airport switch. All real
   /// updates use the same FlClash Go core on Windows and Android.
   Future<bool> synchronize(String? activeProfileId) async {
-    if (_closed || busy || !backend.imported) return false;
+    if (_closed || !backend.imported) return false;
     await restore();
-    if (_closed || busy || !backend.imported) return false;
+    final pending = _inFlight;
+    if (pending != null) await pending;
+    if (_closed || !backend.imported) return false;
     if (_appliedRevision == backend.profileRevision) return true;
     return _apply(current, persist: false);
   }
@@ -80,8 +83,22 @@ class VelaRoutingModeController extends ChangeNotifier {
     return _apply(mode, persist: true);
   }
 
+  void invalidateAfterVpnStart() {
+    _appliedRevision = -1;
+  }
+
   Future<bool> _apply(VelaRoutingMode target,
+      {required bool persist}) {
+    final request = _performApply(target, persist: persist);
+    _inFlight = request;
+    return request.whenComplete(() {
+      if (identical(_inFlight, request)) _inFlight = null;
+    });
+  }
+
+  Future<bool> _performApply(VelaRoutingMode target,
       {required bool persist}) async {
+    final revision = backend.profileRevision;
     busy = true;
     error = null;
     notifyListeners();
@@ -94,7 +111,8 @@ class VelaRoutingModeController extends ChangeNotifier {
         return false;
       }
       current = target;
-      _appliedRevision = backend.profileRevision;
+      _appliedRevision = revision == backend.profileRevision
+          ? revision : -1;
       if (persist) {
         try {
           _preferences ??= await SharedPreferences.getInstance();
