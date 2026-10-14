@@ -4,12 +4,14 @@ import '../network/vela_routing_mode.dart';
 import '../theme/vela_palettes.dart';
 import 'stellar_design.dart';
 
-/// Only native-acknowledged modes are ever marked as selected.
-/// All three actions invoke the Go core's updateConfig RPC.
+/// Compact main-dashboard route switcher. Highlight changes only after the
+/// existing native-core controller confirms updateConfig, never optimistically.
 class VelaRoutingModeSelector extends StatelessWidget {
   const VelaRoutingModeSelector({
-    super.key, required this.controller,
-    required this.activeProfileId, this.locked = false,
+    super.key,
+    required this.controller,
+    required this.activeProfileId,
+    this.locked = false,
   });
 
   final VelaRoutingModeController controller;
@@ -17,19 +19,25 @@ class VelaRoutingModeSelector extends StatelessWidget {
   final bool locked;
 
   Future<void> _change(BuildContext context, VelaRoutingMode mode) async {
-    if (locked || controller.busy || !controller.backend.imported) return;
+    if (locked || controller.busy || !controller.backend.imported ||
+        controller.current == mode) {
+      return;
+    }
     final ok = await controller.setMode(mode, activeProfileId);
     if (!context.mounted) return;
-    if (!ok) {
+    if (!ok || controller.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(controller.error ?? '航线模式切换失败，仍使用原模式'),
+        content: Text(controller.error ??
+            '航线模式切换失败，仍使用原模式'),
       ));
-    } else if (controller.error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error!)),
-      );
     }
   }
+
+  IconData _icon(VelaRoutingMode mode) => switch (mode) {
+    VelaRoutingMode.rule => Icons.alt_route_rounded,
+    VelaRoutingMode.global => Icons.public_rounded,
+    VelaRoutingMode.direct => Icons.near_me_outlined,
+  };
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -38,47 +46,87 @@ class VelaRoutingModeSelector extends StatelessWidget {
       final t = VelaThemeRuntime.active;
       final enabled = !locked && !controller.busy &&
           controller.backend.imported;
+      final label = controller.backend.imported
+          ? controller.current.description : '导入机场后可选择分流方式';
       return StellarPanel(
-        padding: const EdgeInsets.fromLTRB(16, 15, 16, 13),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.alt_route_rounded, color: t.accent, size: 21),
-            const SizedBox(width: 9),
-            Expanded(child: Text('航线模式',
-                style: TextStyle(fontSize: 16,
-                  fontWeight: FontWeight.w700, color: t.text))),
-            if (controller.busy)
-              const SizedBox(width: 16, height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2)),
-            if (!controller.busy)
-              StellarLabel(controller.backend.imported
-                  ? '实际路由已接入核心' : '请先导入机场'),
-          ]),
-          const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final mode in VelaRoutingMode.values)
-              ChoiceChip(
-                key: ValueKey('routing_mode_${mode.wire}'),
-                label: Text(mode.label),
-                avatar: Icon(switch (mode) {
-                  VelaRoutingMode.rule => Icons.rule_folder_outlined,
-                  VelaRoutingMode.global => Icons.public_rounded,
-                  VelaRoutingMode.direct => Icons.travel_explore_rounded,
-                }, size: 18),
-                selected: controller.current == mode,
-                onSelected: enabled ? (_) => _change(context, mode) : null,
+        radius: 18,
+        padding: const EdgeInsets.fromLTRB(15, 12, 15, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.explore_outlined, color: t.accent, size: 21),
+              const SizedBox(width: 8),
+              Expanded(child: Text('航线模式',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
+                  color: t.text))),
+              if (controller.busy)
+                const SizedBox(width: 15, height: 15,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              else
+                Text(controller.backend.imported ? '已同步' : '待配置',
+                  style: TextStyle(fontSize: 11, color: t.muted)),
+            ]),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: t.surface.withValues(alpha: t.dark ? .24 : .38),
+                border: Border.all(color: t.text.withValues(alpha: .12)),
               ),
-          ]),
-          const SizedBox(height: 9),
-          StellarLabel(controller.backend.imported
-              ? controller.current.description
-              : '添加机场后可选规则、全局或直连'),
-          if (controller.error != null) ...[
-            const SizedBox(height: 7),
-            Text(controller.error!, style: TextStyle(
-                color: t.accent, fontSize: 12)),
+              child: Row(children: [
+                for (final mode in VelaRoutingMode.values)
+                  Expanded(child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      key: ValueKey('routing_mode_${mode.wire}'),
+                      borderRadius: BorderRadius.circular(11),
+                      onTap: enabled ? () => _change(context, mode) : null,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 170),
+                        height: 39,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(11),
+                          color: controller.current == mode
+                              ? t.accent.withValues(alpha: t.dark ? .29 : .23)
+                              : Colors.transparent,
+                          border: Border.all(
+                            color: controller.current == mode
+                                ? t.accent.withValues(alpha: .50)
+                                : Colors.transparent,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(_icon(mode), size: 16,
+                              color: !enabled ? t.muted
+                                : controller.current == mode
+                                  ? t.accent : t.text),
+                            const SizedBox(width: 5),
+                            Flexible(child: Text(mode.label,
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 12,
+                                fontWeight: controller.current == mode
+                                    ? FontWeight.w700 : FontWeight.w500,
+                                color: !enabled ? t.muted : t.text))),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )),
+              ]),
+            ),
+            const SizedBox(height: 8),
+            Text(controller.error ?? label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11,
+                color: controller.error == null ? t.muted : t.accent)),
           ],
-        ]),
+        ),
       );
     },
   );
