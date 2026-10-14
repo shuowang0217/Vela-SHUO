@@ -498,7 +498,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
             const SizedBox(height: 12),
             Text(
               '目前支持常见 Shadowsocks、VMess、VLESS、Trojan 和 Hysteria2 '
-              '节点的部分 Clash/Mihomo YAML、sing-box JSON 格式。'
+              '节点的通用 YAML 配置及 JSON 格式。'
               '证书校验被关闭或不支持的传输参数会被跳过。'
               '${Platform.isAndroid ? 'Android VPN 只会在首页点击授权连接后启动。' : '导入与节点选择不会自动接管 Windows 系统流量。'}',
               style: TextStyle(color: colors.muted, fontSize: 11, height: 1.5),
