@@ -25,6 +25,7 @@ import 'package:vela_shuo/src/core/vela_core_settings_card.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/globe.dart';
+import 'package:vela_shuo/src/brand/vela_sail_mark.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_proxy_page.dart';
@@ -357,7 +358,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                   width: extended ? 190 : 90,
                   decoration: BoxDecoration(
                     color: _panel.withValues(alpha:
-                        VelaThemeRuntime.active.dark ? .13 : .32),
+                        VelaThemeRuntime.active.dark ? .52 : .83),
                     border: Border(right: BorderSide(
                         color: _foreground.withValues(alpha: .17))),
                   ),
@@ -365,7 +366,20 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                       selected: tab, extended: extended, onSelect: navigate),
                 ),
               )),
-            Expanded(child: page(desktop)),
+            Expanded(child: TweenAnimationBuilder<double>(
+              key: ValueKey('vela_page_$tab'),
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) => Opacity(
+                opacity: value,
+                child: Transform.translate(
+                  offset: Offset(0, (1 - value) * 9),
+                  child: child,
+                ),
+              ),
+              child: page(desktop),
+            )),
           ])),
         ]),
         bottomNavigationBar: desktop ? null : ClipRect(child: BackdropFilter(
@@ -373,7 +387,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
           child: Container(
           decoration: BoxDecoration(
             color: _panel.withValues(alpha:
-                VelaThemeRuntime.active.dark ? .14 : .33),
+                VelaThemeRuntime.active.dark ? .55 : .84),
             border: Border(top: BorderSide(
                 color: _foreground.withValues(alpha: .18))),
           ),
@@ -503,48 +517,25 @@ class _DesktopNav extends StatelessWidget {
   ]);
 }
 
+/// Animated master mark shared with launcher and system-tray branding.
 class VelaBrandLogo extends StatelessWidget {
   const VelaBrandLogo({super.key, this.size = 65});
   final double size;
 
   @override
-  Widget build(BuildContext context) => CustomPaint(
-    size: Size(size, size * .75),
-    painter: _SailLogoPainter(),
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: 1),
+    duration: const Duration(milliseconds: 650),
+    curve: Curves.easeOutCubic,
+    builder: (context, value, child) => Opacity(
+      opacity: value,
+      child: Transform.translate(
+        offset: Offset(0, (1 - value) * 5),
+        child: child,
+      ),
+    ),
+    child: VelaSailMark(size: size),
   );
-}
-
-class _SailLogoPainter extends CustomPainter {
-  const _SailLogoPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    final left = Path()
-      ..moveTo(w * .52, h * .02)
-      ..lineTo(w * .14, h * .77)
-      ..lineTo(w * .52, h * .77)..close();
-    final right = Path()
-      ..moveTo(w * .59, h * .21)
-      ..lineTo(w * .91, h * .77)
-      ..lineTo(w * .59, h * .77)..close();
-    canvas.drawPath(left, Paint()
-      ..shader = LinearGradient(
-        colors: [Color(0xFFB7E7FF), Color(0xFF448DBF)],
-      ).createShader(Offset.zero & size));
-    canvas.drawPath(right, Paint()..color = Color(0xFF8DBCD8));
-    final hull = Path()
-      ..moveTo(w * .1, h * .88)
-      ..quadraticBezierTo(w * .52, h * 1.03, w * .94, h * .88);
-    canvas.drawPath(hull, Paint()
-      ..color = Color(0xFFB7E7FF)
-      ..strokeWidth = w * .026
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke);
-  }
-
-  @override
-  bool shouldRepaint(_SailLogoPainter oldDelegate) => false;
 }
 
 class _HomePage extends StatelessWidget {
@@ -723,7 +714,9 @@ class _DemoTag extends StatelessWidget {
   );
 }
 
-class _GlassCard extends StatelessWidget {
+/// Local, legible frosted surface; the Earth outside this card is untouched.
+/// Hover elevation is subtle to preserve a calm, precise interface.
+class _GlassCard extends StatefulWidget {
   const _GlassCard({
     required this.child, this.padding = const EdgeInsets.all(18),
   });
@@ -731,23 +724,48 @@ class _GlassCard extends StatelessWidget {
   final EdgeInsets padding;
 
   @override
-  Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(18),
-    child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-      child: Container(
-        padding: padding,
-        decoration: BoxDecoration(
-          color: _panel.withValues(alpha:
-              VelaThemeRuntime.active.dark ? .12 : .28),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-              color: _foreground.withValues(alpha: .19)),
+  State<_GlassCard> createState() => _GlassCardState();
+}
+
+class _GlassCardState extends State<_GlassCard> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = VelaThemeRuntime.active;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 190),
+            curve: Curves.easeOutCubic,
+            padding: widget.padding,
+            decoration: BoxDecoration(
+              color: _panel.withValues(alpha: t.dark
+                  ? (_hover ? .72 : .63)
+                  : (_hover ? .93 : .85)),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: _hover
+                  ? _blue.withValues(alpha: .60)
+                  : _foreground.withValues(alpha: t.dark ? .33 : .24)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: t.dark ? .24 : .10),
+                  blurRadius: _hover ? 23 : 15,
+                  offset: Offset(0, _hover ? 7 : 4),
+                ),
+              ],
+            ),
+            child: widget.child,
+          ),
         ),
-        child: child,
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _ConnectionCard extends StatelessWidget {
