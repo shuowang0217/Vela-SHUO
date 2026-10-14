@@ -89,7 +89,12 @@ def paths(layer: Image.Image, inactive=False):
 
 
 def render(inactive=False):
-    bg = gradient((10, 41, 75), (5, 17, 34))
+    bg = gradient((228, 238, 227), (124, 174, 180))
+    draw = ImageDraw.Draw(bg)
+    draw.rounded_rectangle((q(9), q(9), q(151), q(151)),
+        radius=q(27), outline=(38, 84, 98, 180), width=q(1.4))
+    draw.arc((q(15), q(14), q(144), q(145)), 195, 295,
+        fill=(187, 139, 88, 190), width=q(1.1))
     mask = Image.new("L", (SIZE, SIZE))
     ImageDraw.Draw(mask).rounded_rectangle(
         (0, 0, SIZE - 1, SIZE - 1), radius=q(36), fill=255)

@@ -84,22 +84,100 @@ class VelaShuoApp extends StatelessWidget {
 }
 
 ThemeData _theme(Brightness brightness, VelaPalette palette) {
-  final tokens = palette.tokens(brightness);
+  final t = palette.tokens(brightness);
   final scheme = ColorScheme.fromSeed(
-    seedColor: tokens.accent,
-    brightness: brightness,
-    surface: tokens.background,
+    seedColor: t.accent, brightness: brightness,
+    primary: t.accent, secondary: t.accentSoft, surface: t.background,
+  );
+  const radius = BorderRadius.all(Radius.circular(18));
+  final inkBorder = OutlineInputBorder(
+    borderRadius: radius,
+    borderSide: BorderSide(color: t.line.withValues(alpha: .7)),
   );
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
     colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
+    scaffoldBackgroundColor: t.background,
+    splashColor: t.accent.withValues(alpha: .09),
+    iconTheme: IconThemeData(color: t.accent, size: 20),
+    primaryIconTheme: IconThemeData(color: t.accent),
+    textTheme: TextTheme(
+      headlineSmall: TextStyle(fontFamily: 'Georgia',
+        fontSize: 25, fontWeight: FontWeight.w600, color: t.text),
+      titleLarge: TextStyle(fontFamily: 'Georgia', fontSize: 21,
+        fontWeight: FontWeight.w600, color: t.text),
+      titleMedium: TextStyle(fontWeight: FontWeight.w600,
+        fontSize: 15, color: t.text),
+      bodyLarge: TextStyle(fontSize: 15, color: t.text),
+      bodyMedium: TextStyle(fontSize: 13.5, color: t.text),
+      bodySmall: TextStyle(fontSize: 12, color: t.muted),
+      labelLarge: TextStyle(fontWeight: FontWeight.w600,
+        color: t.text, letterSpacing: .3),
+    ),
     cardTheme: CardThemeData(
       elevation: 0,
-      color: tokens.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      color: t.surface.withValues(alpha: t.dark ? .78 : .86),
+      shape: RoundedRectangleBorder(borderRadius: radius,
+        side: BorderSide(color: t.line.withValues(alpha: .55))),
     ),
+    listTileTheme: ListTileThemeData(iconColor: t.accent,
+      textColor: t.text,
+      shape: RoundedRectangleBorder(borderRadius: radius)),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: t.surface.withValues(alpha: t.dark ? .82 : .87),
+      hintStyle: TextStyle(color: t.muted),
+      prefixIconColor: t.accent,
+      border: inkBorder, enabledBorder: inkBorder,
+      focusedBorder: OutlineInputBorder(borderRadius: radius,
+        borderSide: BorderSide(color: t.accent, width: 1.4)),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 15, vertical: 12),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: t.accent,
+        foregroundColor: t.dark ? t.background : Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: radius),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 18, vertical: 12),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: t.text,
+        backgroundColor: t.surface.withValues(alpha: .35),
+        side: BorderSide(color: t.line.withValues(alpha: .72)),
+        shape: RoundedRectangleBorder(borderRadius: radius),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(foregroundColor: t.accent,
+        shape: RoundedRectangleBorder(borderRadius: radius)),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: t.surface.withValues(alpha: .78),
+      selectedColor: t.accent.withValues(alpha: .18),
+      side: BorderSide(color: t.line.withValues(alpha: .6)),
+      labelStyle: TextStyle(color: t.text),
+      shape: RoundedRectangleBorder(borderRadius: radius),
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: t.surface,
+      shape: RoundedRectangleBorder(borderRadius: radius,
+        side: BorderSide(color: t.line)),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: t.dark
+          ? const Color(0xFF2A4754) : const Color(0xFFEEF0E7),
+      contentTextStyle: TextStyle(color: t.text),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: radius),
+    ),
+    dividerTheme: DividerThemeData(
+      color: t.line.withValues(alpha: .5), thickness: .7),
   );
 }
 
@@ -357,7 +435,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                   width: extended ? 190 : 90,
                   decoration: BoxDecoration(
                     color: _panel.withValues(alpha:
-                        VelaThemeRuntime.active.dark ? .50 : .50),
+                        VelaThemeRuntime.active.dark ? .76 : .84),
                     border: Border(right: BorderSide(
                         color: _foreground.withValues(alpha: .17))),
                   ),
@@ -386,7 +464,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
           child: Container(
           decoration: BoxDecoration(
             color: _panel.withValues(alpha:
-                VelaThemeRuntime.active.dark ? .50 : .50),
+                VelaThemeRuntime.active.dark ? .76 : .84),
             border: Border(top: BorderSide(
                 color: _foreground.withValues(alpha: .18))),
           ),
@@ -690,7 +768,7 @@ class _DemoTag extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
     decoration: BoxDecoration(
       color: _panel.withValues(alpha:
-          VelaThemeRuntime.active.dark ? .50 : .50),
+          VelaThemeRuntime.active.dark ? .76 : .84),
       border: Border.all(color: _line),
       borderRadius: BorderRadius.circular(30),
     ),
@@ -734,7 +812,12 @@ class _GlassCardState extends State<_GlassCard> {
             curve: Curves.easeOutCubic,
             padding: widget.padding,
             decoration: BoxDecoration(
-              color: _panel.withValues(alpha: .50),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [t.raised.withValues(alpha: t.dark ? .78 : .88),
+                  _panel.withValues(alpha: t.dark ? .73 : .83)],
+              ),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: _hover
                   ? _blue.withValues(alpha: .60)

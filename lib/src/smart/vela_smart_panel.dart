@@ -75,8 +75,8 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: theme.surface.withValues(alpha:
-               .50),
-          border: Border.all(color: theme.text.withValues(alpha: theme.dark ? .30 : .24)),
+               theme.dark ? .75 : .84),
+          border: Border.all(color: theme.line.withValues(alpha: theme.dark ? .68 : .78)),
           borderRadius: BorderRadius.circular(18),
         ),
         child: Column(

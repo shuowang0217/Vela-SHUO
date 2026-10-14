@@ -35,13 +35,13 @@ class _PaletteStore implements VelaPreferenceStore, VelaPalettePreferenceStore {
 }
 
 void main() {
-  test('exactly eight Color Hunt All-time swatch combinations', () {
-    expect(VelaPalette.all.length, 8);
+  test('original eight palettes and new journal option', () {
+    expect(VelaPalette.all.length, 9);
     expect(VelaPalette.all.map((e) => e.id), [
-      'mint', 'navy', 'peach', 'pink', 'sand',
+      'journal', 'mint', 'navy', 'peach', 'pink', 'sand',
       'rose', 'lavender', 'ocean',
     ]);
-    expect(VelaPalette.all.first.swatches,
+    expect(VelaPalette.all[1].swatches,
       [Color(0xFFE3FDFD), Color(0xFFCBF1F5),
        Color(0xFFA6E3E9), Color(0xFF71C9CE)]);
     expect(VelaPalette.all.last.swatches,
@@ -54,7 +54,7 @@ void main() {
     final store = _PaletteStore();
     final settings = SettingsController(store: store);
     await settings.load();
-    expect(settings.paletteId, 'ocean');
+    expect(settings.paletteId, 'journal');
 
     await settings.setPalette('peach');
     expect(settings.paletteId, 'peach');
@@ -91,7 +91,7 @@ void main() {
     expect(ocean.text.computeLuminance(), greaterThan(.6));
   });
 
-  testWidgets('settings displays eight interactive palette cards', (tester) async {
+  testWidgets('settings displays nine interactive palette cards', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1440, 1000);
     addTearDown(tester.view.resetDevicePixelRatio);

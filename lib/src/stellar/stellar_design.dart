@@ -37,15 +37,14 @@ class StellarPanel extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [
-                Color.lerp(t.surface, t.accent,
-                    selected ? .19 : .065)!
-                    .withValues(alpha: .50),
-                t.surface.withValues(alpha: .50),
+                Color.lerp(t.raised, t.accent, selected ? .15 : .04)!
+                  .withValues(alpha: t.dark ? .78 : .86),
+                t.surface.withValues(alpha: t.dark ? .73 : .83),
               ],
             ),
             border: Border.all(
               color: selected ? t.accent.withValues(alpha: .78)
-                  : t.text.withValues(alpha: t.dark ? .32 : .24),
+                  : t.line.withValues(alpha: t.dark ? .68 : .79),
               width: selected ? 1.4 : 1,
             ),
             boxShadow: [
@@ -107,7 +106,7 @@ class StellarSectionHeading extends StatelessWidget {
     final t = VelaThemeRuntime.active;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(title, style: TextStyle(
-        color: t.text, fontSize: 27, fontWeight: FontWeight.w700,
+        color: t.text, fontFamily: 'Georgia', fontSize: 26, fontWeight: FontWeight.w600,
         letterSpacing: 1,
       )),
       const SizedBox(height: 5),

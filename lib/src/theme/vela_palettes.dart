@@ -23,6 +23,14 @@ class VelaPalette {
 
   static const List<VelaPalette> all = [
     VelaPalette(
+      id: 'journal',
+      name: '钢笔淡彩手账',
+      swatches: [Color(0xFFF7F1E4), Color(0xFFB8DCDD),
+        Color(0xFF73A5AB), Color(0xFF254E59)],
+      prefersDark: false, darkBaseIndex: 3, accentIndex: 3,
+    ),
+
+    VelaPalette(
       id: 'mint',
       name: '薄荷海风',
       swatches: [Color(0xFFE3FDFD), Color(0xFFCBF1F5),
@@ -80,7 +88,7 @@ class VelaPalette {
     ),
   ];
 
-  static const String defaultId = 'ocean';
+  static const String defaultId = 'journal';
 
   static VelaPalette byId(String id) {
     for (final palette in all) {
@@ -93,6 +101,27 @@ class VelaPalette {
 
   VelaThemeTokens tokens(Brightness brightness) {
     final dark = brightness == Brightness.dark;
+    if (id == 'journal') {
+      return VelaThemeTokens(
+        background: dark ? const Color(0xFF0F2632)
+            : const Color(0xFFF6F0E4),
+        surface: dark ? const Color(0xFF203C48)
+            : const Color(0xFFFFF8EA),
+        raised: dark ? const Color(0xFF294B55)
+            : const Color(0xFFE7F0E9),
+        line: dark ? const Color(0xFF678C8D)
+            : const Color(0xFF8DACA5),
+        accent: dark ? const Color(0xFFB0D0BC)
+            : const Color(0xFF276875),
+        accentSoft: dark ? const Color(0xFFDFBC83)
+            : const Color(0xFFB88A54),
+        text: dark ? const Color(0xFFF1E9D5)
+            : const Color(0xFF253E45),
+        muted: dark ? const Color(0xFFB8C7BF)
+            : const Color(0xFF607276),
+        dark: dark,
+      );
+    }
     final base = swatches[darkBaseIndex];
     final light = swatches.reduce((a, b) =>
         a.computeLuminance() > b.computeLuminance() ? a : b);
