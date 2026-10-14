@@ -262,11 +262,18 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
                         .withValues(alpha: .4), blurRadius: 11)],
                 )),
               const SizedBox(width: 12),
-              Flexible(child: Text(
+              Expanded(child: Text(
                 connected ? '已接通 · $airport' : '未连接 · 待命',
                 maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 21, color: _white,
                     fontWeight: FontWeight.w700))),
+              IconButton(
+                tooltip: '切换机场和节点',
+                key: const ValueKey('reference_airport_switch'),
+                onPressed: widget.openConfig,
+                icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                  color: _white, size: 27)),
+
             ]),
             const SizedBox(height: 13),
             Text('当前节点：$node',
@@ -280,7 +287,7 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
             const SizedBox(height: 3),
           ]),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 6),
         Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           _powerButton(connected, busy),
           const SizedBox(height: 7),
@@ -320,7 +327,17 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
 
   String _destination(String node) {
     final inferred = VelaVoyageTarget.fromNodeName(node);
-    return inferred?.label ?? (node == '未选择节点' ? '目的地待选择' : node);
+    if (inferred == null) {
+      return node == '未选择节点' ? '待命' : node;
+    }
+    final name = inferred.label;
+    if (name.contains('美国')) return '美国';
+    if (name.contains('日本')) return '日本';
+    if (name.contains('香港')) return '香港';
+    if (name.contains('新加坡')) return '新加坡';
+    if (name.contains('台湾')) return '台湾';
+    if (name.contains('英国')) return '英国';
+    return name;
   }
 
   String _destinationFlag(String node) {
@@ -332,6 +349,33 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
     if (n.contains('新加坡') || n.contains('sg')) return '🇸🇬';
     if (n.contains('英国') || n.contains('uk')) return '🇬🇧';
     return '🌐';
+  }
+
+  String _estimatedDistance(String node) {
+    final destination = VelaVoyageTarget.fromNodeName(node);
+    if (destination == null) return '—';
+    const departureLat = 31.23 * math.pi / 180;
+    const departureLon = 121.47 * math.pi / 180;
+    final destLat = destination.latitude * math.pi / 180;
+    final destLon = destination.longitude * math.pi / 180;
+    final dLat = destLat - departureLat;
+    final dLon = destLon - departureLon;
+    final half = math.pow(math.sin(dLat / 2), 2) +
+        math.cos(departureLat) * math.cos(destLat) *
+        math.pow(math.sin(dLon / 2), 2);
+    final km = 6371 * 2 * math.asin(math.min(1.0, math.sqrt(half)));
+    return '${km.round()} km · 估算';
+  }
+
+  String _portCity(String node) {
+    final lower = node.toLowerCase();
+    if (lower.contains('洛杉矶') || lower.contains('los angeles') ||
+        lower.contains('la-')) return '洛杉矶';
+    if (lower.contains('东京') || lower.contains('tokyo')) return '东京';
+    if (lower.contains('香港') || lower.contains('hong kong')) return '香港';
+    if (lower.contains('新加坡') || lower.contains('singapore')) return '新加坡';
+    if (lower.contains('台北') || lower.contains('taipei')) return '台北';
+    return node == '未选择节点' ? '' : '按节点名称推测';
   }
 
   Widget _routeCard(String node) {
@@ -358,7 +402,9 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
                     color: _cyan, size: 16),
                 ]),
                 const SizedBox(height: 9),
-                Text(node == '未选择节点' ? '请先选择节点' : '跨洋航行',
+                Text(node == '未选择节点'
+                    ? '请选择目的节点' : _estimatedDistance(node),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: _muted, fontSize: 12)),
                 const SizedBox(height: 8),
@@ -371,7 +417,7 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
                     minHeight: 5)),
               ]),
             )),
-            _port(country, target, ''),
+            _port(country, target, _portCity(node)),
           ]),
           const Spacer(),
         ]),
@@ -382,7 +428,17 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 114),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(flag, style: const TextStyle(fontSize: 40)),
+        Container(
+          width: 55, height: 55,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: const Color(0x9932475A),
+            border: Border.all(color: const Color(0xFFEAF4FD), width: 1.6),
+            boxShadow: const [BoxShadow(
+              color: Color(0x4421CBF5), blurRadius: 9)]),
+          alignment: Alignment.center,
+          child: Text(flag, style: const TextStyle(fontSize: 36)),
+        ),
         const SizedBox(height: 7),
         Text(country, maxLines: 1, overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: _white, fontSize: 16,
