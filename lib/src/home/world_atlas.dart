@@ -17,10 +17,24 @@ class VelaWorldCamera {
   static double shortestDelta(double from, double to) =>
       (to - from + 540) % 360 - 180;
 
-  double get worldWidth => math.max(size.width * 2.2, size.height * 4.8);
+  // "Wide voyage": reveal oceans and neighboring continents instead of
+  // magnifying one country across the entire dashboard. On portrait screens,
+  // keep enough height to cover the canvas without stretching the 2:1 map.
+  static const double landscapeWidthScale = 1.28;
+  static const double portraitHeightScale = 2.08;
+  double get worldWidth => math.max(
+      size.width * landscapeWidthScale,
+      size.height * portraitHeightScale);
   double get worldHeight => worldWidth / 2;
-  double get top => size.height / 2 -
-      (90 - latitude) / 180 * worldHeight;
+
+  // Land near the poles may sit above/below the visual center. Keep the
+  // background fully covering the viewport rather than exposing black strips.
+  // The route and city labels must share this exact same vertical transform.
+  double get top {
+    final desired = size.height / 2 -
+        (90 - latitude) / 180 * worldHeight;
+    return desired.clamp(size.height - worldHeight, 0.0).toDouble();
+  }
 
   // A periodic world map is tiled to eliminate seams at +/-180 degrees.
   double get tileLeft {
@@ -33,8 +47,7 @@ class VelaWorldCamera {
   Offset project(Offset geo) => Offset(
     size.width / 2 +
         shortestDelta(longitude, geo.dx) / 360 * worldWidth,
-    size.height / 2 +
-        (latitude - geo.dy) / 180 * worldHeight,
+    top + (90 - geo.dy) / 180 * worldHeight,
   );
 
   Offset projectAlong(Offset origin, Offset destination) => Offset(
@@ -201,8 +214,8 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
                 colors: dark
                     ? const [Color(0x44071728), Color(0x110B233F),
                         Color(0x77040C18)]
-                    : const [Color(0x28D7E8F4), Color(0x080A3B69),
-                        Color(0x33091B32)],
+                    : const [Color(0x33F8F5E8), Color(0x1AEAF4F4),
+                        Color(0x40F5F1E8)],
               ),
             ))),
             CustomPaint(painter: _WorldRoutePainter(

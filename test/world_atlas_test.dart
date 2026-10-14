@@ -4,13 +4,46 @@ import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
 
 void main() {
-  test('world map projects the focused country to the viewport center', () {
+  test('wide map keeps China on screen and shows nearby continents', () {
     const camera = VelaWorldCamera(
       size: Size(1280, 800), longitude: 116.4, latitude: 39.9);
-    expect(camera.project(VelaWorldCamera.beijing), const Offset(640, 400));
+    final china = camera.project(VelaWorldCamera.beijing);
+    expect(china.dx, closeTo(640, .001));
+    // Vertical position is biased upward so full artwork covers the screen.
+    expect(china.dy, inInclusiveRange(120.0, 500.0));
     expect(camera.worldWidth / camera.worldHeight, 2.0);
+    expect(camera.worldWidth, lessThan(camera.size.width * 1.6));
+    expect(camera.worldWidth, greaterThan(camera.size.width));
+    expect(camera.top, inInclusiveRange(
+        camera.size.height - camera.worldHeight, 0.0));
     expect(camera.tileLeft, lessThanOrEqualTo(0));
     expect(camera.tileLeft + camera.worldWidth, greaterThan(0));
+    // Los Angeles is visible to the east across the Pacific at rest.
+    expect(camera.project(const Offset(-118.24, 34.05)).dx,
+        inInclusiveRange(0.0, 1280.0));
+  });
+
+  test('camera never exposes upper/lower map edge on city focus changes', () {
+    for (final size in [const Size(1280, 800), const Size(390, 850)]) {
+      for (final location in [
+        const Offset(116.4, 39.9), // China
+        const Offset(139.7, 35.7), // Tokyo
+        const Offset(-118.2, 34.1), // Los Angeles
+        const Offset(103.8, 1.3), // Singapore
+        const Offset(-.13, 51.5), // London
+        const Offset(151.21, -33.86), // Sydney
+      ]) {
+        final camera = VelaWorldCamera(
+          size: size, longitude: location.dx, latitude: location.dy);
+        expect(camera.worldHeight, greaterThanOrEqualTo(size.height));
+        expect(camera.top, lessThanOrEqualTo(0));
+        expect(camera.top + camera.worldHeight,
+            greaterThanOrEqualTo(size.height));
+        final pin = camera.project(location);
+        expect(pin.dx, closeTo(size.width / 2, .001));
+        expect(pin.dy, inInclusiveRange(0, size.height));
+      }
+    }
   });
 
   test('seam takes the Pacific short path between China and America', () {
