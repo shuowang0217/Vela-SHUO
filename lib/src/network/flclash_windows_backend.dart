@@ -44,6 +44,22 @@ class FlClashWindowsBackend {
   // subscription HTTP response, not from Mihomo proxy-providers.
   FlClashSubscriptionUsage? subscriptionUsage;
 
+  /// The core is the source of truth; increment on every profile import.
+  /// Each new profile must have the saved route mode reapplied to its rules.
+  int profileRevision = 0;
+  String activeRoutingMode = 'global';
+
+  Future<bool> updateRoutingMode(String mode) async {
+    if (!imported || !const {'rule', 'global', 'direct'}.contains(mode)) {
+      return false;
+    }
+    final reply = await api.invoke('updateConfig',
+        arguments: {'mode': mode});
+    if (reply is! String || reply.isNotEmpty) return false;
+    activeRoutingMode = mode;
+    return true;
+  }
+
   Future<void> initialize() async {
     if (ready) return;
     if (!Platform.isWindows && transport is FlClashWindowsTransport) {
@@ -120,6 +136,8 @@ class FlClashWindowsBackend {
           'FlClash core loaded no usable nodes');
     }
     imported = true;
+    profileRevision++;
+    activeRoutingMode = 'global'; // restored mode is reapplied after import
     lastImportedSource = raw;
     // Local text/file imports have no authoritative subscription HTTP header.
     subscriptionUsage = null;
@@ -372,8 +390,8 @@ class FlClashWindowsBackend {
       internetVerified = (res['status-code'] == 204 ||
           res['status-code'] == 200) &&
           (res['error'] == null || res['error'] == '') &&
-          chains is List &&
-          chains.contains(activeName);
+          (activeRoutingMode != 'global' ||
+              (chains is List && chains.contains(activeName)));
       if (!internetVerified) return false;
       // A Go-internal probe alone does NOT prove the browser-facing
       // Windows MixedPort forwards HTTPS. Exercise the actual HTTP CONNECT
