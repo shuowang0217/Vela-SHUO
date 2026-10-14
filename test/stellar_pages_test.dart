@@ -49,8 +49,8 @@ void main() {
   });
 
   test('existing eight palettes remain unchanged', () {
-    expect(VelaPalette.all.length, 8);
-    expect(VelaPalette.all.map((palette) => palette.id).toList(),
+    expect(VelaPalette.all.length, 9);
+    expect(VelaPalette.all.skip(1).map((palette) => palette.id).toList(),
         ['mint', 'navy', 'peach', 'pink', 'sand',
          'rose', 'lavender', 'ocean']);
   });
