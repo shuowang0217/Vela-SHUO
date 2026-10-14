@@ -246,9 +246,9 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
         child: Stack(children: [
           Positioned.fill(child: DecoratedBox(
             decoration: BoxDecoration(gradient: LinearGradient(
-              colors: [t.surface.withValues(alpha: .46),
-                t.surface.withValues(alpha: .23),
-                t.surface.withValues(alpha: .04)],
+              colors: [t.surface.withValues(alpha: .25),
+                t.surface.withValues(alpha: .10),
+                t.surface.withValues(alpha: .015)],
               stops: const [0, .40, 1],
             )),
           )),
