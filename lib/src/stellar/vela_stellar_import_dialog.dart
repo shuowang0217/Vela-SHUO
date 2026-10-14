@@ -66,14 +66,14 @@ class _VelaStellarImportDialogState extends State<VelaStellarImportDialog> {
       if (!ok) {
         setState(() {
           _error = widget.controller.error ??
-              'FlClash 订阅导入失败，请检查 URL 或网络';
+              '订阅导入失败，请检查链接或网络';
         });
         return;
       }
       Navigator.of(context).pop(true);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _error = 'FlClash 导入失败，请检查链接与网络');
+      setState(() => _error = '导入失败，请检查链接与网络');
     } finally {
       if (mounted) setState(() => _importing = false);
     }
