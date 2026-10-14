@@ -42,6 +42,14 @@ jobs:
         run: |
           set -o pipefail
           flutter test --reporter expanded 2>&1 | tee test-output.txt
+      - name: Upload actual Flutter dashboard preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vela-v1.3.1-reference-preview
+          retention-days: 7
+          if-no-files-found: ignore
+          path: reference-preview.png
       - name: Attach diagnostic output when validation fails
         if: failure()
         uses: actions/upload-artifact@v4
