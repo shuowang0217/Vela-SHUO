@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'demo_connection.dart';
 import 'flight_route.dart';
 import '../theme/vela_palettes.dart';
+import '../brand/vela_sail_mark.dart';
 
 Color get _cyan => VelaThemeRuntime.active.accent;
 const _sea = Color(0xFF071C31);
@@ -728,39 +729,26 @@ class _GlobePainter extends CustomPainter {
     canvas.drawCircle(at, dotSize, Paint()..color = color);
   }
 
+  /// Draw exactly the same blue/steel/champagne Vela mark used in the app,
+  /// launcher and tray. The previous two-triangle marker is retired.
   void _drawSail(Canvas canvas, Offset location, double size) {
-    final left = Path()
-      ..moveTo(location.dx + size * .10, location.dy - size * .95)
-      ..lineTo(location.dx - size * .73, location.dy + size * .48)
-      ..lineTo(location.dx + size * .10, location.dy + size * .48)
-      ..close();
-    final right = Path()
-      ..moveTo(location.dx + size * .28, location.dy - size * .62)
-      ..lineTo(location.dx + size * .90, location.dy + size * .48)
-      ..lineTo(location.dx + size * .28, location.dy + size * .48)
-      ..close();
+    final diameter = size * 2.45;
+    final logoPaintSize = Size.square(diameter);
     canvas.drawCircle(
-      location, size * 1.6,
+      location, size * 1.35,
       Paint()
-        ..color = _cyan.withValues(alpha: .26)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, size * .8),
+        ..color = accent.withValues(alpha: .13)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, size * .58),
     );
-    canvas.drawPath(left, Paint()..color = Color.lerp(accent, Colors.white, .58)!);
-    canvas.drawPath(right, Paint()..color = accent);
-    final hull = Path()
-      ..moveTo(location.dx - size * .83, location.dy + size * .67)
-      ..quadraticBezierTo(
-        location.dx, location.dy + size * .93,
-        location.dx + size * .94, location.dy + size * .67,
-      );
-    canvas.drawPath(
-      hull,
-      Paint()
-        ..color = const Color(0xFFB2E6FF)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = math.max(1, size * .12)
-        ..strokeCap = StrokeCap.round,
+    canvas.save();
+    // The path is slightly offset upward so its hull follows the route,
+    // while the emblem is centered over the current geographic position.
+    canvas.translate(
+      location.dx - diameter * .5,
+      location.dy - diameter * .52,
     );
+    const VelaSailPainter().paint(canvas, logoPaintSize);
+    canvas.restore();
   }
 
   void _label(Canvas canvas, String text, Offset position, double side) {
