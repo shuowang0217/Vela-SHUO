@@ -199,13 +199,17 @@ class _VoyagePainter extends CustomPainter {
 
     // Expand longitude for cross-Pacific and Europe routes without falsifying
     // the named country. The viewport contains both waypoints.
-    var targetLon = target?.longitude ?? 139.9;
-    if (targetLon - start.dx < -180) targetLon += 360;
-    if (targetLon - start.dx > 180) targetLon -= 360;
-    final left = math.min(96.0, math.min(start.dx, targetLon) - 13);
-    final right = math.max(158.0, math.max(start.dx, targetLon) + 13);
-    final bottom = math.min(4.0, (target?.latitude ?? 35) - 12);
-    final top = math.max(53.0, (target?.latitude ?? 35) + 12);
+    // Preserve the entire China → Pacific → North America composition
+    // from the supplied 1536x1024 reference. Previously the map zoomed to
+    // East Asia for JP nodes and the ocean/US coast disappeared entirely.
+    var targetLon = target?.longitude ?? -118.6;
+    while (targetLon < 70) targetLon += 360;
+    while (targetLon > 430) targetLon -= 360;
+    final isPacific = targetLon >= 70 && targetLon <= 265;
+    final left = isPacific ? 77.0 : 36.0;
+    final right = isPacific ? 264.0 : math.max(285.0, targetLon + 18);
+    const bottom = -18.0;
+    const top = 63.0;
     Offset project(double longitude, double latitude) => Offset(
       (longitude - left) * size.width / (right - left),
       (top - latitude) * size.height / (top - bottom),
@@ -382,22 +386,22 @@ class _VoyagePainter extends CustomPainter {
                   shadows: [Shadow(color: Color(0xFF001327), blurRadius: 9)])
               : cityLabel);
     }
-    mapLabel('中国大陆', 106, 35);
+    mapLabel('中国', 106, 35);
     mapLabel('日本', 138.4, 38.9);
     mapLabel('韩国', 126.1, 37.7);
     mapLabel('台湾', 121.0, 23.8);
     mapLabel('东海', 129, 27, muted: true);
     mapLabel('黄海', 123.5, 34.8, muted: true);
-    mapLabel('菲律宾海', 143, 18, muted: true);
+    mapLabel('菲律宾', 125, 12, muted: true);
     mapLabel('太平洋', 180, 10, muted: true);
-    mapLabel('美国', -117.5, 42);
+    mapLabel('美国', -119.5, 42);
     mapLabel('英国', -2.3, 54);
     mapLabel('新加坡', 103.6, 2.4);
 
     // The departing boat is near China until a real connection starts.
     final departure = project(start.dx, start.dy);
-    final destination = target == null
-        ? departure : project(targetLon, target!.latitude);
+    final destination = project(targetLon,
+        target?.latitude ?? 33.5);
     final delta = destination - departure;
     var normal = delta.distance < 1 ? const Offset(0, -1) :
       Offset(delta.dy, -delta.dx) / delta.distance;
@@ -409,7 +413,8 @@ class _VoyagePainter extends CustomPainter {
       return departure * (s * s) + control * (2 * s * t) +
           destination * (t * t);
     }
-    final hasRoute = target != null && progress > .0001;
+    final preview = target == null || (!connected && progress <= .0001);
+    final hasRoute = true;
     if (hasRoute) {
       final glowing = Paint()..strokeWidth = 7
         ..style = PaintingStyle.stroke..strokeCap = StrokeCap.round
@@ -417,10 +422,10 @@ class _VoyagePainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9);
       final light = Paint()..strokeWidth = 2.5
         ..style = PaintingStyle.stroke..strokeCap = StrokeCap.round
-        ..color = cyan.withValues(alpha: .9);
+        ..color = cyan.withValues(alpha: preview ? .56 : .9);
       final path = Path()..moveTo(departure.dx, departure.dy);
       for (var i = 1; i <= 80; i++) {
-        final t = progress * i / 80;
+        final t = (preview ? 1.0 : progress) * i / 80;
         final p = pointAt(t);
         if (i % 3 != 0 || i % 12 == 0) {
           path.lineTo(p.dx, p.dy);
@@ -430,30 +435,28 @@ class _VoyagePainter extends CustomPainter {
       }
       canvas.drawPath(path, glowing);
       canvas.drawPath(path, light);
-      if (progress > .96) {
+      if (progress > .96 && !preview) {
         _beacon(canvas, destination, cyan);
       }
     }
 
     _beacon(canvas, departure, const Color(0xFF54A9F3));
-    final boatAt = hasRoute ? pointAt(progress) : departure;
-    final next = pointAt(math.min(1, progress + .012));
-    final prev = pointAt(math.max(0, progress - .012));
-    final heading = hasRoute
-        ? math.atan2(next.dy - prev.dy, next.dx - prev.dx)
-        : -.85;
+    final boatProgress = preview ? .50 : progress;
+    final boatAt = pointAt(boatProgress);
+    final next = pointAt(math.min(1, boatProgress + .012));
+    final prev = pointAt(math.max(0, boatProgress - .012));
+    final heading = math.atan2(
+        next.dy - prev.dy, next.dx - prev.dx);
     _sailboat(canvas, boatAt, heading, math.max(.88,
         math.min(size.width / 780, size.height / 520) * 1.36));
 
     final labelStyle = const TextStyle(
       color: Color(0xFFB8E5FF), fontSize: 14,
       fontWeight: FontWeight.w500, letterSpacing: 1.3);
-    _label(canvas, '中国沿海', departure + const Offset(-82, 26), labelStyle);
-    if (target != null && (connected || progress > 0)) {
-      _label(canvas, target!.label,
-        destination + const Offset(12, -26), labelStyle);
-    }
-    _label(canvas, 'VELA  ·  OCEAN NAVIGATION CHART',
+    _label(canvas, '上海 · 出发', departure + const Offset(-76, -32), labelStyle);
+    _label(canvas, target?.label ?? '洛杉矶 · 航线预览',
+      destination + const Offset(12, -26), labelStyle);
+    _label(canvas, 'VELA  ·  航线仅作视觉示意，非节点地理定位',
       Offset(size.width * .05, size.height - 43),
       const TextStyle(color: Color(0xFF89B7D6), fontSize: 10,
         letterSpacing: 1.8));
