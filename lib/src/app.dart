@@ -358,7 +358,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                   width: extended ? 190 : 90,
                   decoration: BoxDecoration(
                     color: _panel.withValues(alpha:
-                        VelaThemeRuntime.active.dark ? .52 : .83),
+                        VelaThemeRuntime.active.dark ? .50 : .50),
                     border: Border(right: BorderSide(
                         color: _foreground.withValues(alpha: .17))),
                   ),
@@ -387,7 +387,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
           child: Container(
           decoration: BoxDecoration(
             color: _panel.withValues(alpha:
-                VelaThemeRuntime.active.dark ? .55 : .84),
+                VelaThemeRuntime.active.dark ? .50 : .50),
             border: Border(top: BorderSide(
                 color: _foreground.withValues(alpha: .18))),
           ),
@@ -708,7 +708,7 @@ class _DemoTag extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
     decoration: BoxDecoration(
       color: _panel.withValues(alpha:
-          VelaThemeRuntime.active.dark ? .14 : .31),
+          VelaThemeRuntime.active.dark ? .50 : .50),
       border: Border.all(color: _line),
       borderRadius: BorderRadius.circular(30),
     ),
@@ -752,9 +752,7 @@ class _GlassCardState extends State<_GlassCard> {
             curve: Curves.easeOutCubic,
             padding: widget.padding,
             decoration: BoxDecoration(
-              color: _panel.withValues(alpha: t.dark
-                  ? (_hover ? .72 : .63)
-                  : (_hover ? .93 : .85)),
+              color: _panel.withValues(alpha: .50),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: _hover
                   ? _blue.withValues(alpha: .60)
