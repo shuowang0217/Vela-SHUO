@@ -36,6 +36,7 @@ class _VelaGlobeState extends State<VelaGlobe>
   late final AnimationController _turn;
   late final AnimationController _sail;
   late final AnimationController _clouds;
+  late final AnimationController _themeBlend;
   VelaPhase? _lastPhase;
   String? _lastNode;
   VelaDemoNode? _visibleNode;
@@ -87,6 +88,11 @@ class _VelaGlobeState extends State<VelaGlobe>
     super.initState();
     _coastlines ??= _readMap();
     _textures ??= _loadTextures();
+    _themeBlend = AnimationController(
+      vsync: this,
+      value: VelaThemeRuntime.active.dark ? 1 : 0,
+      duration: const Duration(milliseconds: 950),
+    );
     _turn = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1650),
@@ -195,11 +201,21 @@ class _VelaGlobeState extends State<VelaGlobe>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final target = Theme.of(context).brightness == Brightness.dark ? 1.0 : 0.0;
+    if (_themeBlend.value != target) {
+      _themeBlend.animateTo(target, curve: Curves.easeInOutCubic);
+    }
+  }
+
+  @override
   void dispose() {
     widget.demo.removeListener(_syncView);
     _turn.dispose();
     _sail.dispose();
     _clouds.dispose();
+    _themeBlend.dispose();
     super.dispose();
   }
 
@@ -211,7 +227,7 @@ class _VelaGlobeState extends State<VelaGlobe>
         future: _textures,
         builder: (context, texture) => RepaintBoundary(
           child: AnimatedBuilder(
-            animation: Listenable.merge([_turn, _sail, _clouds, widget.demo]),
+            animation: Listenable.merge([_turn, _sail, _clouds, _themeBlend, widget.demo]),
             builder: (context, _) {
               final f = Curves.easeInOutCubic.transform(_turn.value);
               return CustomPaint(
@@ -227,6 +243,7 @@ class _VelaGlobeState extends State<VelaGlobe>
                   // One animation value drives BOTH the boat and the trail.
                   sailProgress: Curves.easeInOutCubic.transform(_sail.value),
                   cloudProgress: _clouds.value,
+                  nightBlend: _themeBlend.value,
                   accent: VelaThemeRuntime.active.accent,
                 ),
                 child: const SizedBox.expand(),
@@ -248,6 +265,7 @@ class _GlobePainter extends CustomPainter {
     required this.sailProgress,
     required this.homebound,
     required this.cloudProgress,
+    required this.nightBlend,
     required this.accent,
     required this.longitude,
     required this.latitude,
@@ -260,6 +278,7 @@ class _GlobePainter extends CustomPainter {
   final double sailProgress;
   final bool homebound;
   final double cloudProgress;
+  final double nightBlend;
   final Color accent;
   final double longitude;
   final double latitude;
@@ -331,8 +350,8 @@ class _GlobePainter extends CustomPainter {
           radius: 1.08,
           colors: [
             Colors.transparent,
-            const Color(0xFF051426).withValues(alpha: .06),
-            const Color(0xFF030916).withValues(alpha: .74),
+            const Color(0xFF051426).withValues(alpha: .06 * nightBlend),
+            const Color(0xFF030916).withValues(alpha: .20 + .54 * nightBlend),
           ],
           stops: const [0, .66, 1],
         ).createShader(sphereRect),
@@ -370,8 +389,8 @@ class _GlobePainter extends CustomPainter {
   ) {
     // Smaller projection mesh reduces CPU work each frame while preserving
     // the full-resolution source texture and geographical detail.
-    const columns = 96;
-    const rows = 48;
+    const columns = 112;
+    const rows = 56;
     final positions = <Offset>[];
     final texels = <Offset>[];
     final visible = <bool>[];
@@ -419,12 +438,16 @@ class _GlobePainter extends CustomPainter {
       BlendMode.modulate,
       Paint()
         ..shader = earthShader
-        ..filterQuality = FilterQuality.medium
-        // Cool, dim night-side globe palette while retaining genuine terrain.
-        ..colorFilter = const ColorFilter.matrix([
-          .38, .07, .03, 0, 4,
-          .02, .51, .06, 0, 5,
-          .06, .10, .68, 0, 9,
+        ..filterQuality = FilterQuality.high
+        // True natural-color terrain in daytime; ocean-blue graded terrain
+        // at night. Shader interpolation keeps geographical detail intact.
+        ..colorFilter = ColorFilter.matrix([
+          1 - .62 * nightBlend, .07 * nightBlend,
+            .03 * nightBlend, 0, 4 * nightBlend,
+          .02 * nightBlend, 1 - .49 * nightBlend,
+            .06 * nightBlend, 0, 5 * nightBlend,
+          .06 * nightBlend, .10 * nightBlend,
+            1 - .32 * nightBlend, 0, 9 * nightBlend,
           0, 0, 0, 1, 0,
         ]),
     );
@@ -439,13 +462,14 @@ class _GlobePainter extends CustomPainter {
       BlendMode.modulate,
       Paint()
         ..shader = nightShader
-        ..filterQuality = FilterQuality.medium
+        ..filterQuality = FilterQuality.high
         ..blendMode = BlendMode.screen
-        ..colorFilter = const ColorFilter.matrix([
+        ..colorFilter = ColorFilter.matrix([
           1.7, .08, 0, 0, 0,
           .07, 1.4, 0, 0, 0,
           0, .07, 1.15, 0, 0,
-          0, 0, 0, 1, 0,
+          // No city lights in daylight; progressive light reveal at night.
+          0, 0, 0, nightBlend, 0,
         ]),
     );
     mesh.dispose();
@@ -791,6 +815,7 @@ class _GlobePainter extends CustomPainter {
       old.homebound != homebound ||
       old.sailProgress != sailProgress ||
       old.cloudProgress != cloudProgress ||
+      old.nightBlend != nightBlend ||
       old.accent != accent ||
       old.textures != textures ||
       old.node != node ||
