@@ -26,6 +26,7 @@ import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
 import 'package:vela_shuo/src/brand/vela_sail_mark.dart';
+import 'package:vela_shuo/src/brand/vela_journal_icons.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_proxy_page.dart';
@@ -392,6 +393,14 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   // Display order puts Config next to Proxy without changing tab identity.
   static const navOrder = <int>[0, 1, 4, 2, 3];
 
+  static VelaJournalSymbol journalSymbol(int tab) => switch (tab) {
+    1 => VelaJournalSymbol.route,
+    2 => VelaJournalSymbol.compass,
+    3 => VelaJournalSymbol.settings,
+    4 => VelaJournalSymbol.journal,
+    _ => VelaJournalSymbol.sail,
+  };
+
   Widget page(bool desktop) => switch (tab) {
     1 => VelaStellarProxyPage(
       demo: demo, subscription: subscription,
@@ -481,10 +490,10 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                 NavigationDestination(
                   icon: index == 0
                       ? const VelaSailMark(size: 25, monochrome: true)
-                      : Icon(destinations[index].$1, color: _muted),
+                      : VelaJournalIcon(symbol: journalSymbol(index)),
                   selectedIcon: index == 0
                       ? const VelaSailMark(size: 25)
-                      : Icon(destinations[index].$2, color: _blue),
+                      : VelaJournalIcon(symbol: journalSymbol(index), selected: true),
                   label: destinations[index].$3,
                 ),
             ],
@@ -558,11 +567,9 @@ class _DesktopNav extends StatelessWidget {
                   if (i == 0)
                     VelaSailMark(size: 26, monochrome: selected != 0)
                   else
-                    Icon(
-                      selected == i
-                          ? _ShellState.destinations[i].$2
-                          : _ShellState.destinations[i].$1,
-                      color: selected == i ? _blue : _muted, size: 22,
+                    VelaJournalIcon(
+                      symbol: _ShellState.journalSymbol(i),
+                      size: 26, selected: selected == i,
                     ),
                   if (extended) ...[
                     SizedBox(width: 15),
