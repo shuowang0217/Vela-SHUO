@@ -75,14 +75,14 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: theme.surface.withValues(alpha:
-              theme.dark ? .12 : .29),
-          border: Border.all(color: theme.text.withValues(alpha: .18)),
+              theme.dark ? .63 : .85),
+          border: Border.all(color: theme.text.withValues(alpha: theme.dark ? .30 : .24)),
           borderRadius: BorderRadius.circular(18),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('SHUO Smart · FlClash 定制优选',
+            Text('SHUO Smart · 智能航线优选',
                 style: TextStyle(color: theme.text,
                     fontWeight: FontWeight.w600, fontSize: 17)),
             const SizedBox(height: 8),
