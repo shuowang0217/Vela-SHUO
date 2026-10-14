@@ -5,31 +5,13 @@ import '../theme/vela_palettes.dart';
 
 /// Shared visual language for the two approved stellar pages. Every color is
 /// derived from the existing eight Vela palettes, including light themes.
+/// Shared Earth is left unobstructed; each panel frosts only its own bounds.
 class StellarAtmosphere extends StatelessWidget {
   const StellarAtmosphere({super.key, required this.child});
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    final t = VelaThemeRuntime.active;
-    return Stack(children: [
-      // Preserve the shared Earth instead of painting a solid page background.
-      Positioned.fill(child: IgnorePointer(child: DecoratedBox(
-        decoration: BoxDecoration(gradient: LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [
-            t.background.withValues(alpha: .07),
-            t.accent.withValues(alpha: .025),
-            Colors.transparent,
-          ],
-        )),
-      ))),
-      Positioned.fill(child: IgnorePointer(child: CustomPaint(
-        painter: _StellarFieldPainter(t.accent, t.dark),
-      ))),
-      child,
-    ]);
-  }
+  Widget build(BuildContext context) => child;
 }
 
 class StellarPanel extends StatelessWidget {
@@ -46,7 +28,7 @@ class StellarPanel extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           padding: padding ?? const EdgeInsets.all(16),
@@ -146,35 +128,6 @@ class StellarCompassGlyph extends StatelessWidget {
       child: CustomPaint(painter: _CompassPainter(t.accent, t.dark)),
     );
   }
-}
-
-class _StellarFieldPainter extends CustomPainter {
-  _StellarFieldPainter(this.accent, this.dark);
-  final Color accent;
-  final bool dark;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final random = math.Random(12411);
-    for (var i = 0; i < 75; i++) {
-      final x = random.nextDouble() * size.width;
-      final y = random.nextDouble() * size.height;
-      final radius = i % 8 == 0 ? 1.5 : .65;
-      canvas.drawCircle(Offset(x, y), radius, Paint()
-        ..color = accent.withValues(alpha: dark ? .20 : .08));
-    }
-    final ray = Paint()
-      ..strokeWidth = .7
-      ..color = accent.withValues(alpha: dark ? .14 : .08);
-    for (var i = 0; i < 3; i++) {
-      final offset = size.width * (.2 + i * .3);
-      canvas.drawLine(
-          Offset(offset, 0), Offset(offset + size.width * .22, size.height), ray);
-    }
-  }
-  @override
-  bool shouldRepaint(covariant _StellarFieldPainter other) =>
-      other.accent != accent || other.dark != dark;
 }
 
 /// Metallic bezel, etched 48-tick dial and two-tone directional needle.
