@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../subscription/vela_subscription_controller.dart';
 import '../theme/vela_palettes.dart';
+import '../brand/vela_journal_paper.dart';
 import 'vela_smart_controller.dart';
 import 'vela_smart_country.dart';
 
@@ -74,9 +75,13 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
           child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: theme.surface.withValues(alpha:
-               theme.dark ? .75 : .84),
-          border: Border.all(color: theme.line.withValues(alpha: theme.dark ? .68 : .78)),
+          color: theme.surface,
+          image: DecorationImage(
+            image: AssetImage(theme.dark
+                ? 'assets/journal/paper_night.jpg'
+                : 'assets/journal/paper_day.jpg'),
+            fit: BoxFit.cover, opacity: .9),
+          border: Border.all(color: theme.line, width: 1.25),
           borderRadius: BorderRadius.circular(18),
         ),
         child: Column(

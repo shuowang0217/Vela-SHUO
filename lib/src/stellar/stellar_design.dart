@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/vela_palettes.dart';
+import '../brand/vela_journal_paper.dart';
 
 /// Shared visual language for the two approved stellar pages. Every color is
 /// derived from the existing eight Vela palettes, including light themes.
@@ -16,51 +17,25 @@ class StellarAtmosphere extends StatelessWidget {
 
 class StellarPanel extends StatelessWidget {
   const StellarPanel({super.key, required this.child, this.padding,
-      this.selected = false, this.radius = 20});
+    this.selected = false, this.radius = 20});
   final Widget child;
   final EdgeInsetsGeometry? padding;
   final bool selected;
   final double radius;
 
   @override
-  Widget build(BuildContext context) {
-    final t = VelaThemeRuntime.active;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          padding: padding ?? const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(radius),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [
-                Color.lerp(t.raised, t.accent, selected ? .15 : .04)!
-                  .withValues(alpha: t.dark ? .78 : .86),
-                t.surface.withValues(alpha: t.dark ? .73 : .83),
-              ],
-            ),
-            border: Border.all(
-              color: selected ? t.accent.withValues(alpha: .78)
-                  : t.line.withValues(alpha: t.dark ? .68 : .79),
-              width: selected ? 1.4 : 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: selected ? t.accent.withValues(alpha: .19)
-                    : Colors.black.withValues(alpha: t.dark ? .22 : .10),
-                blurRadius: selected ? 20 : 14,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: child,
-        ),
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(radius),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+      child: VelaJournalPaper(
+        padding: padding ?? const EdgeInsets.all(16),
+        radius: radius,
+        selected: selected,
+        child: child,
       ),
-    );
-  }
+    ),
+  );
 }
 
 class StellarLabel extends StatelessWidget {

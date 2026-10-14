@@ -27,6 +27,7 @@ import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
 import 'package:vela_shuo/src/brand/vela_sail_mark.dart';
 import 'package:vela_shuo/src/brand/vela_journal_icons.dart';
+import 'package:vela_shuo/src/brand/vela_journal_paper.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_proxy_page.dart';
@@ -98,6 +99,7 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
+    fontFamily: 'Georgia',
     colorScheme: scheme,
     scaffoldBackgroundColor: t.background,
     splashColor: t.accent.withValues(alpha: .09),
@@ -443,10 +445,15 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                 child: Container(
                   width: extended ? 190 : 90,
                   decoration: BoxDecoration(
-                    color: _panel.withValues(alpha:
-                        VelaThemeRuntime.active.dark ? .76 : .84),
+                    color: _panel,
+                    image: DecorationImage(
+                      image: AssetImage(VelaThemeRuntime.active.dark
+                          ? 'assets/journal/paper_night.jpg'
+                          : 'assets/journal/paper_day.jpg'),
+                      fit: BoxFit.cover, opacity: .92,
+                    ),
                     border: Border(right: BorderSide(
-                        color: _foreground.withValues(alpha: .17))),
+                      color: _line.withValues(alpha: .80), width: 1.4)),
                   ),
                   child: _DesktopNav(
                       selected: tab, extended: extended, onSelect: navigate),
@@ -472,10 +479,14 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
           filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
           child: Container(
           decoration: BoxDecoration(
-            color: _panel.withValues(alpha:
-                VelaThemeRuntime.active.dark ? .76 : .84),
+            color: _panel,
+            image: DecorationImage(
+              image: AssetImage(VelaThemeRuntime.active.dark
+                  ? 'assets/journal/paper_night.jpg'
+                  : 'assets/journal/paper_day.jpg'),
+              fit: BoxFit.cover, opacity: .9),
             border: Border(top: BorderSide(
-                color: _foreground.withValues(alpha: .18))),
+                color: _line.withValues(alpha: .70))),
           ),
           child: NavigationBar(
             height: 68,
@@ -544,7 +555,7 @@ class _DesktopNav extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         child: Material(
           color: selected == i
-              ? _blue.withValues(alpha: .15) : Colors.transparent,
+              ? _blue.withValues(alpha: .22) : Colors.transparent,
           borderRadius: BorderRadius.circular(13),
           child: InkWell(
             key: ValueKey('nav_$i'),
@@ -556,7 +567,7 @@ class _DesktopNav extends StatelessWidget {
                 borderRadius: BorderRadius.circular(13),
                 border: Border.all(
                   color: selected == i
-                    ? _blue.withValues(alpha: .38) : Colors.transparent,
+                    ? _blue.withValues(alpha: .62) : Colors.transparent,
                 ),
               ),
               child: Row(
@@ -588,6 +599,9 @@ class _DesktopNav extends StatelessWidget {
         ),
       ),
     Spacer(),
+    if (extended && MediaQuery.sizeOf(context).height > 770)
+      const Padding(padding: EdgeInsets.fromLTRB(8, 4, 8, 17),
+        child: VelaLighthouseSketch()),
   ]);
 }
 
@@ -744,13 +758,13 @@ class _HeroIdentity extends StatelessWidget {
     mainAxisSize: MainAxisSize.min,
     children: [
       Text('VELA', style: TextStyle(
-        fontFamily: 'Segoe UI',
-        fontSize: 59, height: .96, letterSpacing: 5,
+        fontFamily: 'Georgia',
+        fontSize: 62, height: .96, letterSpacing: 5.8,
         color: _foreground, fontWeight: FontWeight.bold,
       )),
       SizedBox(height: 12),
       Text('— SHUO —', style: TextStyle(
-        fontFamily: 'Segoe UI',
+        fontFamily: 'Georgia',
         fontSize: 28, letterSpacing: 5, color: _blue,
       )),
       SizedBox(height: 33),
@@ -759,9 +773,15 @@ class _HeroIdentity extends StatelessWidget {
           color: _muted,
           fontSize: 17, height: 1.5,
           letterSpacing: 1.6,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w500,
         ),
       ),
+      const SizedBox(height: 10),
+      Container(height: 2, width: 185,
+        decoration: BoxDecoration(
+          color: VelaThemeRuntime.active.accentSoft.withValues(alpha: .75),
+          borderRadius: BorderRadius.circular(3),
+        )),
     ],
   );
 }
@@ -805,44 +825,21 @@ class _GlassCardState extends State<_GlassCard> {
   bool _hover = false;
 
   @override
-  Widget build(BuildContext context) {
-    final t = VelaThemeRuntime.active;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 190),
-            curve: Curves.easeOutCubic,
-            padding: widget.padding,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [t.raised.withValues(alpha: t.dark ? .78 : .88),
-                  _panel.withValues(alpha: t.dark ? .73 : .83)],
-              ),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: _hover
-                  ? _blue.withValues(alpha: .60)
-                  : _foreground.withValues(alpha: t.dark ? .33 : .24)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: t.dark ? .24 : .10),
-                  blurRadius: _hover ? 23 : 15,
-                  offset: Offset(0, _hover ? 7 : 4),
-                ),
-              ],
-            ),
-            child: widget.child,
-          ),
+  Widget build(BuildContext context) => MouseRegion(
+    onEnter: (_) => setState(() => _hover = true),
+    onExit: (_) => setState(() => _hover = false),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(17),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: VelaJournalPaper(
+          hovered: _hover,
+          padding: widget.padding,
+          child: widget.child,
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _ConnectionCard extends StatelessWidget {

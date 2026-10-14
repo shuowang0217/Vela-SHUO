@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Eight top palettes shown in Color Hunt Popular / All time (2026-10).
+/// Color palettes alter inks and washes, NOT Vela's global journal UI.
 /// Swatches are stored in their original vertical display order.
 /// Source: https://colorhunt.co/palettes/popular
 @immutable
@@ -24,7 +24,7 @@ class VelaPalette {
   static const List<VelaPalette> all = [
     VelaPalette(
       id: 'journal',
-      name: '钢笔淡彩手账',
+      name: '羊皮纸·海盐青',
       swatches: [Color(0xFFF7F1E4), Color(0xFFB8DCDD),
         Color(0xFF73A5AB), Color(0xFF254E59)],
       prefersDark: false, darkBaseIndex: 3, accentIndex: 3,
