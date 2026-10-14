@@ -308,18 +308,11 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
       child: SizedBox(height: narrow ? 246 : 285,
         child: ClipRRect(borderRadius: BorderRadius.circular(24),
           child: Stack(children: [
-            Positioned(top: narrow ? -60 : -118,
-              right: narrow ? -113 : -38,
-              width: narrow ? 315 : 490,
-              height: narrow ? 315 : 490,
-              child: IgnorePointer(child: Opacity(
-                opacity: t.dark ? .72 : .46,
-                child: VelaGlobe(demo: widget.demo),
-              ))),
             Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(
               gradient: LinearGradient(colors: [
-                t.surface, t.surface.withValues(alpha: .87),
-                t.surface.withValues(alpha: .05)],
+                t.surface.withValues(alpha: .48),
+                t.surface.withValues(alpha: .22),
+                t.surface.withValues(alpha: .04)],
               stops: const [0, .51, 1])))),
             Positioned(left: 20, top: 22, right: narrow ? 66 : 270,
               child: Column(crossAxisAlignment: CrossAxisAlignment.start,
