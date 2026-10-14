@@ -402,8 +402,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
             destinations: [
               for (final index in navOrder)
                 NavigationDestination(
-                  icon: Icon(destinations[index].$1, color: _muted),
-                  selectedIcon: Icon(destinations[index].$2, color: _blue),
+                  icon: index == 0
+                      ? const VelaSailMark(size: 25, monochrome: true)
+                      : Icon(destinations[index].$1, color: _muted),
+                  selectedIcon: index == 0
+                      ? const VelaSailMark(size: 25)
+                      : Icon(destinations[index].$2, color: _blue),
                   label: destinations[index].$3,
                 ),
             ],
@@ -491,12 +495,15 @@ class _DesktopNav extends StatelessWidget {
                     ? MainAxisAlignment.start : MainAxisAlignment.center,
                 children: [
                   if (extended) SizedBox(width: 15),
-                  Icon(
-                    selected == i
-                        ? _ShellState.destinations[i].$2
-                        : _ShellState.destinations[i].$1,
-                    color: selected == i ? _blue : _muted, size: 22,
-                  ),
+                  if (i == 0)
+                    VelaSailMark(size: 26, monochrome: selected != 0)
+                  else
+                    Icon(
+                      selected == i
+                          ? _ShellState.destinations[i].$2
+                          : _ShellState.destinations[i].$1,
+                      color: selected == i ? _blue : _muted, size: 22,
+                    ),
                   if (extended) ...[
                     SizedBox(width: 15),
                     Text(_ShellState.destinations[i].$3,
