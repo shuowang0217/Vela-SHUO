@@ -14,6 +14,7 @@ import 'package:vela_shuo/src/core/vela_windows_tray.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
+import 'package:vela_shuo/src/network/vela_routing_mode.dart';
 import 'package:vela_shuo/src/network/flclash_go_node_probe.dart';
 import 'package:vela_shuo/src/android/vela_android_vpn.dart';
 import 'package:vela_shuo/src/traffic/vela_traffic_monitor.dart';
@@ -118,11 +119,30 @@ class _Shell extends StatefulWidget {
 class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   final VelaDemoController demo = VelaDemoController();
   VelaSubscriptionController? subscription;
+  VelaRoutingModeController? routing;
+  bool _vpnWasConnected = false;
   VelaConnectionCoordinator? connection;
   VelaSmartController? smart;
   VelaAndroidVpnController? androidVpn;
   VelaTrafficMonitor? traffic;
   int tab = 0;
+
+  void _synchronizeRouting() {
+    final mode = routing;
+    final sub = subscription;
+    if (mode == null || sub is! VelaFlClashSubscriptionController) return;
+    unawaited(mode.synchronize(sub.activeProfileId));
+  }
+
+  void _onVpnForRouting() {
+    final connected = androidVpn?.connected == true;
+    if (connected && !_vpnWasConnected) {
+      // The Android VPN service reloads native configuration on startup.
+      routing?.invalidateAfterVpnStart();
+      _synchronizeRouting();
+    }
+    _vpnWasConnected = connected;
+  }
 
   void syncRealGlobe() {
     traffic?.sync(Platform.isAndroid
@@ -173,6 +193,16 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
               backend: runtime.backend, core: runtime)
           : VelaSubscriptionController(
               core: widget.core!, previewOnly: Platform.isAndroid);
+      if (runtime is VelaFlClashCoreController) {
+        routing = VelaRoutingModeController(runtime.backend);
+        unawaited(routing!.restore().then((_) => _synchronizeRouting()));
+        subscription!.addListener(_synchronizeRouting);
+        runtime.ensureRoutingMode = () async {
+          await routing!.restore();
+          return routing!.synchronize(
+              (subscription! as VelaFlClashSubscriptionController).activeProfileId);
+        };
+      }
       unawaited(subscription!.restoreSaved());
       if (subscription is VelaFlClashSubscriptionController) {
         widget.windowExitGuard?.flushSavedProfiles =
@@ -218,6 +248,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     }
     if (androidVpn != null) {
       androidVpn!.addListener(syncRealGlobe);
+      androidVpn!.addListener(_onVpnForRouting);
       syncRealGlobe();
     }
     WidgetsBinding.instance.addObserver(this);
@@ -249,9 +280,11 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     subscription?.removeListener(syncRealGlobe);
+    subscription?.removeListener(_synchronizeRouting);
     connection?.removeListener(syncRealGlobe);
     smart?.dispose();
     androidVpn?.removeListener(syncRealGlobe);
+    androidVpn?.removeListener(_onVpnForRouting);
     androidVpn?.dispose();
     traffic?.dispose();
     widget.windowExitGuard?.shutdownConnection = null;
@@ -268,6 +301,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     } else {
       engine?.dispose();
     }
+    routing?.dispose();
     subscription?.dispose();
     demo.dispose();
     super.dispose();
@@ -283,7 +317,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     1 => VelaStellarProxyPage(
       demo: demo, subscription: subscription,
       connection: connection, androidVpn: androidVpn,
-      smart: smart, traffic: traffic, openConfig: () => navigate(4)),
+      smart: smart, traffic: traffic, routing: routing,
+      openConfig: () => navigate(4)),
     2 => _SmartPage(demo: demo, smart: smart, subscription: subscription),
     4 => VelaStellarConfigPage(
       demo: demo, subscription: subscription, core: widget.core,
@@ -1091,7 +1126,7 @@ class _SmartPage extends StatelessWidget {
     if (smart != null && subscription?.nodes.isNotEmpty == true) {
       return _ScreenPadding(child: ListView(children: [
         _ScreenHeading('智能优选', Platform.isAndroid
-            ? 'FlClash 原生测速 · VPN 连接保护'
+            ? '原生航线测速 · VPN 连接保护'
             : '真实 HTTPS 测速 · 稳定优先'),
         SizedBox(height: 18),
         _RealTag(),
@@ -1644,7 +1679,7 @@ class _RealConnectionCard extends StatelessWidget {
                   color: color, fontWeight: FontWeight.bold,
                   fontSize: compact ? 21 : 26,
                 )),
-                Text('Mihomo · 真实线路与系统代理',
+                Text('Vela 航线 · 真实线路与系统代理',
                     style: TextStyle(color: _muted, fontSize: 12)),
               ],
             )),
