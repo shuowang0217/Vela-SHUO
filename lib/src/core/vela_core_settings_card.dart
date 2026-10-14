@@ -1,4 +1,5 @@
 import 'package:file_selector/file_selector.dart';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../theme/vela_palettes.dart';
@@ -22,11 +23,16 @@ class VelaCoreSettingsCard extends StatelessWidget {
       final coordinatedBusy = connection?.busy == true;
       final canChange = !controller.busy && !controller.isListening &&
           !systemManaged && !coordinatedBusy;
-      return Container(
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: theme.surface.withValues(alpha: .94),
-          border: Border.all(color: theme.line),
+          color: theme.surface.withValues(alpha:
+              theme.dark ? .29 : .62),
+          border: Border.all(color: theme.text.withValues(alpha: .18)),
           borderRadius: BorderRadius.circular(18),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -157,7 +163,7 @@ class VelaCoreSettingsCard extends StatelessWidget {
             style: TextStyle(fontSize: 11, height: 1.55, color: theme.muted),
           ),
         ]),
-      );
+      )));
     },
   );
 }
