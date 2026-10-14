@@ -10,7 +10,6 @@ import 'flight_route.dart';
 import '../theme/vela_palettes.dart';
 import '../brand/vela_sail_mark.dart';
 
-Color get _cyan => VelaThemeRuntime.active.accent;
 const _sea = Color(0xFF071C31);
 const _startLongitude = 116.4;
 const _startLatitude = 39.9;
