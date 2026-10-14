@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/vela_palettes.dart';
 
@@ -12,16 +13,16 @@ class StellarAtmosphere extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = VelaThemeRuntime.active;
     return Stack(children: [
-      Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+      // Preserve the shared Earth instead of painting a solid page background.
+      Positioned.fill(child: IgnorePointer(child: DecoratedBox(
+        decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
           colors: [
-            t.background,
-            Color.lerp(t.background, t.accent, t.dark ? .12 : .05)!,
-            t.background,
+            t.background.withValues(alpha: .07),
+            t.accent.withValues(alpha: .025),
+            Colors.transparent,
           ],
-        ),
+        )),
       ))),
       Positioned.fill(child: IgnorePointer(child: CustomPaint(
         painter: _StellarFieldPainter(t.accent, t.dark),
@@ -42,33 +43,39 @@ class StellarPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = VelaThemeRuntime.active;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      padding: padding ?? const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.lerp(t.surface, t.accent, selected ? .17 : .035)!,
-            t.surface.withValues(alpha: t.dark ? .92 : .98),
-          ],
-        ),
-        border: Border.all(
-          color: selected ? t.accent.withValues(alpha: .86)
-              : t.line.withValues(alpha: .68),
-          width: selected ? 1.4 : 1,
-        ),
-        boxShadow: selected ? [
-          BoxShadow(
-            color: t.accent.withValues(alpha: t.dark ? .16 : .08),
-            blurRadius: 20,
-            spreadRadius: 1,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: padding ?? const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [
+                Color.lerp(t.surface, t.accent,
+                    selected ? .19 : .065)!
+                    .withValues(alpha: t.dark ? .35 : .67),
+                t.surface.withValues(alpha: t.dark ? .23 : .55),
+              ],
+            ),
+            border: Border.all(
+              color: selected ? t.accent.withValues(alpha: .78)
+                  : t.text.withValues(alpha: .16),
+              width: selected ? 1.4 : 1,
+            ),
+            boxShadow: selected ? [
+              BoxShadow(
+                color: t.accent.withValues(alpha: t.dark ? .16 : .08),
+                blurRadius: 20, spreadRadius: 1,
+              ),
+            ] : null,
           ),
-        ] : null,
+          child: child,
+        ),
       ),
-      child: child,
     );
   }
 }
