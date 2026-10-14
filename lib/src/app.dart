@@ -32,7 +32,6 @@ import 'package:vela_shuo/src/stellar/vela_stellar_proxy_page.dart';
 import 'package:vela_shuo/src/stellar/vela_routing_mode_selector.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_config_page.dart';
 
-Color get _background => VelaThemeRuntime.active.background;
 Color get _panel => VelaThemeRuntime.active.surface;
 Color get _line => VelaThemeRuntime.active.line;
 Color get _blue => VelaThemeRuntime.active.accent;

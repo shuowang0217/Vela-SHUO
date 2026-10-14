@@ -297,11 +297,15 @@ class _WorldRoutePainter extends CustomPainter {
   void _marker(Canvas canvas, Offset position, String label, Color color,
       {required bool showLabel}) {
     if (position.dx < -180 || position.dx > camera.size.width + 180 ||
-        position.dy < -60 || position.dy > camera.size.height + 60) return;
+        position.dy < -60 || position.dy > camera.size.height + 60) {
+      return;
+    }
     canvas.drawCircle(position, 10,
         Paint()..color = color.withValues(alpha: .16));
     canvas.drawCircle(position, 3.5, Paint()..color = color);
-    if (!showLabel) return;
+    if (!showLabel) {
+      return;
+    }
     final painter = TextPainter(
       text: TextSpan(text: label, style: TextStyle(
         color: dark ? const Color(0xFFEAF6FF) : const Color(0xFF163451),
