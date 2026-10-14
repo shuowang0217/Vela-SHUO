@@ -132,14 +132,19 @@ class StellarSectionHeading extends StatelessWidget {
   }
 }
 
-class StellarPlanetGlyph extends StatelessWidget {
-  const StellarPlanetGlyph({super.key, this.size = 72});
+/// Engraved navigation compass replacing the ornamental planets.
+class StellarCompassGlyph extends StatelessWidget {
+  const StellarCompassGlyph({super.key, this.size = 72});
   final double size;
+
   @override
   Widget build(BuildContext context) {
     final t = VelaThemeRuntime.active;
-    return SizedBox(width: size, height: size,
-      child: CustomPaint(painter: _PlanetPainter(t.accent, t.dark)));
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _CompassPainter(t.accent, t.dark)),
+    );
   }
 }
 
@@ -172,39 +177,99 @@ class _StellarFieldPainter extends CustomPainter {
       other.accent != accent || other.dark != dark;
 }
 
-class _PlanetPainter extends CustomPainter {
-  _PlanetPainter(this.accent, this.dark);
+/// Metallic bezel, etched 48-tick dial and two-tone directional needle.
+class _CompassPainter extends CustomPainter {
+  _CompassPainter(this.accent, this.dark);
   final Color accent;
   final bool dark;
+
   @override
   void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width * .5, size.height * .5);
-    final radius = math.min(size.width, size.height) * .35;
-    canvas.drawCircle(c, radius * 1.35, Paint()
-      ..color = accent.withValues(alpha: .17)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * .42));
-    final rect = Rect.fromCircle(center: c, radius: radius);
-    canvas.drawCircle(c, radius, Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(-.48, -.54),
-        colors: [
-          Color.lerp(accent, Colors.white, .43)!,
-          accent,
-          Color.lerp(accent, Colors.black, .72)!,
-        ],
-      ).createShader(rect));
-    canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.rotate(-.3);
-    final orbit = Rect.fromCenter(center: Offset.zero,
-        width: radius * 2.85, height: radius * .62);
-    canvas.drawOval(orbit, Paint()
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = math.min(size.width, size.height) * .455;
+    final bezel = Rect.fromCircle(center: c, radius: r);
+    final metal = Color.lerp(accent, Colors.white, dark ? .30 : .65)!;
+    final shadow = Color.lerp(accent, Colors.black, .65)!;
+
+    canvas.drawCircle(c, r * 1.04, Paint()
+      ..color = accent.withValues(alpha: dark ? .19 : .12)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * .19));
+    canvas.drawCircle(c, r, Paint()
+      ..shader = SweepGradient(colors: [
+        metal, shadow, metal, shadow, metal,
+      ]).createShader(bezel));
+    canvas.drawCircle(c, r * .91, Paint()
+      ..color = dark ? const Color(0xD9091727) : const Color(0xC6F6FAFF));
+    canvas.drawCircle(c, r * .88, Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = accent.withValues(alpha: .65));
-    canvas.restore();
+      ..strokeWidth = math.max(.7, r * .024)
+      ..color = metal.withValues(alpha: .8));
+    canvas.drawCircle(c, r * .73, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(.5, r * .015)
+      ..color = accent.withValues(alpha: .28));
+
+    for (var i = 0; i < 48; i++) {
+      final angle = (i * math.pi / 24) - math.pi / 2;
+      final major = i % 4 == 0;
+      final inside = r * (major ? .76 : .82);
+      final outside = r * .87;
+      final dx = math.cos(angle), dy = math.sin(angle);
+      canvas.drawLine(
+        Offset(c.dx + inside * dx, c.dy + inside * dy),
+        Offset(c.dx + outside * dx, c.dy + outside * dy),
+        Paint()
+          ..strokeWidth = major ? math.max(1, r * .033) : math.max(.5, r * .013)
+          ..strokeCap = StrokeCap.round
+          ..color = metal.withValues(alpha: major ? .9 : .46),
+      );
+    }
+
+    // Fine starburst at the exact intersection of the compass points.
+    final cross = Paint()
+      ..strokeWidth = math.max(.6, r * .014)
+      ..color = accent.withValues(alpha: .33);
+    canvas.drawLine(Offset(c.dx - r * .54, c.dy),
+        Offset(c.dx + r * .54, c.dy), cross);
+    canvas.drawLine(Offset(c.dx, c.dy - r * .54),
+        Offset(c.dx, c.dy + r * .54), cross);
+
+    void triangle(Offset tip, Offset left, Offset right, Color fill) {
+      canvas.drawPath(Path()
+        ..moveTo(tip.dx, tip.dy)
+        ..lineTo(left.dx, left.dy)
+        ..lineTo(right.dx, right.dy)
+        ..close(), Paint()..color = fill);
+    }
+    final wing = r * .15;
+    triangle(Offset(c.dx, c.dy - r * .55),
+      Offset(c.dx - wing, c.dy + r * .09),
+      Offset(c.dx + wing, c.dy + r * .09), metal);
+    triangle(Offset(c.dx, c.dy + r * .55),
+      Offset(c.dx - wing, c.dy - r * .09),
+      Offset(c.dx + wing, c.dy - r * .09),
+      accent.withValues(alpha: .64));
+    // Cut one thin central line for an engraved-metal finish.
+    canvas.drawLine(Offset(c.dx, c.dy - r * .51),
+      Offset(c.dx, c.dy + r * .46),
+      Paint()..color = shadow.withValues(alpha: .45)
+        ..strokeWidth = math.max(.6, r * .025));
+    canvas.drawCircle(c, r * .105, Paint()..color = shadow);
+    canvas.drawCircle(c, r * .066, Paint()..color = metal);
+
+    if (r >= 18) {
+      final tp = TextPainter(
+        text: TextSpan(text: 'N', style: TextStyle(
+          fontSize: r * .24, fontWeight: FontWeight.w800,
+          color: metal)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(c.dx - tp.width / 2,
+          c.dy - r * .74 - tp.height / 2));
+    }
   }
+
   @override
-  bool shouldRepaint(covariant _PlanetPainter old) =>
+  bool shouldRepaint(covariant _CompassPainter old) =>
       accent != old.accent || dark != old.dark;
 }
