@@ -245,20 +245,11 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
       child: SizedBox(height: height, child: ClipRRect(
         borderRadius: BorderRadius.circular(23),
         child: Stack(children: [
-          Positioned(
-            right: narrow ? -86 : 0,
-            top: narrow ? -48 : -105,
-            width: narrow ? 300 : 460,
-            height: narrow ? 300 : 460,
-            child: IgnorePointer(child: Opacity(
-              opacity: t.dark ? .87 : .55,
-              child: VelaGlobe(demo: widget.demo),
-            )),
-          ),
           Positioned.fill(child: DecoratedBox(
             decoration: BoxDecoration(gradient: LinearGradient(
-              colors: [t.surface, t.surface.withValues(alpha: .94),
-                t.surface.withValues(alpha: .02)],
+              colors: [t.surface.withValues(alpha: .46),
+                t.surface.withValues(alpha: .23),
+                t.surface.withValues(alpha: .04)],
               stops: const [0, .40, 1],
             )),
           )),
