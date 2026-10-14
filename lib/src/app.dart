@@ -6,6 +6,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
@@ -365,6 +366,9 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                 )),
               Expanded(child: page(desktop)),
             ])),
+            if (voyageHome && desktop && Platform.isWindows)
+              const Positioned(left: 0, right: 0, top: 0, height: 90,
+                child: _VelaReferenceTitlebar()),
           ]),
         ),
         bottomNavigationBar: desktop ? null : Container(
@@ -395,6 +399,60 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   );
 }
 
+/// Frameless Windows chrome faithfully positioned over the full-bleed ocean
+/// background. The close button still travels through the existing guarded
+/// window close listener, which hides to tray without stopping proxy traffic.
+class _VelaReferenceTitlebar extends StatelessWidget {
+  const _VelaReferenceTitlebar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(children: [
+      Positioned.fill(child: DragToMoveArea(
+        child: const ColoredBox(color: Colors.transparent))),
+      Positioned(left: 30, top: 25, child: Row(children: [
+        const VelaBrandLogo(size: 65),
+        const SizedBox(width: 10),
+        const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Vela', style: TextStyle(color: Color(0xFFF3FAFF),
+            fontSize: 37, fontStyle: FontStyle.italic,
+            fontWeight: FontWeight.w700, height: .98)),
+          SizedBox(height: 3),
+          Text('Let Your Internet Set Sail',
+            style: TextStyle(color: Color(0xFFBFE4F4),
+              fontStyle: FontStyle.italic, fontSize: 12)),
+        ]),
+      ])),
+      Positioned(top: 10, right: 18, child: Row(children: [
+        _chromeButton(Icons.remove_rounded, '最小化到任务栏',
+          () => windowManager.minimize()),
+        const SizedBox(width: 13),
+        _chromeButton(Icons.crop_square_rounded, '最大化或还原',
+          () async {
+            if (await windowManager.isMaximized()) {
+              await windowManager.unmaximize();
+            } else {
+              await windowManager.maximize();
+            }
+          }),
+        const SizedBox(width: 13),
+        _chromeButton(Icons.close_rounded, '关闭到系统托盘',
+          () => windowManager.close()),
+      ])),
+    ]);
+  }
+
+  Widget _chromeButton(IconData icon, String tip,
+      Future<void> Function() action) => IconButton(
+    tooltip: tip,
+    icon: Icon(icon, size: 24, color: const Color(0xFFF0F8FF)),
+    onPressed: () { unawaited(action()); },
+    hoverColor: const Color(0x4B82C8F0),
+    splashRadius: 23,
+    iconSize: 24,
+  );
+}
+
 class _DesktopNav extends StatelessWidget {
   const _DesktopNav({
     required this.selected,
@@ -409,27 +467,8 @@ class _DesktopNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(children: [
-    SizedBox(height: voyageMode ? 34 : 32),
-    if (voyageMode && extended)
-      Padding(padding: const EdgeInsets.symmetric(horizontal: 28),
-        child: Row(children: [
-          VelaBrandLogo(size: 50),
-          const SizedBox(width: 8),
-          const Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Vela', style: TextStyle(
-                color: Color(0xFFF5FBFF), fontSize: 25,
-                fontStyle: FontStyle.italic,
-                fontWeight: FontWeight.bold)),
-              Text('Let Your Internet Set Sail',
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Color(0xFFBED9EA),
-                  fontStyle: FontStyle.italic, fontSize: 9)),
-            ],
-          )),
-        ]))
-    else ...[
+    SizedBox(height: voyageMode ? 146 : 32),
+    if (!voyageMode) ...[
       VelaBrandLogo(size: 68),
       if (extended) ...[
         const SizedBox(height: 8),
@@ -440,7 +479,7 @@ class _DesktopNav extends StatelessWidget {
           color: _blue, fontSize: 12, letterSpacing: 2)),
       ],
     ],
-    SizedBox(height: voyageMode ? 68 : extended ? 46 : 25),
+    SizedBox(height: voyageMode ? 0 : extended ? 46 : 25),
     for (final i in _ShellState.navOrder)
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
