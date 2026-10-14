@@ -4,7 +4,6 @@ import '../android/vela_android_vpn.dart';
 import '../core/vela_connection_coordinator.dart';
 import '../core/vela_core_controller.dart';
 import '../home/demo_connection.dart';
-import '../home/globe.dart';
 import '../network/vela_flclash_subscription_adapter.dart';
 import 'vela_stellar_import_dialog.dart';
 import '../subscription/vela_subscription_controller.dart';
