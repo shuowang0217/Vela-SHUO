@@ -210,9 +210,11 @@ class _VoyagePainter extends CustomPainter {
       targetLon -= 360;
     }
     final isPacific = targetLon >= 70 && targetLon <= 265;
-    final left = isPacific ? 77.0 : 36.0;
-    final right = isPacific ? 264.0 : math.max(285.0, targetLon + 18);
-    const bottom = -18.0;
+    // Match the reference image's two landmark positions at 1536x1024:
+    // Shanghai (434,410) and Los Angeles (1228,445).
+    final left = isPacific ? 55.0 : 36.0;
+    final right = isPacific ? 289.0 : math.max(295.0, targetLon + 18);
+    const bottom = -19.0;
     const top = 63.0;
     Offset project(double longitude, double latitude) => Offset(
       (longitude - left) * size.width / (right - left),
@@ -339,38 +341,12 @@ class _VoyagePainter extends CustomPainter {
           size.height * cloud.$4), fogPaint);
     }
 
-    // Sparse chart meridians give the water depth without cluttering the map.
-    final chartGrid = Paint()
-      ..color = const Color(0xFF5BC2ED).withValues(alpha: .12)
-      ..strokeWidth = .8;
-    final firstMeridian = (left / 10).ceil() * 10;
-    for (var lon = firstMeridian.toDouble(); lon < right; lon += 10) {
-      final x = project(lon, 20).dx;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), chartGrid);
-    }
-    final firstParallel = (bottom / 10).ceil() * 10;
-    for (var lat = firstParallel.toDouble(); lat < top; lat += 10) {
-      final y = project(120, lat).dy;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), chartGrid);
-    }
-
-    // Overlay sea contour guides. They are decorative, not boundaries.
-    final contour = Paint()
-      ..color = const Color(0xFF57C6EA).withValues(alpha: .13)
-      ..style = PaintingStyle.stroke..strokeWidth = 1;
-    for (var i = 0; i < 17; i++) {
-      final y = size.height * (.20 + i * .055);
-      final wave = Path()..moveTo(0, y);
-      for (var x = 0.0; x <= size.width; x += 18) {
-        wave.lineTo(x, y + math.sin(x * .008 + i * .75) * 13);
-      }
-      canvas.drawPath(wave, contour);
-    }
-
+    // Reference art has photographic water and cloud shadows; gridlines and
+    // synthetic squiggles from the old nautical theme would change its look.
     // Geographic labels are tied to actual map coordinates, not hard-coded
     // screen positions. Small countries hidden outside the current viewport.
     final cityLabel = const TextStyle(color: Color(0xFFDEEFFA),
-      fontSize: 17, fontWeight: FontWeight.w600,
+      fontSize: 25, fontWeight: FontWeight.w500,
       shadows: [Shadow(color: Color(0xFF001327), blurRadius: 11)]);
     void mapLabel(String label, double lon, double lat, {bool muted = false}) {
       var wrapped = lon;
@@ -390,34 +366,41 @@ class _VoyagePainter extends CustomPainter {
                   shadows: [Shadow(color: Color(0xFF001327), blurRadius: 9)])
               : cityLabel);
     }
-    mapLabel('中国', 106, 35);
-    mapLabel('日本', 138.4, 38.9);
+    mapLabel('中国', 98, 35);
+    mapLabel('日本', 139.4, 39.9);
     mapLabel('韩国', 126.1, 37.7);
     mapLabel('台湾', 121.0, 23.8);
     mapLabel('东海', 129, 27, muted: true);
     mapLabel('黄海', 123.5, 34.8, muted: true);
     mapLabel('菲律宾', 125, 12, muted: true);
-    mapLabel('太平洋', 180, 10, muted: true);
+    mapLabel('太平洋', 184, 11, muted: false);
     mapLabel('美国', -119.5, 42);
     mapLabel('英国', -2.3, 54);
     mapLabel('新加坡', 103.6, 2.4);
 
     // The departing boat is near China until a real connection starts.
     final departure = project(start.dx, start.dy);
-    final destination = project(targetLon,
-        target?.latitude ?? 33.5);
-    final delta = destination - departure;
-    var normal = delta.distance < 1 ? const Offset(0, -1) :
-      Offset(delta.dy, -delta.dx) / delta.distance;
-    if (normal.dy > 0) normal = -normal;
-    final control = Offset.lerp(departure, destination, .5)! +
-        normal * math.min(size.height * .24, delta.distance * .28);
+    // Decorative projection of the ocean route, not a claimed precise
+    // geolocation of the remote server. In the reference artwork the Pacific
+    // endpoint appears near screen y=.435 irrespective of satellite latitude.
+    final endpoint = target == null || (target.longitude < -90 &&
+            target.longitude > -160)
+        ? Offset(project(targetLon, 27).dx, size.height * .435)
+        : project(targetLon, target.latitude);
+    final delta = endpoint - departure;
+    final controlOne = departure + Offset(delta.dx * .18,
+        size.height * .11);
+    final controlTwo = departure + Offset(delta.dx * .70,
+        -size.height * .18);
     Offset pointAt(double t) {
-      final s = 1 - t;
-      return departure * (s * s) + control * (2 * s * t) +
-          destination * (t * t);
+      final u = 1 - t;
+      return departure * (u * u * u) +
+          controlOne * (3 * u * u * t) +
+          controlTwo * (3 * u * t * t) +
+          endpoint * (t * t * t);
     }
-    final preview = target == null || (!connected && progress <= .0001);
+    final destination = endpoint;
+    final preview = !connected && progress <= .0001;
     final hasRoute = true;
     if (hasRoute) {
       final glowing = Paint()..strokeWidth = 7
@@ -431,7 +414,7 @@ class _VoyagePainter extends CustomPainter {
       for (var i = 1; i <= 80; i++) {
         final t = (preview ? 1.0 : progress) * i / 80;
         final p = pointAt(t);
-        if (i % 3 != 0 || i % 12 == 0) {
+        if (i % 5 < 3) {
           path.lineTo(p.dx, p.dy);
         } else {
           path.moveTo(p.dx, p.dy);
