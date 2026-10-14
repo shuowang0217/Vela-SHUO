@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import '../android/vela_android_vpn.dart';
 import '../core/vela_connection_coordinator.dart';
 import '../home/demo_connection.dart';
-import '../home/globe.dart';
 import '../network/vela_flclash_subscription_adapter.dart';
 import '../smart/vela_smart_controller.dart';
 import '../subscription/vela_subscription_controller.dart';
