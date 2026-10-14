@@ -383,10 +383,10 @@ class _VoyagePainter extends CustomPainter {
     // Decorative projection of the ocean route, not a claimed precise
     // geolocation of the remote server. In the reference artwork the Pacific
     // endpoint appears near screen y=.435 irrespective of satellite latitude.
-    final endpoint = target == null || (target.longitude < -90 &&
+    final endpoint = target == null || (target!.longitude < -90 &&
             target.longitude > -160)
         ? Offset(project(targetLon, 27).dx, size.height * .435)
-        : project(targetLon, target.latitude);
+        : project(targetLon, target!.latitude);
     final delta = endpoint - departure;
     final controlOne = departure + Offset(delta.dx * .18,
         size.height * .11);
