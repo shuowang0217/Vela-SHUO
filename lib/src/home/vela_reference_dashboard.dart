@@ -370,11 +370,21 @@ class _VelaReferenceDashboardState extends State<VelaReferenceDashboard> {
   String _portCity(String node) {
     final lower = node.toLowerCase();
     if (lower.contains('洛杉矶') || lower.contains('los angeles') ||
-        lower.contains('la-')) return '洛杉矶';
-    if (lower.contains('东京') || lower.contains('tokyo')) return '东京';
-    if (lower.contains('香港') || lower.contains('hong kong')) return '香港';
-    if (lower.contains('新加坡') || lower.contains('singapore')) return '新加坡';
-    if (lower.contains('台北') || lower.contains('taipei')) return '台北';
+        lower.contains('la-')) {
+      return '洛杉矶';
+    }
+    if (lower.contains('东京') || lower.contains('tokyo')) {
+      return '东京';
+    }
+    if (lower.contains('香港') || lower.contains('hong kong')) {
+      return '香港';
+    }
+    if (lower.contains('新加坡') || lower.contains('singapore')) {
+      return '新加坡';
+    }
+    if (lower.contains('台北') || lower.contains('taipei')) {
+      return '台北';
+    }
     return node == '未选择节点' ? '' : '按节点名称推测';
   }
 
