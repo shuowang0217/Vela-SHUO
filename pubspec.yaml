@@ -1,7 +1,7 @@
 name: vela_shuo
 description: Original SHUO cross-platform network client.
 publish_to: none
-version: 1.3.1+9
+version: 1.3.1+10
 
 environment:
   sdk: '>=3.9.0 <4.0.0'
@@ -36,5 +36,7 @@ flutter:
     - assets/maps/world_110m.json
     - assets/earth/earth_day.jpg
     - assets/earth/earth_night_lights.png
+    - assets/world/watercolor_day.webp
+    - assets/world/watercolor_night.webp
     - assets/tray/proxy_on.ico
     - assets/tray/proxy_off.ico
