@@ -10,6 +10,7 @@ import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/core/vela_window_exit_guard.dart';
+import 'package:vela_shuo/src/core/vela_windows_tray.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
@@ -47,12 +48,14 @@ class VelaShuoApp extends StatelessWidget {
     this.core,
     this.systemProxy,
     this.windowExitGuard,
+    this.windowsTray,
   });
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
   final VelaSystemProxyManager? systemProxy;
   final VelaWindowExitGuard? windowExitGuard;
+  final VelaWindowsTrayController? windowsTray;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -72,7 +75,7 @@ class VelaShuoApp extends StatelessWidget {
         darkTheme: _theme(Brightness.dark, palette),
         home: _Shell(settings: settings, diagnostics: diagnostics,
           core: core, systemProxy: systemProxy,
-          windowExitGuard: windowExitGuard),
+          windowExitGuard: windowExitGuard, windowsTray: windowsTray),
       );
     },
   );
@@ -100,12 +103,13 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
 
 class _Shell extends StatefulWidget {
   const _Shell({required this.settings, this.diagnostics,
-    this.core, this.systemProxy, this.windowExitGuard});
+    this.core, this.systemProxy, this.windowExitGuard, this.windowsTray});
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
   final VelaSystemProxyManager? systemProxy;
   final VelaWindowExitGuard? windowExitGuard;
+  final VelaWindowsTrayController? windowsTray;
 
   @override
   State<_Shell> createState() => _ShellState();
@@ -170,6 +174,11 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
           : VelaSubscriptionController(
               core: widget.core!, previewOnly: Platform.isAndroid);
       unawaited(subscription!.restoreSaved());
+      if (subscription is VelaFlClashSubscriptionController) {
+        widget.windowExitGuard?.flushSavedProfiles =
+            (subscription! as VelaFlClashSubscriptionController)
+                .flushPendingSaves;
+      }
       if (Platform.isAndroid) {
         subscription!.addListener(syncRealGlobe);
       }
@@ -181,6 +190,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         subscription!.addListener(syncRealGlobe);
         connection!.addListener(syncRealGlobe);
         widget.windowExitGuard?.shutdownConnection = connection!.shutdown;
+        widget.windowsTray?.attachConnection(connection!);
       }
       // Android uses the same FlClash Go IPC and measurement algorithms as
       // Windows. Its Android VpnService does not have a WinINet coordinator.
@@ -245,6 +255,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     androidVpn?.dispose();
     traffic?.dispose();
     widget.windowExitGuard?.shutdownConnection = null;
+    widget.windowExitGuard?.flushSavedProfiles = null;
     // Restore WinINet BEFORE terminating its local endpoint. Never kill
     // the core synchronously while the system proxy still points at it.
     final link = connection;
@@ -310,7 +321,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                   width: extended ? 190 : 90,
                   decoration: BoxDecoration(
                     color: _panel.withValues(alpha:
-                        VelaThemeRuntime.active.dark ? .28 : .60),
+                        VelaThemeRuntime.active.dark ? .13 : .32),
                     border: Border(right: BorderSide(
                         color: _foreground.withValues(alpha: .17))),
                   ),
@@ -326,7 +337,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
           child: Container(
           decoration: BoxDecoration(
             color: _panel.withValues(alpha:
-                VelaThemeRuntime.active.dark ? .28 : .65),
+                VelaThemeRuntime.active.dark ? .14 : .33),
             border: Border(top: BorderSide(
                 color: _foreground.withValues(alpha: .18))),
           ),
@@ -379,22 +390,22 @@ class _EarthBackdrop extends StatelessWidget {
           begin: Alignment.centerLeft, end: Alignment.centerRight,
           colors: tokens.dark
               ? [
-                  _background.withValues(alpha: .66),
-                  _background.withValues(alpha: .23),
-                  _background.withValues(alpha: .13),
+                  _background.withValues(alpha: .36),
+                  _background.withValues(alpha: .14),
+                  _background.withValues(alpha: .07),
                 ]
               : [
-                  _background.withValues(alpha: .78),
-                  _background.withValues(alpha: .53),
-                  _background.withValues(alpha: .39),
+                  _background.withValues(alpha: .50),
+                  _background.withValues(alpha: .31),
+                  _background.withValues(alpha: .21),
                 ],
         ))),
         DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
           begin: Alignment.topCenter, end: Alignment.bottomCenter,
           colors: [
-            _background.withValues(alpha: .29),
+            _background.withValues(alpha: .18),
             Colors.transparent,
-            _background.withValues(alpha: .34),
+            _background.withValues(alpha: .22),
           ],
         ))),
       ]));
@@ -664,7 +675,7 @@ class _DemoTag extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
     decoration: BoxDecoration(
       color: _panel.withValues(alpha:
-          VelaThemeRuntime.active.dark ? .30 : .60),
+          VelaThemeRuntime.active.dark ? .14 : .31),
       border: Border.all(color: _line),
       borderRadius: BorderRadius.circular(30),
     ),
@@ -693,7 +704,7 @@ class _GlassCard extends StatelessWidget {
         padding: padding,
         decoration: BoxDecoration(
           color: _panel.withValues(alpha:
-              VelaThemeRuntime.active.dark ? .28 : .61),
+              VelaThemeRuntime.active.dark ? .12 : .28),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
               color: _foreground.withValues(alpha: .19)),
@@ -1203,7 +1214,8 @@ class _SettingsPage extends StatelessWidget {
             key: const ValueKey('windows_exit_action'),
             leading: Icon(Icons.power_settings_new_rounded, color: _blue),
             title: const Text('退出程序'),
-            subtitle: const Text('点击窗口 × 只会最小化；这里才会断开代理并退出'),
+            subtitle: const Text('点击 × 隐藏到系统托盘；点击 — 最小化到任务栏。'
+                '托盘右键可开启/关闭代理与安全退出。'),
             trailing: OutlinedButton(
               onPressed: () async {
                 final accepted = await showDialog<bool>(
