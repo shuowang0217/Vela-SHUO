@@ -30,10 +30,10 @@ class VelaSailPainter extends CustomPainter {
     canvas.translate((size.width - 160 * ratio) / 2,
         (size.height - 160 * ratio) / 2);
     canvas.scale(ratio);
-    const navy = Color(0xFF0B294B);
-    const steel = Color(0xFF7294AE);
-    const pearl = Color(0xFFE7F5FF);
-    const gold = Color(0xFFE7BA72);
+    const navy = Color(0xFF24505A);
+    const steel = Color(0xFF76A5A4);
+    const pearl = Color(0xFFF4EEDB);
+    const gold = Color(0xFFC69D67);
     final muted = !active || monochrome;
     final primary = muted ? const Color(0xFF7890A6) : navy;
     final glow = muted ? const Color(0xFFADBAC5) : gold;
@@ -103,6 +103,25 @@ class VelaSailPainter extends CustomPainter {
       Paint()
         ..color = glow.withValues(alpha: .76)
         ..strokeWidth = 2.4
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke);
+
+    // Ink contours make the sail feel hand-drawn rather than metallic.
+    final outline = Paint()
+      ..color = muted ? primary : const Color(0xFF224954)
+      ..strokeWidth = 1.8
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    canvas.drawPath(outer, outline);
+    canvas.drawPath(inner, outline);
+    canvas.drawPath(hull, outline);
+    canvas.drawPath(Path()
+      ..moveTo(40, 149)
+      ..quadraticBezierTo(80, 147, 113, 152),
+      Paint()
+        ..color = glow.withValues(alpha: .52)
+        ..strokeWidth = 1.6
         ..strokeCap = StrokeCap.round
         ..style = PaintingStyle.stroke);
 
