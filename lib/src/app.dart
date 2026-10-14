@@ -1275,8 +1275,8 @@ class _SettingsPage extends StatelessWidget {
         Divider(height: 1, color: _line),
         ListTile(
           leading: Icon(Icons.info_outline, color: _blue),
-          title: Text(Platform.isAndroid ? 'Vela-SHUO v1.2.4 · Android VPN Beta'
-              : 'Vela-SHUO v1.2.4 · Windows Beta'),
+          title: Text(Platform.isAndroid ? 'Vela-SHUO v1.3.0 · Android VPN'
+              : 'Vela-SHUO v1.3.0 · Windows'),
           subtitle: Text(Platform.isAndroid
               ? '可授权 Android 系统 VPN；真实连接以服务状态为准'
               : '真实系统代理连接测试 · 尚非 TUN/VPN 全局代理'),
