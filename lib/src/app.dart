@@ -24,7 +24,7 @@ import 'package:vela_shuo/src/smart/vela_smart_panel.dart';
 import 'package:vela_shuo/src/core/vela_core_settings_card.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
-import 'package:vela_shuo/src/home/globe.dart';
+import 'package:vela_shuo/src/home/world_atlas.dart';
 import 'package:vela_shuo/src/brand/vela_sail_mark.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
@@ -424,25 +424,8 @@ class _EarthBackdrop extends StatelessWidget {
   final VelaDemoController demo;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final width = constraints.maxWidth;
-      final height = constraints.maxHeight;
-      final desktop = width >= 820;
-      final side = math.max(width * 1.65, height * 1.45);
-      final cx = width * (desktop ? .66 : .58);
-      final cy = height * (desktop ? .52 : .40);
-      // Draw a single undimmed Earth; all frosting is clipped to cards.
-      return ClipRect(child: Stack(fit: StackFit.expand, children: [
-        ColoredBox(color: _background),
-        Positioned(
-          left: cx - side / 2, top: cy - side / 2,
-          width: side, height: side,
-          child: IgnorePointer(child: VelaGlobe(demo: demo)),
-        ),
-      ]));
-    },
-  );
+  Widget build(BuildContext context) =>
+      VelaWorldAtlas(demo: demo);
 }
 
 class _DesktopNav extends StatelessWidget {

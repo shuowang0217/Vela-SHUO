@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vela_shuo/src/app.dart';
-import 'package:vela_shuo/src/home/globe.dart';
+import 'package:vela_shuo/src/home/world_atlas.dart';
 import 'package:vela_shuo/src/network/flclash_core_api.dart';
 import 'package:vela_shuo/src/network/flclash_windows_backend.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
@@ -43,7 +43,7 @@ void main() {
       core: VelaFlClashCoreController(backend),
     ));
     await tester.pump();
-    expect(find.byType(VelaGlobe), findsOneWidget);
+    expect(find.byType(VelaWorldAtlas), findsOneWidget);
     expect(find.byKey(const ValueKey('home_routing_selector')), findsOneWidget);
     expect(find.text('航线模式'), findsOneWidget);
 
@@ -55,7 +55,7 @@ void main() {
     await tester.pump();
     expect(find.byKey(const ValueKey('home_routing_selector')), findsNothing);
     expect(find.byKey(const ValueKey('routing_mode_rule')), findsNothing);
-    expect(find.byType(VelaGlobe), findsOneWidget);
+    expect(find.byType(VelaWorldAtlas), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 }

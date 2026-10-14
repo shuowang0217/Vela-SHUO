@@ -1,8 +1,8 @@
-name: Vela v1.3.0 Stable - Windows and Android
+name: Vela v1.3.1 Stable - Windows and Android
 
 on:
   push:
-    branches: [release/v1.3.0]
+    branches: [feature/v1.3.1-world-atlas]
   workflow_dispatch:
 
 permissions:
@@ -171,16 +171,16 @@ jobs:
           Copy-Item 'flclash/core/Clash.Meta/LICENSE' (Join-Path $coreDir 'LICENSE-mihomo.txt')
           Copy-Item 'flclash/LICENSE' (Join-Path $coreDir 'LICENSE-FlClash-GPL-3.0.txt')
           Rename-Item (Join-Path $release.FullName 'vela_shuo.exe') 'Vela-SHUO.exe'
-          $target = 'vela/Vela-v1.3.0-Windows-x64.zip'
+          $target = 'vela/Vela-v1.3.1-Windows-x64.zip'
           Compress-Archive -Path (Join-Path $release.FullName '*') -DestinationPath $target
           $sha = (Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$sha  Vela-v1.3.0-Windows-x64.zip" |
+          "$sha  Vela-v1.3.1-Windows-x64.zip" |
             Set-Content 'vela/SHA256-Windows.txt'
       - uses: actions/upload-artifact@v4
         with:
-          name: Vela-v1.3.0-Windows-x64
+          name: Vela-v1.3.1-Windows-x64
           path: |
-            vela/Vela-v1.3.0-Windows-x64.zip
+            vela/Vela-v1.3.1-Windows-x64.zip
             vela/SHA256-Windows.txt
           if-no-files-found: error
           retention-days: 14
@@ -275,17 +275,17 @@ jobs:
           set -euo pipefail
           flutter build apk --release --target-platform android-arm64
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk dist/Vela-v1.3.0-Android-arm64.apk
-          unzip -l dist/Vela-v1.3.0-Android-arm64.apk | grep 'lib/arm64-v8a/libcore.so'
-          unzip -l dist/Vela-v1.3.0-Android-arm64.apk | grep 'lib/arm64-v8a/libclash.so'
-          if unzip -l dist/Vela-v1.3.0-Android-arm64.apk | grep -q libmihomo-jni.so; then
+          cp build/app/outputs/flutter-apk/app-release.apk dist/Vela-v1.3.1-Android-arm64.apk
+          unzip -l dist/Vela-v1.3.1-Android-arm64.apk | grep 'lib/arm64-v8a/libcore.so'
+          unzip -l dist/Vela-v1.3.1-Android-arm64.apk | grep 'lib/arm64-v8a/libclash.so'
+          if unzip -l dist/Vela-v1.3.1-Android-arm64.apk | grep -q libmihomo-jni.so; then
             echo 'Unexpected legacy native core included' >&2
             exit 1
           fi
-          sha256sum dist/Vela-v1.3.0-Android-arm64.apk > dist/SHA256-Android.txt
+          sha256sum dist/Vela-v1.3.1-Android-arm64.apk > dist/SHA256-Android.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Vela-v1.3.0-Android-arm64
+          name: Vela-v1.3.1-Android-arm64
           path: vela/dist/*
           if-no-files-found: error
           retention-days: 14
