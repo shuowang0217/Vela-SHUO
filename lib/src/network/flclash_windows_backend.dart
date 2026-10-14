@@ -98,7 +98,7 @@ class FlClashWindowsBackend {
       }
     }
     if (!await api.initialize(path)) {
-      throw StateError('FlClash Go core rejected initialization');
+      throw StateError('航线服务初始化失败');
     }
     ready = true;
   }
@@ -133,7 +133,7 @@ class FlClashWindowsBackend {
         proxies, groupNames, rawProxies: nativeProxies);
     if (importedNodes.isEmpty) {
       throw const FlClashCoreFailure('empty_profile',
-          'FlClash core loaded no usable nodes');
+          '当前订阅没有可用节点');
     }
     imported = true;
     profileRevision++;
