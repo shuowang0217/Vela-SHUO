@@ -2,7 +2,7 @@ name: Vela Windows + Android CI
 
 on:
   push:
-    branches: [main, release/v1.0.0, feature/v1.1.0-multi-subscriptions-tray, feature/v1.1.1-ocean-branding, feature/v1.2.0-voyage-map, feature/v1.2.1-chart-glass, feature/v1.3.0-reference-ui, feature/v1.3.1-reference-fidelity]
+    branches: [main, release/v1.0.0, feature/v1.1.0-multi-subscriptions-tray, feature/v1.1.1-ocean-branding, feature/v1.2.0-voyage-map, feature/v1.2.1-chart-glass, feature/v1.3.0-reference-ui, feature/v1.3.1-reference-fidelity, feature/v1.4.0-reference-product]
   workflow_dispatch:
 
 permissions:
