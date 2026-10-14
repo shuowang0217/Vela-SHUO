@@ -133,7 +133,7 @@ class MainActivity : FlutterActivity() {
                         }
                     } catch (_: Exception) {
                         result.error("flclash_core_error",
-                            "FlClash 后台调用失败", null)
+                            "Vela 航线服务调用失败", null)
                     }
                 }
                 "testConnection" -> {
