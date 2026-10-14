@@ -26,7 +26,7 @@ class VelaCoreSettingsCard extends StatelessWidget {
       return ClipRRect(
         borderRadius: BorderRadius.circular(18),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
           child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
