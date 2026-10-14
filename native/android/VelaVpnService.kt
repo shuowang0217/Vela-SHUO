@@ -110,7 +110,7 @@ class VelaVpnService : VpnService() {
         val configFile = File(dir, "config.yaml")
         if (!configFile.isFile || configFile.length() <= 0L ||
             configFile.length() > 1500000L) {
-            fail("未找到有效的 Mihomo 配置")
+            fail("未找到有效的航线配置")
             return
         }
         VelaVpnState.report("connecting")
@@ -127,12 +127,12 @@ class VelaVpnService : VpnService() {
                 Clash.quickSetup(initJson, "{}") { message ->
                     if (ticket != generation.get()) return@quickSetup
                     if (!message.isNullOrEmpty()) {
-                        fail("Mihomo 配置验证失败")
+                        fail("航线配置验证失败")
                         return@quickSetup
                     }
                     try {
                         val tun = Builder()
-                            .setSession("Vela-SHUO Mihomo")
+                            .setSession("Vela-SHUO")
                             .setMtu(1400)
                             .addAddress("172.19.0.1", 30)
                             .addAddress("fd80:19::1", 126)
@@ -170,7 +170,7 @@ class VelaVpnService : VpnService() {
                     }
                 }
             } catch (_: Throwable) {
-                if (ticket == generation.get()) fail("Mihomo 原生内核加载失败")
+                if (ticket == generation.get()) fail("航线服务启动失败")
             }
         }, "vela-mihomo-start").start()
     }
