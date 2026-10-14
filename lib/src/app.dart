@@ -348,9 +348,9 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                 ClipRect(child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                   child: Container(
-                    width: voyageHome && extended ? 214 : extended ? 190 : 90,
+                    width: voyageHome && extended ? 230 : extended ? 190 : 90,
                     decoration: BoxDecoration(
-                      color: voyageHome ? const Color(0x65071931)
+                      color: voyageHome ? const Color(0x570A293F)
                           : const Color(0xDE0B2541),
                       border: Border(right: BorderSide(
                         color: voyageHome
@@ -411,9 +411,9 @@ class _DesktopNav extends StatelessWidget {
   Widget build(BuildContext context) => Column(children: [
     SizedBox(height: voyageMode ? 34 : 32),
     if (voyageMode && extended)
-      Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 28),
         child: Row(children: [
-          VelaBrandLogo(size: 60),
+          VelaBrandLogo(size: 50),
           const SizedBox(width: 8),
           const Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -440,7 +440,7 @@ class _DesktopNav extends StatelessWidget {
           color: _blue, fontSize: 12, letterSpacing: 2)),
       ],
     ],
-    SizedBox(height: voyageMode ? 60 : extended ? 46 : 25),
+    SizedBox(height: voyageMode ? 68 : extended ? 46 : 25),
     for (final i in _ShellState.navOrder)
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -454,7 +454,7 @@ class _DesktopNav extends StatelessWidget {
             onTap: () => onSelect(i),
             borderRadius: BorderRadius.circular(13),
             child: Container(
-              height: voyageMode ? 75 : extended ? 52 : 70,
+              height: voyageMode ? 72 : extended ? 52 : 70,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(13),
                 border: Border.all(
@@ -508,6 +508,15 @@ class _DesktopNav extends StatelessWidget {
         ),
       ),
     Spacer(),
+    if (voyageMode)
+      Padding(padding: const EdgeInsets.only(left: 25, bottom: 46),
+        child: Row(children: const [
+          Icon(Icons.anchor_rounded, color: Color(0xFFC5E6F5), size: 24),
+          SizedBox(width: 12),
+          Text('Vela v1.3.1', style: TextStyle(
+            color: Color(0xFFC9E1EF), fontSize: 13)),
+        ]),
+      ),
   ]);
 }
 
