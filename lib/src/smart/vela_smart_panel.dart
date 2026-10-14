@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../subscription/vela_subscription_controller.dart';
 import '../theme/vela_palettes.dart';
-import '../brand/vela_journal_paper.dart';
 import 'vela_smart_controller.dart';
 import 'vela_smart_country.dart';
 

@@ -196,7 +196,8 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
               widget.demo.phase != VelaPhase.idle &&
               widget.demo.phase != VelaPhase.error);
           return ClipRect(child: Stack(fit: StackFit.expand, children: [
-            const ColoredBox(color: Color(0xFF071929)),
+            ColoredBox(color: dark ? const Color(0xFF102A36)
+                : const Color(0xFFBFD6D3)),
             _WorldTiles(camera: camera,
               asset: 'assets/earth/earth_watercolor_day.jpg', show: !dark),
             _WorldTiles(camera: camera,
@@ -205,10 +206,10 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
               gradient: LinearGradient(
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
                 colors: dark
-                    ? const [Color(0x44071728), Color(0x110B233F),
-                        Color(0x77040C18)]
-                    : const [Color(0x28D7E8F4), Color(0x080A3B69),
-                        Color(0x33091B32)],
+                    ? const [Color(0x0E071728), Color(0x000B233F),
+                        Color(0x29040C18)]
+                    : const [Color(0x0AD7E8F4), Color(0x000A3B69),
+                        Color(0x11091B32)],
               ),
             ))),
             CustomPaint(painter: _WorldRoutePainter(
@@ -270,6 +271,7 @@ class _WorldRoutePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final home = camera.project(VelaWorldCamera.beijing);
     _drawCityNames(canvas);
+    if (size.width > 720) _drawCompass(canvas, size);
     _marker(canvas, home, 'BEIJING', const Color(0xFFE3B777),
       showLabel: !active || homebound);
     if (!active || (from - to).distance < .01) return;
@@ -278,27 +280,77 @@ class _WorldRoutePainter extends CustomPainter {
       end: camera.projectAlong(from, to),
       globeRadius: size.shortestSide * .42,
     );
-    canvas.drawPath(route.path(), Paint()
-      ..style = PaintingStyle.stroke ..strokeWidth = 1.5
-      ..color = const Color(0x77B9DFFF));
+    final dashedInk = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..color = dark ? const Color(0xD1D4B57D)
+          : const Color(0xB7336171);
+    for (final metric in route.path().computeMetrics()) {
+      for (var d = 0.0; d < metric.length; d += 15) {
+        canvas.drawPath(metric.extractPath(
+          d, math.min(d + 7, metric.length)), dashedInk);
+      }
+    }
     final traveled = route.path(until: progress);
     canvas.drawPath(traveled, Paint()
       ..style = PaintingStyle.stroke ..strokeWidth = 8
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9)
-      ..color = const Color(0xB06FCBFF));
+      ..color = dark ? const Color(0x72C1A97E)
+          : const Color(0x779BC7CB));
     canvas.drawPath(traveled, Paint()
       ..style = PaintingStyle.stroke ..strokeWidth = 2.6
-      ..strokeCap = StrokeCap.round ..color = const Color(0xFFE6BB76));
+      ..strokeCap = StrokeCap.round
+      ..color = dark ? const Color(0xFFE9C78D)
+          : const Color(0xFF365A61));
     _marker(canvas, camera.projectAlong(from, to), label,
-      const Color(0xFF84D0FF), showLabel: true);
+      dark ? const Color(0xFFD6BE87)
+           : const Color(0xFF2E6E79), showLabel: true);
     final boat = route.pointAt(progress);
     canvas.drawCircle(boat, 17, Paint()
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)
-      ..color = const Color(0x6685D4FF));
+      ..color = dark ? const Color(0x77E4C77B)
+          : const Color(0x77A5CED1));
     canvas.save();
     canvas.translate(boat.dx - 15, boat.dy - 15);
     const VelaSailPainter().paint(canvas, const Size(30, 30));
     canvas.restore();
+  }
+
+  String _titleCase(String input) =>
+    input.toLowerCase().split(' ')
+      .map((word) => word.isEmpty ? word :
+        '${word[0].toUpperCase()}${word.substring(1)}')
+      .join(' ');
+
+  void _drawCompass(Canvas canvas, Size size) {
+    final center = Offset(size.width - 85, 165);
+    final ink = dark ? const Color(0xFFDEC99D)
+        : const Color(0xFF234C5B);
+    final p = Paint()..color = ink.withValues(alpha: .8)
+      ..style = PaintingStyle.stroke..strokeWidth = 1.2;
+    canvas.drawCircle(center, 41, p);
+    canvas.drawCircle(center, 34, p..strokeWidth = .6);
+    for (var i = 0; i < 16; i++) {
+      final a = (i * math.pi / 8) - math.pi / 2;
+      final v = Offset(math.cos(a), math.sin(a));
+      canvas.drawLine(center + v * (i.isEven ? 31 : 35),
+        center + v * 39, p..strokeWidth = i.isEven ? 1.2 : .6);
+    }
+    final up = Path()..moveTo(center.dx, center.dy-28)
+      ..lineTo(center.dx-7,center.dy+5)
+      ..lineTo(center.dx+6,center.dy-4)..close();
+    final down = Path()..moveTo(center.dx,center.dy+28)
+      ..lineTo(center.dx+7,center.dy-5)
+      ..lineTo(center.dx-6,center.dy+4)..close();
+    canvas.drawPath(up,Paint()
+      ..color = ink.withValues(alpha: .85));
+    canvas.drawPath(down,Paint()
+      ..color = ink.withValues(alpha: .35));
+    _placeText(canvas, center + const Offset(-4,-58), 'N');
+    _placeText(canvas, center + const Offset(-4,43), 'S');
+    _placeText(canvas, center + const Offset(44,-6), 'E');
+    _placeText(canvas, center + const Offset(-57,-6), 'W');
   }
 
   void _drawCityNames(Canvas canvas) {
@@ -318,7 +370,7 @@ class _WorldRoutePainter extends CustomPainter {
         ..color = dark ? const Color(0xFFDBCA9C) : const Color(0xFF355B5A);
       canvas.drawCircle(center, 2, dot);
       _placeText(canvas, center + const Offset(7, -16),
-          city.label, tiny: true);
+          _titleCase(city.label), tiny: true);
     }
   }
 
@@ -328,7 +380,8 @@ class _WorldRoutePainter extends CustomPainter {
       text: TextSpan(text: value, style: TextStyle(
         color: dark ? const Color(0xFFEADCB9) : const Color(0xFF284B55),
         fontFamily: 'Georgia',
-        fontSize: tiny ? 9 : 11,
+        fontStyle: FontStyle.italic,
+        fontSize: tiny ? 12 : 14,
         fontWeight: tiny ? FontWeight.w500 : FontWeight.w700,
         letterSpacing: tiny ? .75 : 1.0,
         shadows: dark ? const [Shadow(
@@ -353,7 +406,8 @@ class _WorldRoutePainter extends CustomPainter {
     if (!showLabel) {
       return;
     }
-    _placeText(canvas, position + const Offset(13, -16), label);
+    _placeText(canvas, position + const Offset(13, -16),
+      _titleCase(label));
   }
 
   @override
