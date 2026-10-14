@@ -203,8 +203,12 @@ class _VoyagePainter extends CustomPainter {
     // from the supplied 1536x1024 reference. Previously the map zoomed to
     // East Asia for JP nodes and the ocean/US coast disappeared entirely.
     var targetLon = target?.longitude ?? -118.6;
-    while (targetLon < 70) targetLon += 360;
-    while (targetLon > 430) targetLon -= 360;
+    while (targetLon < 70) {
+      targetLon += 360;
+    }
+    while (targetLon > 430) {
+      targetLon -= 360;
+    }
     final isPacific = targetLon >= 70 && targetLon <= 265;
     final left = isPacific ? 77.0 : 36.0;
     final right = isPacific ? 264.0 : math.max(285.0, targetLon + 18);
