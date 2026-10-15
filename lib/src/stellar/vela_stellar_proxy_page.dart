@@ -5,6 +5,7 @@ import '../android/vela_android_vpn.dart';
 import '../core/vela_connection_coordinator.dart';
 import '../home/demo_connection.dart';
 import '../network/vela_flclash_subscription_adapter.dart';
+import '../network/vela_routing_mode.dart';
 import '../smart/vela_smart_controller.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../subscription/vela_subscription_parser.dart';
@@ -18,13 +19,14 @@ import 'stellar_design.dart';
 class VelaStellarProxyPage extends StatefulWidget {
   const VelaStellarProxyPage({super.key, required this.demo,
     this.subscription, this.connection, this.androidVpn, this.smart,
-    this.traffic, required this.openConfig});
+    this.traffic, this.routing, required this.openConfig});
   final VelaDemoController demo;
   final VelaSubscriptionController? subscription;
   final VelaConnectionCoordinator? connection;
   final VelaAndroidVpnController? androidVpn;
   final VelaSmartController? smart;
   final VelaTrafficMonitor? traffic;
+  final VelaRoutingModeController? routing;
   final VoidCallback openConfig;
 
   @override
@@ -34,7 +36,7 @@ class VelaStellarProxyPage extends StatefulWidget {
 class _StellarProxyState extends State<VelaStellarProxyPage> {
   String _query = '';
   String _region = '全部';
-  String _group = '全部节点';
+  String? _group;
   bool _favoritesOnly = false;
 
   static const _regions = ['全部', '日本', '香港', '新加坡', '美国', '台湾', '韩国', '欧洲', '其他'];
@@ -92,6 +94,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
       if (widget.androidVpn != null) widget.androidVpn!,
       if (widget.smart != null) widget.smart!,
       if (widget.traffic != null) widget.traffic!,
+      if (widget.routing != null) widget.routing!,
     ];
     return AnimatedBuilder(
       animation: Listenable.merge(listeners),
@@ -105,15 +108,22 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
               widget.androidVpn?.connected == true;
           final flclash = sub is VelaFlClashSubscriptionController
               ? sub : null;
-          final nativeGroups = flclash?.backend.groups ?? const <String>[];
-          final groupNames = ['全部节点',
-            ...nativeGroups.where((name) =>
-                (flclash?.backend.selectableGroups.contains(name) ?? false)
-                && (flclash?.backend.groupMembers[name]?.isNotEmpty ?? false)),
-          ];
-          final group = groupNames.contains(_group) ? _group : '全部节点';
-          final membership = group == '全部节点'
-              ? null : flclash?.backend.groupMembers[group]?.toSet();
+          // FlClash RULE hides GLOBAL/hidden, GLOBAL shows native groups,
+          // DIRECT displays none. Never inject synthetic group tabs.
+          final groupNames = flclash?.backend.visibleGroups ?? const <String>[];
+          final group = groupNames.contains(_group)
+              ? _group : groupNames.firstOrNull;
+          final membership = group == null
+              ? const <String>{}
+              : flclash?.backend.groupMembers[group]?.toSet() ??
+                  const <String>{};
+          final nestedGroups = flclash == null || group == null
+              ? const <String>[]
+              : [
+                  for (final member in flclash.backend.groupMembers[group] ??
+                      const <String>[])
+                    if (flclash.backend.groups.contains(member)) member,
+                ];
           final order = widget.smart?.sortedIndices;
           final indices = sub?.visibleNodeIndices(
               query: _query, favoritesOnly: _favoritesOnly,
@@ -122,8 +132,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
             for (final index in indices)
               if ((_region == '全部' ||
                    _nodeRegion(nodes[index].name) == _region) &&
-                  (membership == null ||
-                   membership.contains(nodes[index].name)))
+                  (flclash == null ||
+                   (group != null && membership.contains(nodes[index].name))))
                 index,
           ];
           final busy = sub?.loading == true ||
@@ -150,8 +160,16 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                     _hero(context, online, nodes.length, narrow),
                     const SizedBox(height: 16),
                     if (nodes.isNotEmpty) ...[
-                      _groupNavigation(context, groupNames, group, narrow),
+                      if (groupNames.isNotEmpty)
+                        _groupNavigation(context, groupNames, group, narrow)
+                      else if (flclash != null)
+                        StellarPanel(child: StellarLabel(
+                          '直连模式：FlClash 不显示代理策略组，流量走 DIRECT')),
                       const SizedBox(height: 16),
+                      if (nestedGroups.isNotEmpty) ...[
+                        _nestedGroupChoices(context, nestedGroups, group),
+                        const SizedBox(height: 12),
+                      ],
                       _activeRoute(context, online),
                       const SizedBox(height: 16),
                       Row(children: [
@@ -300,20 +318,51 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
 
   void _selectGroup(String label) {
     final sub = widget.subscription;
-    // "All nodes" is a view filter, not the Mihomo GLOBAL selector.
-    // FlClash never rewrites routing when the user only clears a filter.
-    if (label != '全部节点' && sub is VelaFlClashSubscriptionController) {
-      if (!sub.selectRoutingGroup(label)) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('请先断开连接，再切换 FlClash 策略组并选择节点')));
-        return;
-      }
+    if (sub is VelaFlClashSubscriptionController &&
+        !sub.selectRoutingGroup(label)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('FlClash 核心未找到当前策略组')));
+      return;
     }
+    // Group navigation never changes Mihomo route mode or selected outbound.
     setState(() => _group = label);
   }
 
+  Future<void> _chooseNestedGroup(String name) async {
+    final sub = widget.subscription;
+    if (sub is! VelaFlClashSubscriptionController) return;
+    final ok = await sub.selectGroupMember(name);
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(sub.error ?? '下级策略组未被核心确认')));
+    }
+  }
+
+  Widget _nestedGroupChoices(BuildContext context,
+      List<String> entries, String? group) {
+    final backend = (widget.subscription as VelaFlClashSubscriptionController)
+        .backend;
+    return StellarPanel(child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        StellarLabel('当前策略组可选的下级策略组'),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 7, children: [
+          for (final item in entries)
+            ChoiceChip(
+              key: ValueKey('stellar_nested_group_$item'),
+              label: Text(item),
+              selected: backend.groupNow[group] == item,
+              onSelected: backend.groupIsSelector(group ?? '')
+                  ? (_) => _chooseNestedGroup(item) : null,
+            ),
+        ]),
+      ],
+    ));
+  }
+
   Widget _groupNavigation(BuildContext context,
-      List<String> groups, String selected, bool narrow) {
+      List<String> groups, String? selected, bool narrow) {
     final t = VelaThemeRuntime.active;
     return StellarPanel(padding: const EdgeInsets.all(11), child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -338,7 +387,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
             ),
         ]),
         const SizedBox(height: 5),
-        StellarLabel('选择策略组后再选择该组节点；规则模式由机场规则与各组选择共同决定。',
+        StellarLabel('分组与规则来自 FlClash 核心；切换标签不会改变线路。',
           size: 11),
       ],
     ));
