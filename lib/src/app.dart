@@ -610,19 +610,21 @@ class _DesktopHome extends StatelessWidget {
                     != null ? _RealTag() : _DemoTag()),
                 Positioned(left: 22, top: 62, child: _HeroIdentity()),
                 Positioned(
-                  left: 18,
-                  top: 318,
-                  width: math.min(designWidth * .47, 520.0),
+                  left: 22,
+                  top: 335,
+                  width: math.min(designWidth * .39, 440.0),
                   child: subscription?.selected != null && connection != null
                       ? _RealConnectionCard(
-                          connection: connection!, showNodes: showNodes)
-                      : _ConnectionCard(demo: demo, showNodes: showNodes),
+                          connection: connection!, showNodes: showNodes,
+                          compact: true)
+                      : _ConnectionCard(demo: demo, showNodes: showNodes,
+                          compact: true),
                 ),
                 if (routing != null)
                   Positioned(
                     key: const ValueKey('home_routing_position'),
-                    top: 365, right: 20,
-                    width: math.min(designWidth * .41, 460),
+                    top: 346, right: 24,
+                    width: math.min(designWidth * .35, 400),
                     child: VelaRoutingModeSelector(
                       key: const ValueKey('home_routing_selector'),
                       controller: routing!,
@@ -636,7 +638,7 @@ class _DesktopHome extends StatelessWidget {
                     ),
                   ),
                 Positioned(
-                  left: 12, right: 12, bottom: 18,
+                  left: 42, right: 42, bottom: 15,
                   child: _Stats(demo: demo, showSmart: showSmart,
                     real: subscription?.selected != null,
                     smart: smart, traffic: traffic),
@@ -955,11 +957,11 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _GlassCard(
-    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 14),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
     child: InkWell(
       onTap: onTap,
       child: SizedBox(
-        height: 96,
+        height: 70,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(icon, color: highlight, size: 20),
@@ -975,13 +977,13 @@ class _MetricCard extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text.rich(TextSpan(children: [
               TextSpan(text: value, style: TextStyle(
-                color: highlight, fontSize: 26, fontWeight: FontWeight.bold,
+                color: highlight, fontSize: 23, fontWeight: FontWeight.bold,
               )),
               TextSpan(text: unit.isEmpty ? '' : ' $unit',
                   style: TextStyle(color: _muted, fontSize: 12)),
             ])),
           ),
-          SizedBox(height: 7),
+          SizedBox(height: 3),
           Text(caption,
             maxLines: 1, overflow: TextOverflow.ellipsis,
             style: TextStyle(color: _muted, fontSize: 10),

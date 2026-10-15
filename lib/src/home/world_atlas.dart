@@ -249,9 +249,11 @@ class _WorldTiles extends StatelessWidget {
       child: Stack(clipBehavior: Clip.none, children: [
         for (final index in const [-1, 0, 1])
           Positioned(
-            left: camera.tileLeft + index * camera.worldWidth,
+            // A subpixel overlap hides raster-edge anti-aliasing. The source
+            // artwork itself is blended seamlessly at build time.
+            left: camera.tileLeft + index * camera.worldWidth - .65,
             top: camera.top,
-            width: camera.worldWidth,
+            width: camera.worldWidth + 1.3,
             height: camera.worldHeight,
             child: Image.asset(asset,
               fit: BoxFit.fill, filterQuality: FilterQuality.high,
@@ -278,6 +280,7 @@ class _WorldRoutePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final home = camera.project(VelaWorldCamera.beijing);
+    _drawGeographicCities(canvas);
     _marker(canvas, home, 'BEIJING', const Color(0xFFE3B777),
       showLabel: !active || homebound);
     if (!active || (from - to).distance < .01) return;
@@ -287,26 +290,68 @@ class _WorldRoutePainter extends CustomPainter {
       globeRadius: size.shortestSide * .42,
     );
     canvas.drawPath(route.path(), Paint()
-      ..style = PaintingStyle.stroke ..strokeWidth = 1.5
-      ..color = const Color(0x77B9DFFF));
+      ..style = PaintingStyle.stroke ..strokeWidth = 2.8
+      ..color = const Color(0xA4B9DFFF));
     final traveled = route.path(until: progress);
     canvas.drawPath(traveled, Paint()
-      ..style = PaintingStyle.stroke ..strokeWidth = 8
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9)
+      ..style = PaintingStyle.stroke ..strokeWidth = 13
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 11)
       ..color = const Color(0xB06FCBFF));
     canvas.drawPath(traveled, Paint()
-      ..style = PaintingStyle.stroke ..strokeWidth = 2.6
+      ..style = PaintingStyle.stroke ..strokeWidth = 4.0
       ..strokeCap = StrokeCap.round ..color = const Color(0xFFE6BB76));
     _marker(canvas, camera.projectAlong(from, to), label,
       const Color(0xFF84D0FF), showLabel: true);
     final boat = route.pointAt(progress);
-    canvas.drawCircle(boat, 17, Paint()
+    canvas.drawCircle(boat, 25, Paint()
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)
       ..color = const Color(0x6685D4FF));
     canvas.save();
-    canvas.translate(boat.dx - 15, boat.dy - 15);
-    const VelaSailPainter().paint(canvas, const Size(30, 30));
+    canvas.translate(boat.dx - 23, boat.dy - 23);
+    const VelaSailPainter().paint(canvas, const Size(46, 46));
     canvas.restore();
+  }
+
+  static const _cities = <(String, Offset)>[
+    ('Shanghai', Offset(121.47, 31.23)),
+    ('Tokyo', Offset(139.69, 35.68)),
+    ('Singapore', Offset(103.82, 1.35)),
+    ('Hong Kong', Offset(114.17, 22.32)),
+    ('Los Angeles', Offset(-118.24, 34.05)),
+    ('New York', Offset(-74.01, 40.71)),
+    ('London', Offset(-.13, 51.50)),
+    ('Frankfurt', Offset(8.68, 50.11)),
+    ('Sydney', Offset(151.21, -33.86)),
+  ];
+
+  void _drawGeographicCities(Canvas canvas) {
+    final occupied = <Rect>[];
+    for (final (city, coordinates) in _cities) {
+      final position = camera.project(coordinates);
+      if (position.dx < 24 || position.dx > camera.size.width - 120 ||
+          position.dy < 35 || position.dy > camera.size.height - 20) {
+        continue;
+      }
+      final labelRect = Rect.fromLTWH(position.dx, position.dy - 22, 96, 24);
+      if (occupied.any((rect) => rect.overlaps(labelRect))) continue;
+      occupied.add(labelRect);
+      canvas.drawCircle(position, 4.0, Paint()
+        ..color = dark ? const Color(0xFFE8C78E)
+            : const Color(0xFF23546A));
+      final text = TextPainter(
+        text: TextSpan(text: city, style: TextStyle(
+          color: dark ? const Color(0xFFFFEDC7)
+              : const Color(0xFF153A4A),
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          shadows: [
+            Shadow(color: dark ? const Color(0xE9001528)
+                : const Color(0xEEFFFFFF), blurRadius: 6),
+          ],
+        )), textDirection: TextDirection.ltr, maxLines: 1,
+      )..layout();
+      text.paint(canvas, position + const Offset(7, -21));
+    }
   }
 
   void _marker(Canvas canvas, Offset position, String label, Color color,
@@ -315,16 +360,17 @@ class _WorldRoutePainter extends CustomPainter {
         position.dy < -60 || position.dy > camera.size.height + 60) {
       return;
     }
-    canvas.drawCircle(position, 10,
-        Paint()..color = color.withValues(alpha: .16));
-    canvas.drawCircle(position, 3.5, Paint()..color = color);
+    canvas.drawCircle(position, 14,
+        Paint()..color = color.withValues(alpha: .23));
+    canvas.drawCircle(position, 5, Paint()..color = color);
     if (!showLabel) {
       return;
     }
     final painter = TextPainter(
       text: TextSpan(text: label, style: TextStyle(
         color: dark ? const Color(0xFFEAF6FF) : const Color(0xFF163451),
-        fontSize: 10, letterSpacing: 1.4, fontWeight: FontWeight.w700,
+        fontSize: 15, letterSpacing: 1.0, fontWeight: FontWeight.w800,
+        shadows: const [Shadow(blurRadius: 5, color: Color(0xEEFFFFFF)),],
       )),
       textDirection: TextDirection.ltr,
       maxLines: 1,

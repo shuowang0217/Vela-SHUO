@@ -53,6 +53,17 @@ void main() {
         closeTo(-125.4, .001));
   });
 
+  test('map remains periodic and shared with enlarged city positions', () {
+    const camera = VelaWorldCamera(size: Size(1200, 680),
+        longitude: 139.7, latitude: 35.7);
+    final tokyo = camera.project(const Offset(139.7, 35.7));
+    expect(tokyo.dx, closeTo(600, .01));
+    final us = camera.project(const Offset(-118.2, 34.0));
+    expect(us.dx, inInclusiveRange(-100, 1300));
+    final reverse = VelaWorldCamera.shortestDelta(-118.2, 139.7);
+    expect(reverse, closeTo(-102.1, .001));
+  });
+
   testWidgets('real connection state moves atlas and disconnects safely',
       (tester) async {
     final demo = VelaDemoController();
