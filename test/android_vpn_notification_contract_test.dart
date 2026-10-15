@@ -29,9 +29,12 @@ void main() {
     expect(vpn, contains('MB/s'));
     expect(vpn, contains('GB/s'));
 
-    // Only verified VPN sessions display live rates. Never leave a stale
+    // Native TUN sessions display live rates even if fixed test sites are blocked.
+    // Never leave a stale
     // notification or sampling worker behind after disconnect or revocation.
-    expect(vpn, contains('if (verifyThroughVpn() && ticket == generation.get())'));
+    expect(vpn, contains('VelaVpnState.report("connected")'));
+    expect(vpn, contains('if (!verifyThroughVpn() && ticket == generation.get()'));
+    expect(vpn, isNot(contains('fail("VPN 线路 HTTPS 验证失败')));
     expect(vpn, contains('startSpeedSampler(ticket)'));
     expect(vpn, contains('generation.incrementAndGet() // invalidate all pending callbacks'));
     expect(vpn, contains('stopSpeedSampler()'));
