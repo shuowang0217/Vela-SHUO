@@ -77,6 +77,8 @@ class VelaMaritimeRoute {
   Offset pointAt(double progress) {
     final points = samples;
     final p = progress.clamp(0.0, 1.0);
+    if (p == 0) return from;
+    if (p == 1) return to;
     final scaled = p * (points.length - 1);
     final idx = math.min(points.length - 2, scaled.floor());
     return Offset.lerp(points[idx], points[idx + 1],
