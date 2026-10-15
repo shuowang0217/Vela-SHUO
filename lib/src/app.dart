@@ -1041,6 +1041,59 @@ class _ConnectionCard extends StatelessWidget {
   );
 }
 
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({
+    required this.icon, required this.label, required this.value,
+    required this.unit, required this.caption, required this.highlight,
+    this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final String value;
+  final String unit;
+  final String caption;
+  final Color highlight;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => _GlassCard(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+    child: InkWell(
+      onTap: onTap,
+      child: SizedBox(
+        height: 70,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(icon, color: highlight, size: 20),
+            SizedBox(width: 8),
+            Flexible(child: Text(label,
+              overflow: TextOverflow.ellipsis, maxLines: 1,
+              style: TextStyle(color: _foreground, fontSize: 13),
+            )),
+          ]),
+          Spacer(),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text.rich(TextSpan(children: [
+              TextSpan(text: value, style: TextStyle(
+                color: highlight, fontSize: 23, fontWeight: FontWeight.bold,
+              )),
+              TextSpan(text: unit.isEmpty ? '' : ' $unit',
+                  style: TextStyle(color: _muted, fontSize: 12)),
+            ])),
+          ),
+          SizedBox(height: 3),
+          Text(caption,
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: _muted, fontSize: 10),
+          ),
+        ]),
+      ),
+    ),
+  );
+}
+
 class _MobileHome extends StatelessWidget {
   const _MobileHome({
     required this.demo, required this.showNodes, required this.showSmart,
