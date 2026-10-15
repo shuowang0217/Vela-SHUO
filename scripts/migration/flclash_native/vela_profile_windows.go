@@ -13,6 +13,7 @@ import (
     "strings"
 
     "github.com/metacubex/mihomo/config"
+    yaml "github.com/metacubex/mihomo/common/yaml"
     "github.com/metacubex/mihomo/constant"
     T "github.com/metacubex/mihomo/tunnel"
 )
@@ -87,7 +88,12 @@ func init() {
                 raw.TuicServer.Enable = false
                 raw.NTP.WriteToSystem = false
                 fmt.Fprintln(os.Stderr, "VELA_DIAG stage=serialize-enter")
-                serialized, err := json.Marshal(raw)
+                // CRITICAL: RawConfig.Rule has yaml:"rules" but
+                // json:"rule" (singular) in pinned Mihomo. Writing
+                // JSON as config.yaml silently DROPPED the rule table on
+                // reload: RULE fell back to DIRECT while GLOBAL worked.
+                // Preserve all Mihomo YAML field names exactly.
+                serialized, err := yaml.Marshal(raw)
                 if err != nil {
                     response.failure("invalid_profile", "Mihomo could not encode profile", nil)
                     return
