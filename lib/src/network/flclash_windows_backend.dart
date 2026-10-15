@@ -51,6 +51,7 @@ class FlClashWindowsBackend {
   /// Each new profile must have the saved route mode reapplied to its rules.
   int profileRevision = 0;
   String activeRoutingMode = 'rule';
+  String _defaultRuleGroup = 'GLOBAL';
 
   Future<bool> updateRoutingMode(String mode) async {
     if (!imported || !const {'rule', 'global', 'direct'}.contains(mode)) {
@@ -60,6 +61,14 @@ class FlClashWindowsBackend {
         arguments: {'mode': mode});
     if (reply is! String || reply.isNotEmpty) return false;
     activeRoutingMode = mode;
+    if (mode == 'global') {
+      activeGroup = 'GLOBAL';
+    } else if (mode == 'rule' && activeGroup == 'GLOBAL') {
+      activeGroup = _defaultRuleGroup;
+    }
+    final chosen = _selectedMap[activeGroup];
+    activeName = chosen != null &&
+        nodes.any((node) => node.name == chosen) ? chosen : null;
     return true;
   }
 
@@ -159,8 +168,10 @@ class FlClashWindowsBackend {
     // Show the real MATCH selector in RULE mode instead of automatically
     // editing GLOBAL, which is only the outbound group for GLOBAL mode.
     final match = result['match-group'];
-    activeGroup = match is String && selectableGroups.contains(match)
-        ? match : 'GLOBAL';
+    _defaultRuleGroup = match is String && selectableGroups.contains(match)
+        ? match : selectableGroups.firstWhere(
+            (group) => group != 'GLOBAL', orElse: () => 'GLOBAL');
+    activeGroup = _defaultRuleGroup;
     _selectedMap.clear();
     for (final group in selectableGroups) {
       final state = proxies[group];
@@ -380,6 +391,14 @@ class FlClashWindowsBackend {
     final chosen = _selectedMap[activeGroup];
     activeName = chosen != null &&
         nodes.any((node) => node.name == chosen) ? chosen : null;
+  }
+
+  /// Called only after a live native selector RPC has been confirmed.
+  /// The source of truth stays in Mihomo, not a separate Vela route engine.
+  void recordNativeSelection(String group, String name) {
+    if (!selectableGroups.contains(group)) return;
+    _selectedMap[group] = name;
+    if (group == activeGroup) activeName = name;
   }
 
   Future<bool> selectNode(String name) async {
