@@ -48,7 +48,8 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   bool get busy => _operation;
   bool get switchingNode => _switchingNode;
   bool get connected => _phase == VelaRealPhase.connected && proxy.active &&
-      core.isListening && core.remoteVerified;
+      core.isListening && (!core.requiresRemoteProbeBeforeTakeover ||
+          core.remoteVerified);
   bool get hasSelection => subscription.selected != null;
   bool get available => core.supported && core.hasCore && hasSelection &&
       !core.directTestProfile;
@@ -93,7 +94,11 @@ class VelaConnectionCoordinator extends ChangeNotifier {
         _emit(VelaRealPhase.error, core.error ?? '内核启动失败');
         return false;
       }
-      if (!await core.verifyRemote()) {
+      // Only legacy embedded cores need a blocking external probe.
+      // The FlClash/Mihomo engine (and FlClash itself) permits a running
+      // local listener to be used even when public 204 sites are blocked.
+      if (core.requiresRemoteProbeBeforeTakeover &&
+          !await core.verifyRemote()) {
         await core.stop();
         _emit(VelaRealPhase.error, 'HTTPS 代理线路检测未通过，未修改 Windows 系统代理');
         return false;
@@ -143,7 +148,7 @@ class VelaConnectionCoordinator extends ChangeNotifier {
 
   /// In-place live route selection: never restart the listening process or
   /// modify WinINet when the new node can be verified. The old route remains
-  /// selected in the UI until Mihomo confirms both the API state and HTTPS.
+  /// selected in the UI until Mihomo confirms its actual selector state.
   Future<bool> switchNode(int index) async {
     if (_closed || _exitRequested || _operation || !connected ||
         subscription.selectedIndex == null) {
@@ -202,7 +207,9 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   void _onCore() {
     if (_closed || _exitRequested || _handlingExit || _operation) return;
     if (_phase == VelaRealPhase.connected && !core.probing &&
-        (!core.isListening || !core.remoteVerified)) {
+        (!core.isListening ||
+            (core.requiresRemoteProbeBeforeTakeover &&
+                !core.remoteVerified))) {
       _handlingExit = true;
       unawaited(_handleExit());
     }
