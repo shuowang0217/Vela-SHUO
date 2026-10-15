@@ -241,12 +241,11 @@ class VelaVpnService : VpnService() {
                     try {
                         val tun = Builder()
                             .setSession("Vela-SHUO")
-                            .setMtu(1400)
+                            .setMtu(9000)
                             .addAddress("172.19.0.1", 30)
-                            .addAddress("fd80:19::1", 126)
                             .addRoute("0.0.0.0", 0)
-                            .addRoute("::", 0)
-                            .addDnsServer("198.18.0.2")
+                            .addDnsServer("172.19.0.2")
+                            .setBlocking(false)
                             .establish()
                             ?: throw IllegalStateException("VpnService establish returned null")
                         if (ticket != generation.get()) {
@@ -262,17 +261,22 @@ class VelaVpnService : VpnService() {
                         val goFd = ParcelFileDescriptor.dup(tun.fileDescriptor)
                             .detachFd()
                         Clash.startTUN(goFd, tunCallback, "vela-tun",
-                            "mixed", "172.19.0.1/30,fd80:19::1/126",
-                            "198.18.0.2", 1400)
+                            "mixed", "172.19.0.1/30",
+                            "172.19.0.2", 9000)
                         nativeStarted = true
+                        // FlClash treats the established native TUN as the
+                        // connection state. A reachability probe is NOT a
+                        // reason to tear down an otherwise valid tunnel:
+                        // Google/Cloudflare probes can be filtered even when
+                        // the requested sites work through the selected node.
+                        VelaVpnState.report("connected")
+                        startSpeedSampler(ticket)
                         Thread({
                             if (ticket != generation.get()) return@Thread
-                            if (verifyThroughVpn() && ticket == generation.get()) {
-                                VelaVpnState.report("connected")
-                                // Start live, real counters only after HTTPS verification.
-                                startSpeedSampler(ticket)
-                            } else if (ticket == generation.get()) {
-                                fail("VPN 线路 HTTPS 验证失败，已安全断开")
+                            if (!verifyThroughVpn() && ticket == generation.get()
+                                && nativeStarted) {
+                                VelaVpnState.report("connected",
+                                    "VPN 隧道已连接，外网探测暂未通过；可在应用内重新检测")
                             }
                         }, "vela-vpn-probe").start()
                     } catch (_: Exception) {
