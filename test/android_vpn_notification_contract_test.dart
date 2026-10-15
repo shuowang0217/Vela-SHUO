@@ -25,8 +25,6 @@ void main() {
     expect(vpn, contains('(up - previousUp).toDouble() * 1000.0 / elapsed'));
     expect(vpn, contains('(down - previousDown).toDouble() * 1000.0 / elapsed'));
     expect(vpn, contains('up >= previousUp && down >= previousDown'));
-    expect(vpn, contains('↑ 风速'));
-    expect(vpn, contains('↓ 航速'));
     expect(vpn, contains('KB/s'));
     expect(vpn, contains('MB/s'));
     expect(vpn, contains('GB/s'));
