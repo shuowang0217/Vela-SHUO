@@ -171,7 +171,8 @@ class FlClashWindowsBackend {
     subscriptionUsage = null;
     nodes = List.unmodifiable(importedNodes);
     groups = List.unmodifiable(groupNames);
-    _updateGroupMetadata(proxies, groupNames);
+    _updateGroupMetadata(proxies, groupNames,
+        rawGroups: result['raw-proxy-groups']);
     // FlClash only permits explicit node selection in Selector groups.
     // URLTest/Fallback/LoadBalance remain owned by their native strategy.
     selectableGroups = Set.unmodifiable({
@@ -276,8 +277,20 @@ class FlClashWindowsBackend {
     ).hasMatch(name.trim());
   }
 
-  void _updateGroupMetadata(Map proxies, List<String> names) {
+  void _updateGroupMetadata(Map proxies, List<String> names,
+      {Object? rawGroups}) {
     groupMembers = _readGroupMembers(proxies, names);
+    // FlClash also respects proxy-groups[].hidden. The native proxy
+    // registry may omit that flag; the imported RawConfig retains it.
+    final rawHidden = <String>{};
+    if (rawGroups is List) {
+      for (final entry in rawGroups) {
+        if (entry is Map && entry['name'] is String &&
+            entry['hidden'] == true) {
+          rawHidden.add(entry['name'] as String);
+        }
+      }
+    }
     groupTypes = Map.unmodifiable({
       for (final name in names)
         if (proxies[name] is Map)
@@ -285,8 +298,9 @@ class FlClashWindowsBackend {
     });
     hiddenGroups = Set.unmodifiable({
       for (final name in names)
-        if (proxies[name] is Map &&
-            (proxies[name] as Map)['hidden'] == true)
+        if (rawHidden.contains(name) ||
+            (proxies[name] is Map &&
+                (proxies[name] as Map)['hidden'] == true))
           name,
     });
     groupNow = Map.unmodifiable({
