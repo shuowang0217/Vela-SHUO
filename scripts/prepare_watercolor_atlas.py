@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare the existing user-approved watercolor artwork for Vela v1.3.1.
+"""Refine the original watercolor atlas for Vela v1.4.4 on both platforms.
 
 This script fixes the 180-degree tile join and adds REAL geographical night
 radiance from the project's existing earth_night_lights.png. It does not
@@ -8,7 +8,7 @@ redraw coastlines, replace the submitted artwork, or change the map projection.
 Run before flutter pub get/build (the GitHub workflow runs it on all platforms).
 """
 from pathlib import Path
-from PIL import Image, ImageFilter, ImageOps
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps, ImageChops
 
 ROOT = Path(__file__).resolve().parents[1]
 DAY = ROOT / 'assets/world/watercolor_day.webp'
@@ -41,6 +41,35 @@ def blend_wrap_seam(image):
     return image
 
 
+def polish_day(image):
+    """Gently reveal pigment and coastline detail without redrawing the map.
+
+    Small global adjustments retain the exact original watercolor paper,
+    terrain, city coordinates and 2:1 projection on both platforms.
+    """
+    image = ImageEnhance.Contrast(image).enhance(1.055)
+    image = ImageEnhance.Color(image).enhance(1.075)
+    image = ImageEnhance.Brightness(image).enhance(1.014)
+    return ImageEnhance.Sharpness(image).enhance(1.10)
+
+
+def polish_night(image):
+    """Give the original night watercolor blue-hour depth, not a dark overlay.
+
+    The image still contains its original paper, terrain and coastline;
+    real geographic city radiance is applied separately *after* this grade.
+    """
+    cool = ImageOps.colorize(
+        ImageOps.grayscale(image),
+        black="#071629", mid="#376078", white="#C7D7DB",
+        blackpoint=0, whitepoint=255, midpoint=118,
+    )
+    image = Image.blend(image, cool, 0.44)
+    image = ImageEnhance.Contrast(image).enhance(1.065)
+    image = ImageEnhance.Color(image).enhance(0.91)
+    return ImageEnhance.Sharpness(image).enhance(1.075)
+
+
 def blend_city_lights(night):
     if not LIGHTS.exists():
         raise SystemExit('Real georeferenced satellite night-light asset missing')
@@ -50,17 +79,23 @@ def blend_city_lights(night):
         raise SystemExit('Night lights asset must be 2:1 equirectangular')
     gray = ImageOps.grayscale(radiance)
     gray = gray.resize((w, h), Image.Resampling.LANCZOS)
-    # Dark ocean remains transparent; bright city clusters turn warm gold.
-    alpha = gray.point(lambda v: min(218, round(max(0, v - 11) * 2.5)))
-    glow_alpha = alpha.filter(ImageFilter.GaussianBlur(5)).point(
-        lambda v: round(v * .38))
+    # Filter out satellite low-level sensor noise (especially at sea).
+    # Stronger population centers receive a warm core plus two soft halos.
+    alpha = gray.point(lambda v: min(226, round(max(0, v - 15) * 2.45)))
+    outer_alpha = alpha.filter(ImageFilter.GaussianBlur(11)).point(
+        lambda v: round(v * .23))
+    inner_alpha = alpha.filter(ImageFilter.GaussianBlur(2.4)).point(
+        lambda v: round(v * .54))
     backdrop = night.convert('RGBA')
-    halo = Image.new('RGBA', (w, h), (250, 175, 77, 0))
-    halo.putalpha(glow_alpha)
-    backdrop = Image.alpha_composite(backdrop, halo)
-    center = Image.new('RGBA', (w, h), (255, 221, 147, 0))
-    center.putalpha(alpha)
-    return Image.alpha_composite(backdrop, center).convert('RGB')
+    for color, opacity in (
+        ((228, 150, 72, 0), outer_alpha),
+        ((255, 192, 104, 0), inner_alpha),
+        ((255, 226, 164, 0), alpha),
+    ):
+        glow = Image.new('RGBA', (w, h), color)
+        glow.putalpha(opacity)
+        backdrop = Image.alpha_composite(backdrop, glow)
+    return backdrop.convert('RGB')
 
 
 def main():
@@ -68,9 +103,13 @@ def main():
     night = Image.open(NIGHT).convert('RGB')
     if day.size != night.size or abs(day.width / day.height - 2) > .02:
         raise SystemExit('Day/night world atlases must share a 2:1 pixel grid')
-    day = blend_wrap_seam(day)
-    night = blend_city_lights(night)
-    night = blend_wrap_seam(night)
+    # Identical build-time artwork on Windows and Android; no runtime filter.
+    day = blend_wrap_seam(polish_day(day))
+    night_base = polish_night(night)
+    night_with_lights = blend_city_lights(night_base)
+    if ImageChops.difference(night_with_lights, night_base).getbbox() is None:
+        raise SystemExit('Night city lights are absent after composition')
+    night = blend_wrap_seam(night_with_lights)
     # Lossless output keeps the two edges bit-for-bit identical.
     day.save(DAY, format='WEBP', lossless=True, method=5)
     night.save(NIGHT, format='WEBP', lossless=True, method=5)
