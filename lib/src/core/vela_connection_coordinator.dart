@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../subscription/vela_subscription_controller.dart';
+import '../network/vela_flclash_subscription_adapter.dart';
 import 'vela_core_controller.dart';
 import 'vela_system_proxy.dart';
 
@@ -50,7 +51,11 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   bool get connected => _phase == VelaRealPhase.connected && proxy.active &&
       core.isListening && (!core.requiresRemoteProbeBeforeTakeover ||
           core.remoteVerified);
-  bool get hasSelection => subscription.selected != null;
+  // FlClash permits a real policy group as the selected outbound; it
+  // need not be a concrete proxy node (e.g. 自动选择/故障转移).
+  bool get hasSelection => subscription.selected != null ||
+      (subscription is VelaFlClashSubscriptionController &&
+       (subscription as VelaFlClashSubscriptionController).backend.imported);
   bool get available => core.supported && core.hasCore && hasSelection &&
       !core.directTestProfile;
   String get nodeName => subscription.selected?.name ?? '请先选择真实节点';
