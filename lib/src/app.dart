@@ -904,7 +904,7 @@ class _MobileHome extends StatelessWidget {
       // native setting object. Synchronize before passing route-mode to
       // VpnService; quickSetup must then reapply it before establishing TUN.
       if (sub is VelaFlClashSubscriptionController && routing != null &&
-          !await routing!.synchronize(sub.activeProfileId)) {
+          !await routing.synchronize(sub.activeProfileId)) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('规则模式尚未被 FlClash 核心确认，VPN 未启动')));
