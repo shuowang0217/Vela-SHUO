@@ -911,7 +911,7 @@ class _MobileHome extends StatelessWidget {
         }
         return;
       }
-      await vpn.start(sub!);
+      await vpn.start(sub);
       if (vpn.error != null && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(vpn.error!)));
