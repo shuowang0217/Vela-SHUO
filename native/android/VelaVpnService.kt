@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.VpnService
@@ -31,8 +32,72 @@ class VelaVpnService : VpnService() {
     companion object {
         const val ACTION_START = "com.shuowang.vela.START_VPN"
         const val ACTION_STOP = "com.shuowang.vela.STOP_VPN"
-        private const val NOTIFICATION_ID = 2407
+        const val NOTIFICATION_ID = 2407
         private const val CHANNEL_ID = "vela_vpn_running"
+        private const val AIRPORT_PREFS = "vela_notification"
+        private const val AIRPORT_KEY = "airport_name"
+
+        // The Activity can publish an idle status immediately after launch.
+        // The active VpnService owns the same notification ID and live sampler.
+        fun airportName(context: Context): String =
+            context.getSharedPreferences(AIRPORT_PREFS, Context.MODE_PRIVATE)
+                .getString(AIRPORT_KEY, "Vela")?.trim()?.take(64)
+                ?.ifEmpty { "Vela" } ?: "Vela"
+
+        fun saveAirportName(context: Context, name: String) {
+            val display = name.trim().take(64).ifEmpty { "Vela" }
+            context.getSharedPreferences(AIRPORT_PREFS, Context.MODE_PRIVATE)
+                .edit().putString(AIRPORT_KEY, display).apply()
+            if (VelaVpnState.state != "connected" &&
+                VelaVpnState.state != "connecting") {
+                showIdleNotification(context)
+            }
+        }
+
+        private fun notificationManager(context: Context): NotificationManager {
+            val manager = context.getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(NotificationChannel(
+                CHANNEL_ID, "Vela 航线状态", NotificationManager.IMPORTANCE_LOW))
+            return manager
+        }
+
+        fun statusNotification(context: Context, upload: String, download: String,
+                               connecting: Boolean = false,
+                               ongoing: Boolean = true): Notification {
+            notificationManager(context)
+            val open = PendingIntent.getActivity(
+                context, 0, Intent(context, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val rates = if (connecting) "风速 ↑ 采集中    航速 ↓ 采集中"
+                        else "风速 ↑ $upload    航速 ↓ $download"
+            val builder = Notification.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.vela_notification_sail)
+                .setContentTitle(airportName(context))
+                .setContentText(rates)
+                .setContentIntent(open)
+                .setCategory(Notification.CATEGORY_SERVICE)
+                .setOnlyAlertOnce(true)
+                .setOngoing(ongoing)
+            if (ongoing && Build.VERSION.SDK_INT >= 31) {
+                builder.setForegroundServiceBehavior(
+                    Notification.FOREGROUND_SERVICE_IMMEDIATE)
+            }
+            return builder.build()
+        }
+
+        fun showIdleNotification(context: Context) {
+            if (VelaVpnState.state == "connecting" ||
+                VelaVpnState.state == "connected" ||
+                VelaVpnState.state == "preparing") return
+            if (Build.VERSION.SDK_INT >= 33 &&
+                context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+            val manager = notificationManager(context)
+            if (!manager.areNotificationsEnabled()) return
+            manager.notify(NOTIFICATION_ID,
+                statusNotification(context, "0 B/s", "0 B/s", ongoing = false))
+        }
     }
 
     private val generation = AtomicInteger(0)
@@ -53,34 +118,13 @@ class VelaVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(
-            CHANNEL_ID, "Vela-SHUO VPN", NotificationManager.IMPORTANCE_LOW))
+        // Create the status channel before startForeground and speed updates.
+        statusNotification(this, "0 B/s", "0 B/s")
     }
 
-    // One compact status line: the sail icon, upload speed and download speed.
-    // Keep all disconnection controls inside Vela's existing UI.
     private fun buildNotification(upload: String, download: String,
-                                  connecting: Boolean = false): Notification {
-        val open = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val title = if (connecting) "Vela · 正在连接"
-            else "↑ $upload    ↓ $download"
-        val builder = Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.vela_notification_sail)
-            .setContentTitle(title)
-            .setContentIntent(open)
-            .setCategory(Notification.CATEGORY_SERVICE)
-            .setOnlyAlertOnce(true)
-            .setOngoing(true)
-        if (Build.VERSION.SDK_INT >= 31) {
-            builder.setForegroundServiceBehavior(
-                Notification.FOREGROUND_SERVICE_IMMEDIATE)
-        }
-        return builder.build()
-    }
+                                  connecting: Boolean = false): Notification =
+        statusNotification(this, upload, download, connecting = connecting)
 
     private fun showForeground() {
         val notification = buildNotification("采集中", "采集中", connecting = true)
@@ -339,6 +383,8 @@ class VelaVpnService : VpnService() {
         File(cacheDir, "vela-vpn/config.yaml").delete()
         if (!failed) VelaVpnState.report("disconnected")
         stopForeground(STOP_FOREGROUND_REMOVE)
+        // Keep the app-opened idle card; never leave stale VPN speeds on it.
+        showIdleNotification(this)
     }
 
     override fun onRevoke() {
