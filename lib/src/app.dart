@@ -319,13 +319,6 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     }
   }
 
-  static const destinations = <(IconData, IconData, String)>[
-    (Icons.home_outlined, Icons.home_rounded, '首页'),
-    (Icons.language_outlined, Icons.language_rounded, '代理'),
-    (Icons.auto_graph_outlined, Icons.auto_graph_rounded, '智能优选'),
-    (Icons.settings_outlined, Icons.settings_rounded, '设置'),
-    (Icons.layers_outlined, Icons.layers_rounded, '配置'),
-  ];
 
   @override
   void dispose() {
@@ -360,9 +353,6 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
 
   void navigate(int i) => setState(() => tab = i);
 
-  // Keep tab 3 as Settings for existing theme workflows and test IDs.
-  // Display order puts Config next to Proxy without changing tab identity.
-  static const navOrder = <int>[0, 1, 4, 2, 3];
 
   Widget page(bool desktop) => switch (tab) {
     1 => VelaStellarProxyPage(
@@ -412,47 +402,24 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
               ),
               child: page(desktop),
             ),
-            if (desktop && tab != 0)
-              Positioned(top: 14, left: 22,
+            if (tab != 0)
+              Positioned(top: desktop ? 14 : 12,
+                left: desktop ? 22 : 14,
                 child: _VoyageHomeShortcut(
                   onTap: () => navigate(0))),
-            if (desktop)
-              Positioned(right: 27, bottom: 20,
-                child: _VoyageDock(
-                  selected: tab, onNavigate: navigate)),
+            Positioned(
+              right: desktop ? 27 : null,
+              left: desktop ? null : 0,
+              bottom: desktop ? 20 : 12,
+              child: desktop
+                  ? _VoyageDock(selected: tab, onNavigate: navigate)
+                  : SizedBox(width: constraints.maxWidth,
+                      child: Center(child: _VoyageDock(
+                        selected: tab, onNavigate: navigate))),
+            ),
           ])),
         ]),
-        bottomNavigationBar: desktop ? null : ClipRect(child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-          child: Container(
-          decoration: BoxDecoration(
-            color: _panel.withValues(alpha:
-                VelaThemeRuntime.active.dark ? .50 : .50),
-            border: Border(top: BorderSide(
-                color: _foreground.withValues(alpha: .18))),
-          ),
-          child: NavigationBar(
-            height: 68,
-            backgroundColor: Colors.transparent,
-            indicatorColor: _blue.withValues(alpha: .15),
-            selectedIndex: navOrder.indexOf(tab),
-            onDestinationSelected: (position) =>
-                navigate(navOrder[position]),
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            destinations: [
-              for (final index in navOrder)
-                NavigationDestination(
-                  icon: index == 0
-                      ? const VelaSailMark(size: 25, monochrome: true)
-                      : Icon(destinations[index].$1, color: _muted),
-                  selectedIcon: index == 0
-                      ? const VelaSailMark(size: 25)
-                      : Icon(destinations[index].$2, color: _blue),
-                  label: destinations[index].$3,
-                ),
-            ],
-          ),
-        ))),
+
       );
     },
   );
@@ -529,7 +496,7 @@ class _HomePage extends StatelessWidget {
       : _MobileHome(
           demo: demo, connection: connection, subscription: subscription,
           smart: smart, androidVpn: androidVpn, traffic: traffic,
-          routing: routing, showNodes: showNodes, showSmart: showSmart,
+          routing: routing, showNodes: showNodes,
         ),
   );
 }
@@ -890,296 +857,189 @@ class _GlassCardState extends State<_GlassCard> {
   );
 }
 
-class _ConnectionCard extends StatelessWidget {
-  const _ConnectionCard({
-    required this.demo, required this.showNodes, this.compact = false,
-  });
-  final VelaDemoController demo;
-  final VoidCallback showNodes;
-  final bool compact;
-
-  Color get statusColor => switch (demo.phase) {
-    VelaPhase.connected => _mint,
-    VelaPhase.error => Color(0xFFFF8B8F),
-    VelaPhase.connecting || VelaPhase.switching => _blue,
-    _ => _muted,
-  };
-
-  void toggle() {
-    switch (demo.phase) {
-      case VelaPhase.idle:
-      case VelaPhase.error:
-        demo.connect();
-      case VelaPhase.connecting:
-      case VelaPhase.switching:
-      case VelaPhase.connected:
-        demo.disconnect();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => _GlassCard(
-    padding: EdgeInsets.all(compact ? 16 : 20),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Container(
-          width: compact ? 42 : 52, height: compact ? 42 : 52,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: statusColor.withValues(alpha: .14),
-            border: Border.all(
-              color: statusColor.withValues(alpha: .2),
-            ),
-          ),
-          child: Icon(
-            demo.phase == VelaPhase.error
-                ? Icons.error_outline_rounded : Icons.circle,
-            color: statusColor, size: compact ? 20 : 24,
-          ),
-        ),
-        SizedBox(width: 13),
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(demo.phaseText, style: TextStyle(
-              fontSize: compact ? 22 : 27,
-              color: statusColor, fontWeight: FontWeight.bold,
-            )),
-            SizedBox(height: 3),
-            Text('Vela-SHUO · 连接状态演示',
-                style: TextStyle(color: _muted, fontSize: 12)),
-          ],
-        )),
-      ]),
-      SizedBox(height: 18),
-      Material(
-        color: _blue.withValues(alpha: .10),
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          key: ValueKey('open_nodes'),
-          borderRadius: BorderRadius.circular(12),
-          onTap: showNodes,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              vertical: 11, horizontal: 13,
-            ),
-            child: Row(children: [
-              Text(demo.selected.flag,
-                  style: TextStyle(fontSize: 23)),
-              SizedBox(width: 10),
-              Expanded(child: Text(
-                '${demo.selected.country} · ${demo.selected.title}',
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: _foreground, fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              )),
-              Icon(Icons.chevron_right_rounded, color: _muted),
-            ]),
-          ),
-        ),
-      ),
-      SizedBox(height: 10),
-      Row(children: [
-        Icon(Icons.route_outlined, size: 15, color: _muted),
-        SizedBox(width: 6),
-        Expanded(child: Text(
-          '${demo.selected.city} · ${demo.routingMode} · 模拟节点',
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 12, color: _muted),
-        )),
-        Text('${demo.selected.latency} ms',
-            style: TextStyle(color: _mint, fontSize: 12)),
-      ]),
-      SizedBox(height: 15),
-      SizedBox(
-        height: compact ? 46 : 50,
-        width: double.infinity,
-        child: FilledButton.icon(
-          key: ValueKey('demo_connect_button'),
-          onPressed: toggle,
-          icon: Icon(demo.isConnected
-              ? Icons.power_settings_new_rounded : Icons.sailing_outlined),
-          label: Text(
-            demo.isConnected ? '断开演示连接'
-                : demo.phase == VelaPhase.connecting ||
-                    demo.phase == VelaPhase.switching
-                    ? '取消演示' : '演示连接',
-          ),
-          style: FilledButton.styleFrom(
-            foregroundColor: _foreground,
-            backgroundColor: _blue.withValues(alpha: .23),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Color(0xFF4F9FD3)),
-            ),
-          ),
-        ),
-      ),
-    ]),
-  );
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.icon, required this.label, required this.value,
-    required this.unit, required this.caption, required this.highlight,
-    this.onTap,
-  });
-  final IconData icon;
-  final String label;
-  final String value;
-  final String unit;
-  final String caption;
-  final Color highlight;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) => _GlassCard(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-    child: InkWell(
-      onTap: onTap,
-      child: SizedBox(
-        height: 70,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(icon, color: highlight, size: 20),
-            SizedBox(width: 8),
-            Flexible(child: Text(label,
-              overflow: TextOverflow.ellipsis, maxLines: 1,
-              style: TextStyle(color: _foreground, fontSize: 13),
-            )),
-          ]),
-          Spacer(),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text.rich(TextSpan(children: [
-              TextSpan(text: value, style: TextStyle(
-                color: highlight, fontSize: 23, fontWeight: FontWeight.bold,
-              )),
-              TextSpan(text: unit.isEmpty ? '' : ' $unit',
-                  style: TextStyle(color: _muted, fontSize: 12)),
-            ])),
-          ),
-          SizedBox(height: 3),
-          Text(caption,
-            maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: _muted, fontSize: 10),
-          ),
-        ]),
-      ),
-    ),
-  );
-}
-
+/// Android shares the Windows map-first visual hierarchy. Native VpnService
+/// remains authoritative for connection state and its OS authorization.
 class _MobileHome extends StatelessWidget {
   const _MobileHome({
-    required this.demo, required this.showNodes, required this.showSmart,
-    this.connection, this.subscription, this.smart, this.androidVpn,
-    this.traffic, this.routing,
+    required this.demo, required this.showNodes,
+    this.connection, this.subscription, this.androidVpn,
+    this.traffic, this.routing, this.smart,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
   final VelaSubscriptionController? subscription;
-  final VelaSmartController? smart;
   final VelaAndroidVpnController? androidVpn;
   final VelaTrafficMonitor? traffic;
   final VelaRoutingModeController? routing;
+  final VelaSmartController? smart;
   final VoidCallback showNodes;
-  final VoidCallback showSmart;
+
+  Future<void> _toggle(BuildContext context) async {
+    final vpn = androidVpn;
+    if (vpn != null) {
+      if (vpn.busy) return;
+      if (vpn.active) {
+        await vpn.stop();
+        return;
+      }
+      final sub = subscription;
+      if (sub?.selected == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请先导入机场配置并选择真实节点，再连接 VPN')));
+        return;
+      }
+      // The first-use Android VPN permission dialog is REQUIRED by Android.
+      await vpn.start(sub!);
+      if (vpn.error != null && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(vpn.error!)));
+      }
+      return;
+    }
+    final conn = connection;
+    if (conn != null) {
+      await _toggleRealConnection(context, conn);
+    } else if (demo.isConnected || demo.phase == VelaPhase.connecting ||
+        demo.phase == VelaPhase.switching) {
+      demo.disconnect();
+    } else {
+      demo.connect();
+    }
+  }
+
+  void _openRouting(BuildContext context) {
+    final modes = routing;
+    if (modes == null) return;
+    showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 18),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 430),
+          child: VelaRoutingModeSelector(
+            key: const ValueKey('mobile_routing_selector'),
+            controller: modes,
+            activeProfileId:
+                subscription is VelaFlClashSubscriptionController
+                    ? (subscription! as VelaFlClashSubscriptionController)
+                        .activeProfileId : null,
+            locked: androidVpn?.busy == true ||
+                connection?.busy == true || smart?.scanning == true,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-    children: [
-      Row(children: [
-        VelaBrandLogo(size: 37),
-        SizedBox(width: 9),
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Vela-SHUO', style: TextStyle(
-              fontSize: 18, fontWeight: FontWeight.bold,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final vpn = androidVpn;
+      final connected = vpn?.connected ??
+          connection?.connected ?? demo.isConnected;
+      final busy = vpn?.busy ?? connection?.busy ??
+          (demo.phase == VelaPhase.connecting ||
+           demo.phase == VelaPhase.switching);
+      final node = subscription?.selected?.name ??
+          (vpn != null ? '尚未选择航线' : 'UI 演示 · ' + demo.selected.title);
+      final state = vpn?.phaseText ??
+          (busy ? '正在建立航线' : connected ? '已连接' : '未连接');
+      return Stack(children: [
+        Positioned(
+          top: 13, left: 16, right: 12,
+          child: Row(children: [
+            const VelaSailMark(size: 40),
+            const SizedBox(width: 9),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('VELA', style: TextStyle(color: _foreground,
+                    fontSize: 26, fontWeight: FontWeight.w800,
+                    letterSpacing: 2.5)),
+                Text('— SHUO —', style: TextStyle(color: _blue,
+                    fontSize: 10, letterSpacing: 1.8)),
+                Text(velaBrandTagline, style: TextStyle(
+                    color: _muted, fontSize: 9)),
+              ],
             )),
-            Text(velaBrandTagline,
-              style: TextStyle(color: _muted, fontSize: 10, letterSpacing: .5),
-            ),
-          ],
-        )),
-        Platform.isAndroid ? _AndroidVpnTag(vpn: androidVpn!)
-            : subscription?.selected != null ? _RealTag(compact: true)
-            : _DemoTag(compact: true),
-      ]),
-      SizedBox(height: 7),
-      // Open sky for the single Earth background on mobile.
-      SizedBox(height: math.min(
-          MediaQuery.sizeOf(context).width * .42, 180)),
-      SizedBox(height: 8),
-      Platform.isAndroid
-          ? _AndroidVpnCard(
-              vpn: androidVpn!, subscription: subscription!,
-              showNodes: showNodes)
-          : subscription?.selected != null && connection != null
-              ? _RealConnectionCard(connection: connection!,
-                  showNodes: showNodes, compact: true)
-              : _ConnectionCard(demo: demo, showNodes: showNodes, compact: true),
-      if (routing != null) ...[
-        const SizedBox(height: 12),
-        VelaRoutingModeSelector(
-          key: const ValueKey('home_routing_selector'),
-          controller: routing!,
-          activeProfileId:
-              subscription is VelaFlClashSubscriptionController
-                  ? (subscription! as VelaFlClashSubscriptionController)
-                      .activeProfileId
-                  : null,
-          locked: connection?.busy == true ||
-              androidVpn?.busy == true || smart?.scanning == true,
+            if (vpn != null)
+              Icon(Icons.shield_outlined, size: 18,
+                  color: connected ? _mint : _blue),
+          ]),
         ),
-      ],
-      SizedBox(height: 12),
-      Row(children: [
-        Expanded(child: _MetricCard(
-          icon: Icons.upload_outlined, label: '上传速度',
-          value: VelaTrafficMonitor.rateMbps(traffic?.uploadBytesPerSecond),
-          unit: 'Mbps',
-          caption: '累计上传 ${VelaTrafficMonitor.totalLabel(traffic?.uploadedBytes)}',
-          highlight: _mint,
-        )),
-        SizedBox(width: 10),
-        Expanded(child: _MetricCard(
-          icon: Icons.download_outlined, label: '下载速度',
-          value: VelaTrafficMonitor.rateMbps(traffic?.downloadBytesPerSecond),
-          unit: 'Mbps',
-          caption: '累计下载 ${VelaTrafficMonitor.totalLabel(traffic?.downloadedBytes)}',
-          highlight: _blue,
-        )),
-      ]),
-      SizedBox(height: 10),
-      Row(children: [
-        Expanded(child: _MetricCard(
-          icon: Icons.auto_awesome_outlined, label: '智能模式',
-          value: Platform.isAndroid ? '未启用' :
-              subscription?.selected != null
-              ? (smart?.autoPickWhenIdle == true ? '空闲优选' : '手动优选')
-              : (demo.smartEnabled ? '已启用' : '已关闭'),
-          unit: '', caption: Platform.isAndroid ? 'Android VPN Beta' :
-              subscription?.selected != null
-                  ? '真实评分引擎' : '引擎尚未接入',
-          highlight: _blue, onTap: showSmart,
-        )),
-        SizedBox(width: 10),
-        Expanded(child: _MetricCard(
-          icon: Icons.schedule_outlined, label: '连接时长',
-          value: traffic?.elapsedLabel ?? '—', unit: '',
-          caption: '本次连接时长',
-          highlight: _muted,
-        )),
-      ]),
-      SizedBox(height: 20),
-    ],
+        Positioned(
+          top: 90, left: 14, right: 14,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: VelaWatercolorSurface(
+                radius: 24,
+                padding: const EdgeInsets.fromLTRB(14, 8, 9, 8),
+                child: Row(children: [
+                  Icon(Icons.circle, size: 9, color:
+                      busy ? _blue : connected ? _mint : _muted),
+                  const SizedBox(width: 9),
+                  Expanded(child: InkWell(
+                    key: const ValueKey('mobile_node_shortcut'),
+                    onTap: showNodes,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(state, maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: _foreground,
+                            fontSize: 14, fontWeight: FontWeight.w700)),
+                        Text(node, maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: _muted, fontSize: 11)),
+                      ],
+                    ),
+                  )),
+                  if (routing != null)
+                    IconButton(
+                      key: const ValueKey('mobile_routing_open'),
+                      tooltip: '航线模式：' + routing!.current.label,
+                      icon: const Icon(Icons.alt_route_rounded),
+                      iconSize: 21, color: _blue,
+                      onPressed: () => _openRouting(context)),
+                  IconButton.filled(
+                    key: ValueKey(vpn != null
+                        ? 'android_vpn_button' : 'mobile_connect_button'),
+                    tooltip: busy ? '正在连接' :
+                        connected ? '断开航线' : '启航连接',
+                    onPressed: busy ? null : () => _toggle(context),
+                    icon: Icon(connected
+                        ? Icons.power_settings_new_rounded
+                        : Icons.sailing_rounded, size: 24),
+                    style: IconButton.styleFrom(
+                      backgroundColor: _blue.withValues(alpha: .9),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(48, 48)),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ),
+        if (vpn?.error != null)
+          Positioned(top: 178, left: 18, right: 18,
+            child: VelaWatercolorSurface(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 8),
+              child: Text(vpn!.error!, maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11,
+                      color: Color(0xFFE78986))))),
+        Positioned(
+          left: 14, bottom: 90,
+          child: _VoyageRatePanel(
+            traffic: traffic, active: vpn?.connected ??
+                connection?.connected ?? false),
+        ),
+      ]);
+    },
   );
 }
 
@@ -1211,9 +1071,7 @@ class _ScreenPadding extends StatelessWidget {
       constraints: BoxConstraints(
         maxWidth: Platform.isAndroid ? 1000 : 870),
       child: Padding(
-        padding: Platform.isAndroid
-            ? const EdgeInsets.symmetric(horizontal: 22, vertical: 27)
-            : const EdgeInsets.fromLTRB(23, 75, 23, 96),
+        padding: const EdgeInsets.fromLTRB(16, 75, 16, 115),
         child: child,
       ),
     ),
@@ -1615,84 +1473,6 @@ class _AndroidVpnTag extends StatelessWidget {
   );
 }
 
-class _AndroidVpnCard extends StatelessWidget {
-  const _AndroidVpnCard({required this.vpn, required this.subscription,
-      required this.showNodes});
-  final VelaAndroidVpnController vpn;
-  final VelaSubscriptionController subscription;
-  final VoidCallback showNodes;
-
-  @override
-  Widget build(BuildContext context) => _GlassCard(
-    padding: const EdgeInsets.all(17),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Icon(Icons.vpn_lock_rounded,
-            color: vpn.connected ? _mint : _blue, size: 30),
-        const SizedBox(width: 12),
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(vpn.phaseText, style: TextStyle(color: _foreground,
-                fontSize: 18, fontWeight: FontWeight.w700)),
-            Text('当前航线 · ${subscription is VelaFlClashSubscriptionController ? ((subscription as VelaFlClashSubscriptionController).profileName ?? '未命名机场') : '未命名机场'}',
-                style: TextStyle(color: _muted, fontSize: 11)),
-          ],
-        )),
-      ]),
-      const SizedBox(height: 12),
-      Text(subscription.selected == null
-          ? '请先在「配置」页面导入订阅，再于「代理」页面选择节点。'
-          : '已选择：${subscription.selected!.name}',
-          style: TextStyle(color: _muted, fontSize: 12)),
-      if (vpn.error != null) Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Text(vpn.error!, style: const TextStyle(
-            color: Color(0xFFE78986), fontSize: 12)),
-      ),
-      const SizedBox(height: 12),
-      SizedBox(width: double.infinity, child: FilledButton.icon(
-        key: const ValueKey('android_vpn_button'),
-        onPressed: vpn.busy || (!vpn.active &&
-            subscription.selected == null) ? null : () async {
-          if (vpn.connected) {
-            await vpn.stop();
-          } else {
-            await vpn.start(subscription);
-          }
-        },
-        icon: Icon(vpn.connected ? Icons.power_settings_new_rounded
-            : Icons.vpn_key_rounded),
-        label: Text(vpn.connected ? '安全断开 Android VPN'
-            : vpn.busy ? '正在建立 VPN…' : '授权并连接真实 VPN'),
-      )),
-      if (vpn.connected) ...[
-        const SizedBox(height: 8),
-        SizedBox(width: double.infinity, child: OutlinedButton.icon(
-          key: const ValueKey('vela_android_internet_test'),
-          icon: const Icon(Icons.public),
-          label: const Text('测试 VPN 真实联网'),
-          onPressed: () async {
-            final ok = await vpn.testConnectivity();
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(ok
-                ? 'VPN 内真实 HTTPS 联网测试通过'
-                : 'VPN 内真实 HTTPS 联网测试失败，请检查节点与 DNS'),
-            ));
-          },
-        )),
-      ],
-      const SizedBox(height: 8),
-      TextButton.icon(onPressed: vpn.active ? null : showNodes,
-          icon: const Icon(Icons.route_outlined),
-          label: const Text('选择线路')),
-      Text('Beta：首次连接需要 Android VPN 授权，'
-          '系统状态由原生服务和 HTTPS 验证更新。',
-          style: TextStyle(color: _muted, fontSize: 11)),
-    ]),
-  );
-}
 
 class _RealTag extends StatelessWidget {
   const _RealTag({this.compact = false});
@@ -1737,112 +1517,3 @@ Future<void> _toggleRealConnection(
   }
 
 
-class _RealConnectionCard extends StatelessWidget {
-  const _RealConnectionCard({
-    required this.connection, required this.showNodes,
-    this.compact = false,
-  });
-  final VelaConnectionCoordinator connection;
-  final VoidCallback showNodes;
-  final bool compact;
-
-  Future<void> toggle(BuildContext context) =>
-      _toggleRealConnection(context, connection);
-
-  @override
-  Widget build(BuildContext context) {
-    final color = connection.connected ? _mint :
-        connection.phase == VelaRealPhase.error
-            ? const Color(0xFFE78986) : _blue;
-    final estimated = VelaDemoNode.approximateFromName(connection.nodeName);
-    return _GlassCard(
-      padding: EdgeInsets.all(compact ? 16 : 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Icon(Icons.language_rounded, color: color,
-                size: compact ? 32 : 42),
-            const SizedBox(width: 13),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(connection.phaseText, style: TextStyle(
-                  color: color, fontWeight: FontWeight.bold,
-                  fontSize: compact ? 21 : 26,
-                )),
-                Text('当前航线 · ${connection.subscription is VelaFlClashSubscriptionController ? ((connection.subscription as VelaFlClashSubscriptionController).profileName ?? '未命名机场') : '未命名机场'}',
-                    style: TextStyle(color: _muted, fontSize: 12)),
-              ],
-            )),
-          ]),
-          const SizedBox(height: 13),
-          Material(
-            color: _blue.withValues(alpha: .1),
-            borderRadius: BorderRadius.circular(12),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-              dense: true,
-              onTap: connection.busy ? null : showNodes,
-              leading: Icon(Icons.route_outlined, color: _blue),
-              title: Text(connection.nodeName, maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: _foreground)),
-              trailing: Icon(Icons.chevron_right, color: _muted),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(estimated == null
-              ? '节点地理位置未知，地球保持原视角'
-              : '地球航线位置由节点名称估算 · 非 IP 定位',
-            style: TextStyle(fontSize: 11, color: _muted),
-          ),
-          if (connection.error != null) Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(connection.error!, maxLines: 3,
-              style: const TextStyle(color: Color(0xFFE78986), fontSize: 11)),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: compact ? 44 : 48,
-            child: FilledButton.icon(
-              key: const ValueKey('real_connect_button'),
-              onPressed: connection.busy ? null : () => toggle(context),
-              icon: Icon(connection.connected || connection.proxy.active
-                  ? Icons.power_settings_new_rounded : Icons.sailing_outlined),
-              label: Text(connection.busy ? '请稍候…' :
-                  connection.connected || connection.proxy.active
-                      ? '安全断开并恢复代理' : '连接所选真实节点'),
-              style: FilledButton.styleFrom(
-                backgroundColor: _blue.withValues(alpha: .26),
-                foregroundColor: _foreground,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: _blue),
-                ),
-              ),
-            ),
-          ),
-          if (connection.connected || connection.core.isListening) ...[
-            const SizedBox(height: 8),
-            SizedBox(width: double.infinity, child: OutlinedButton.icon(
-              key: const ValueKey('vela_real_internet_test'),
-              icon: const Icon(Icons.public),
-              label: const Text('测试当前节点联网'),
-              onPressed: connection.busy || connection.core.probing ? null : () async {
-                final ok = await connection.core.verifyRemote();
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text(ok
-                    ? '真实 HTTPS 联网测试通过：当前节点可以访问外网'
-                    : '真实 HTTPS 联网测试失败：请检查节点或订阅'),
-                ));
-              },
-            )),
-          ],
-        ],
-      ),
-    );
-  }
-}
