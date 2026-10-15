@@ -362,7 +362,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     1 => VelaStellarProxyPage(
       demo: demo, subscription: subscription,
       connection: connection, androidVpn: androidVpn,
-      smart: smart, traffic: traffic,
+      smart: smart, traffic: traffic, routing: routing,
       openConfig: () => navigate(4)),
     2 => _SmartPage(demo: demo, smart: smart, subscription: subscription),
     4 => VelaStellarConfigPage(
