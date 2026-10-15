@@ -13,7 +13,7 @@ source = gradle.read_text(encoding="utf-8")
 old = 'applicationId = "com.shuowang.vela_shuo"'
 if source.count(old) != 1:
     raise SystemExit("Unexpected generated Flutter application id")
-source = source.replace(old, 'applicationId = "com.shuowang.vela.vpn.beta"', 1)
+source = source.replace(old, 'applicationId = "com.shuowang.vela"', 1)
 if "dependencies {" in source:
     source += '\n// AAR is downloaded separately and SHA-256-verified by CI.\n'
 source += '\ndependencies {\n    implementation(files("libs/libmihomo.aar"))\n}\n'
@@ -26,11 +26,33 @@ android {
     }
 }
 '''
+# Never sign a public stable release with Flutter's runner-local debug key.
+# Fixed key material is injected from GitHub Actions secrets, never stored in git.
+source += '''
+android {
+    signingConfigs {
+        create("velaRelease") {
+            storeFile = file("vela-release.jks")
+            storePassword = System.getenv("VELA_ANDROID_STORE_PASSWORD")
+                ?: error("Missing Vela stable Android store password")
+            keyAlias = System.getenv("VELA_ANDROID_KEY_ALIAS")
+                ?: error("Missing Vela stable Android signing alias")
+            keyPassword = System.getenv("VELA_ANDROID_KEY_PASSWORD")
+                ?: error("Missing Vela stable Android key password")
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("velaRelease")
+        }
+    }
+}
+'''
 gradle.write_text(source, encoding="utf-8")
 
 xml = manifest.read_text(encoding="utf-8")
 xml, count = re.subn(r'android:label="[^"]+"',
-    'android:label="Vela-SHUO VPN"', xml, count=1)
+    'android:label="Vela"', xml, count=1)
 if count != 1:
     raise SystemExit("Unexpected Flutter manifest label")
 if 'android:allowBackup=' not in xml:
@@ -74,4 +96,4 @@ icon_source = Path("native/android/vela_notification_sail.xml")
 drawable_dir = Path("android/app/src/main/res/drawable")
 drawable_dir.mkdir(parents=True, exist_ok=True)
 shutil.copy2(icon_source, drawable_dir / icon_source.name)
-print("Android real VPN Beta: VpnService, JNI native bridge, ARM64 and foreground service configured")
+print("Vela stable Android: fixed package ID and release signing enforced")
