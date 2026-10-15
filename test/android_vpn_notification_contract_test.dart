@@ -40,7 +40,7 @@ void main() {
     expect(vpn, contains('stopSpeedSampler()'));
     expect(vpn, contains('stopForeground(STOP_FOREGROUND_REMOVE)'));
     expect(vpn, contains('setOnlyAlertOnce(true)'));
-    expect(vpn, contains('setOngoing(true)'));
+    expect(vpn, contains('setOngoing(ongoing)'));
     expect(vpn, isNot(contains('.addAction(')));
     expect(vpn, isNot(contains('断开 VPN')));
     // The first line is the airport label; the second is actual traffic.
