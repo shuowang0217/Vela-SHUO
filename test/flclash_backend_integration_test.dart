@@ -131,6 +131,9 @@ proxy-providers:
     expect(backend.activeName, 'US-TUIC');
     expect(backend.activeGroup, 'GLOBAL');
     expect(fake.changedGroup, 'GLOBAL');
+    // FlClash uses RULE by default; an explicit GLOBAL mode must verify
+    // the selected proxy really appears in the routed connection chain.
+    backend.activeRoutingMode = 'global';
     await backend.start();
     expect(backend.listenerStarted, true);
     expect(await backend.verifyInternet(), true);
