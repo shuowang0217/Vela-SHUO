@@ -69,4 +69,9 @@ manifest.write_text(xml, encoding="utf-8")
 kotlin_dir.mkdir(parents=True, exist_ok=True)
 for item in ("MainActivity.kt", "VelaVpnService.kt", "VelaVpnState.kt"):
     shutil.copy2(Path("native/android") / item, kotlin_dir / item)
+
+icon_source = Path("native/android/vela_notification_sail.xml")
+drawable_dir = Path("android/app/src/main/res/drawable")
+drawable_dir.mkdir(parents=True, exist_ok=True)
+shutil.copy2(icon_source, drawable_dir / icon_source.name)
 print("Android real VPN Beta: VpnService, JNI native bridge, ARM64 and foreground service configured")

@@ -1,6 +1,9 @@
 package com.shuowang.vela_shuo
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
@@ -214,6 +217,15 @@ class MainActivity : FlutterActivity() {
             val intent = Intent(this, VelaVpnService::class.java)
                 .setAction(VelaVpnService.ACTION_START)
             ContextCompat.startForegroundService(this, intent)
+            // On Android 13+, permission is needed for the regular notification
+            // drawer. It is optional for VPN forwarding; never block the VPN
+            // when the user declines to show notifications.
+            if (Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                    PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS), 8242)
+            }
             callback.success(true)
         } catch (_: Exception) {
             VelaVpnState.report("error", "无法启动 VPN 后台服务")

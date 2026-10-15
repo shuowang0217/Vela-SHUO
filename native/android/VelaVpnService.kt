@@ -10,6 +10,12 @@ import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
+import org.json.JSONObject
+import java.util.Locale
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 import io.github.oviron.libmihomo.Clash
 import io.github.oviron.libmihomo.TunInterface
 import java.io.File
@@ -30,6 +36,7 @@ class VelaVpnService : VpnService() {
     }
 
     private val generation = AtomicInteger(0)
+    @Volatile private var speedSampler: ScheduledExecutorService? = null
     private var vpnDevice: ParcelFileDescriptor? = null
     @Volatile private var nativeStarted = false
     @Volatile private var failed = false
@@ -51,29 +58,121 @@ class VelaVpnService : VpnService() {
             CHANNEL_ID, "Vela-SHUO VPN", NotificationManager.IMPORTANCE_LOW))
     }
 
-    private fun showForeground() {
+    private fun buildNotification(details: String): Notification {
         val open = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            this, 0, Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 1,
             Intent(this, VelaVpnService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val notification = Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("Vela-SHUO · Mihomo VPN")
-            .setContentText("VPN 正在运行 · 点此返回应用")
+        val builder = Notification.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.vela_notification_sail)
+            .setContentTitle("Vela · 航行中")
+            .setContentText(details)
+            .setStyle(Notification.BigTextStyle().bigText(details))
             .setContentIntent(open)
             .addAction(Notification.Action.Builder(
                 android.R.drawable.ic_menu_close_clear_cancel,
                 "断开 VPN", stop).build())
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .setOnlyAlertOnce(true)
             .setOngoing(true)
-            .build()
+        if (Build.VERSION.SDK_INT >= 31) {
+            builder.setForegroundServiceBehavior(
+                Notification.FOREGROUND_SERVICE_IMMEDIATE)
+        }
+        return builder.build()
+    }
+
+    private fun showForeground() {
+        val notification = buildNotification("正在建立航线 · 等待真实流量")
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(NOTIFICATION_ID, notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+    }
+
+    private fun formatSpeed(bytesPerSecond: Double): String {
+        val rate = bytesPerSecond.coerceAtLeast(0.0)
+        return when {
+            rate < 1024.0 -> "${rate.toLong()} B/s"
+            rate < 1048576.0 -> String.format(Locale.US,
+                "%.1f KB/s", rate / 1024.0)
+            rate < 1073741824.0 -> String.format(Locale.US,
+                "%.2f MB/s", rate / 1048576.0)
+            else -> String.format(Locale.US,
+                "%.2f GB/s", rate / 1073741824.0)
+        }
+    }
+
+    /**
+     * Runs inside VpnService, independently of Flutter Activity. The native
+     * Mihomo up/down values are cumulative bytes, NOT instantaneous speeds.
+     * Calculate monotonic deltas and elapsed seconds; reject counter resets.
+     */
+    private fun startSpeedSampler(ticket: Int) {
+        stopSpeedSampler()
+        val executor = Executors.newSingleThreadScheduledExecutor { task ->
+            Thread(task, "vela-vpn-notification-speed").apply { isDaemon = true }
+        }
+        speedSampler = executor
+        var lastUp: Long? = null
+        var lastDown: Long? = null
+        var lastAt = 0L
+        executor.scheduleWithFixedDelay({
+            if (ticket != generation.get() || !nativeStarted) {
+                return@scheduleWithFixedDelay
+            }
+            var text = "↑ 风速 采集中 · ↓ 航速 采集中"
+            try {
+                val totals = JSONObject(Clash.getTotalTraffic())
+                val up = totals.optLong("up", -1L)
+                val down = totals.optLong("down", -1L)
+                val now = SystemClock.elapsedRealtime()
+                if (up >= 0L && down >= 0L) {
+                    val previousUp = lastUp
+                    val previousDown = lastDown
+                    val elapsed = now - lastAt
+                    if (previousUp != null && previousDown != null &&
+                        up >= previousUp && down >= previousDown && elapsed > 0L) {
+                        val uploadRate = (up - previousUp).toDouble() * 1000.0 / elapsed
+                        val downloadRate = (down - previousDown).toDouble() * 1000.0 / elapsed
+                        text = "↑ 风速 ${formatSpeed(uploadRate)} · ↓ 航速 ${formatSpeed(downloadRate)}"
+                    }
+                    lastUp = up
+                    lastDown = down
+                    lastAt = now
+                } else {
+                    text = "↑ 风速 暂无数据 · ↓ 航速 暂无数据"
+                    lastUp = null
+                    lastDown = null
+                    lastAt = 0L
+                }
+            } catch (_: Throwable) {
+                // A transient native counter failure must never stop the VPN.
+                text = "↑ 风速 暂无数据 · ↓ 航速 暂无数据"
+                lastUp = null
+                lastDown = null
+                lastAt = 0L
+            }
+            if (ticket == generation.get() && nativeStarted) {
+                try {
+                    getSystemService(NotificationManager::class.java)
+                        .notify(NOTIFICATION_ID, buildNotification(text))
+                } catch (_: Exception) {
+                    // Permission may be denied or notifications disabled;
+                    // network forwarding remains unaffected.
+                }
+            }
+        }, 0L, 2L, TimeUnit.SECONDS)
+    }
+
+    private fun stopSpeedSampler() {
+        speedSampler?.shutdownNow()
+        speedSampler = null
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -161,6 +260,8 @@ class VelaVpnService : VpnService() {
                             if (ticket != generation.get()) return@Thread
                             if (verifyThroughVpn() && ticket == generation.get()) {
                                 VelaVpnState.report("connected")
+                                // Start live, real counters only after HTTPS verification.
+                                startSpeedSampler(ticket)
                             } else if (ticket == generation.get()) {
                                 fail("VPN 线路 HTTPS 验证失败，已安全断开")
                             }
@@ -211,6 +312,7 @@ class VelaVpnService : VpnService() {
 
     private fun shutdown() {
         generation.incrementAndGet() // invalidate all pending callbacks
+        stopSpeedSampler()
         try {
             if (Clash.isLoaded()) Clash.stopTun()
         } catch (_: Throwable) {
