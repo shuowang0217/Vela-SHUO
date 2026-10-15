@@ -900,6 +900,17 @@ class _MobileHome extends StatelessWidget {
         }
         return;
       }
+      // Unlike FlClash's full app, this host does not own a persistent
+      // native setting object. Synchronize before passing route-mode to
+      // VpnService; quickSetup must then reapply it before establishing TUN.
+      if (sub is VelaFlClashSubscriptionController && routing != null &&
+          !await routing!.synchronize(sub.activeProfileId)) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('规则模式尚未被 FlClash 核心确认，VPN 未启动')));
+        }
+        return;
+      }
       await vpn.start(sub!);
       if (vpn.error != null && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
