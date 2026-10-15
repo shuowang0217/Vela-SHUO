@@ -225,6 +225,25 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     };
   }
 
+  /// FlClash saves all native selectors separately for each profile.
+  /// Reapply only existing members: stale provider nodes must not override
+  /// another group's valid selection or switch RULE into GLOBAL.
+  Future<void> _restoreProfileSelections(VelaStoredProfile stored) async {
+    await backend.restoreSelectedMap(stored.selectedMap,
+        selectedGroup: stored.selectedGroup);
+    final chosen = backend.activeName ?? stored.selectedName;
+    if (chosen != null) {
+      final index = nodes.indexWhere((node) => node.name == chosen);
+      if (index >= 0 && backend.activeName != chosen) {
+        if (await backend.selectNode(chosen)) {
+          _selection = index;
+        }
+      } else if (index >= 0) {
+        _selection = index;
+      }
+    }
+  }
+
   /// Queue profile snapshots; sensitive source URL stays in encrypted vault.
   void _queueCurrentSave() {
     final id = _activeProfileId;
@@ -237,6 +256,8 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       // Preserve a newly staged source while only updating selected-node UI.
       copy[index] = copy[index].copyWith(
         selectedName: selected?.name,
+        selectedMap: backend.selectedMap,
+        selectedGroup: backend.activeGroup,
         favorites: _favoriteNames.toList()..sort(),
       );
     } else {
@@ -275,6 +296,8 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     final profile = VelaStoredProfile(
       id: id, name: title, raw: raw, sourceUrl: sourceUrl,
       selectedName: activate ? selected?.name : null,
+      selectedMap: activate ? backend.selectedMap : const {},
+      selectedGroup: activate ? backend.activeGroup : null,
       favorites: const [],
       usage: usage,
       updatedAt: DateTime.now(),
@@ -422,6 +445,8 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
         final latestSelected = selected?.name;
         next[index] = next[index].copyWith(
           selectedName: latestSelected ?? entry.selectedName,
+          selectedMap: backend.selectedMap,
+          selectedGroup: backend.activeGroup,
           favorites: _favoriteNames.toList()..sort(),
         );
       }
@@ -594,12 +619,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       ..clear()
       ..addAll(saved.favorites.where(
           (n) => nodes.any((node) => node.name == n)));
-    if (saved.selectedName != null) {
-      final i = nodes.indexWhere((n) => n.name == saved.selectedName);
-      if (i >= 0 && await backend.selectNode(saved.selectedName!)) {
-        _selection = i;
-      }
-    }
+    await _restoreProfileSelections(saved);
     final quota = saved.usage;
     if (quota != null && quota['total'] != null) {
       backend.subscriptionUsage = FlClashSubscriptionUsage(
@@ -673,7 +693,10 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
         !backend.selectRoutingGroup(nativeGroup)) {
       return false;
     }
-    _selection = null;
+    final current = backend.activeName;
+    _selection = current == null ? null
+        : nodes.indexWhere((node) => node.name == current);
+    if (_selection != null && _selection! < 0) _selection = null;
     _queueCurrentSave();
     _emit();
     return true;
@@ -684,11 +707,12 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   /// backend; it is never reconstructed by Vela.
   @override
   String? get androidVpnProfile {
-    final group = backend.activeGroup;
     final node = selected;
-    if (group == null || node == null) return null;
+    if (node == null || backend.activeGroup == null) return null;
+    // FlClash's SetupParams receives the complete per-profile selectedMap.
+    // Passing only one group made RULE differ from GLOBAL after quickSetup.
     return jsonEncode({
-      'selected-map': {group: node.name},
+      'selected-map': backend.selectedMap,
       // Passed to VpnService and reapplied after native quickSetup reloads
       // config.yaml; otherwise Android silently falls back to RULE.
       'route-mode': backend.activeRoutingMode,
@@ -699,7 +723,8 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   @override
   bool confirmVpnSelection(int index) {
     if (_closed || index < 0 || index >= nodes.length) return false;
-    backend.activeName = nodes[index].name;
+    backend.recordNativeSelection(
+        backend.activeGroup ?? 'GLOBAL', nodes[index].name);
     _selection = index;
     _queueCurrentSave();
     _emit();
@@ -739,6 +764,8 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       autoUpdateMinutes: _profiles
           .where((p) => p.id == id).firstOrNull?.autoUpdateMinutes,
       selectedName: selected?.name,
+      selectedMap: backend.selectedMap,
+      selectedGroup: backend.activeGroup,
       favorites: _favoriteNames.toList()..sort(),
       usage: _quotaMap(backend.subscriptionUsage),
       updatedAt: _updatedAt,
@@ -889,12 +916,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
         ..addAll(target.favorites.where(
             (name) => nodes.any((node) => node.name == name)));
       _selection = null;
-      if (target.selectedName != null) {
-        final i = nodes.indexWhere((n) => n.name == target.selectedName);
-        if (i >= 0 && await backend.selectNode(nodes[i].name)) {
-          _selection = i;
-        }
-      }
+      await _restoreProfileSelections(target);
       await _library.write(next, id);
       _profiles = next;
       _activeProfileId = id;
@@ -957,12 +979,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
             ..addAll(saved.favorites.where(
                 (name) => nodes.any((node) => node.name == name)));
           _selection = null;
-          if (saved.selectedName != null) {
-            final index = nodes.indexWhere((n) => n.name == saved.selectedName);
-            if (index >= 0 && await backend.selectNode(saved.selectedName!)) {
-              _selection = index;
-            }
-          }
+          await _restoreProfileSelections(saved);
           _activeProfileId = saved.id;
           _profileName = saved.name;
           _updatedAt = saved.updatedAt;
