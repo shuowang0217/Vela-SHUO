@@ -5,7 +5,6 @@ import '../subscription/flclash_profile_downloader.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../subscription/vela_subscription_parser.dart';
 import 'flclash_core_api.dart';
-import 'vela_rule_defaults.dart';
 import 'flclash_windows_transport.dart';
 
 /// Single FlClash runtime for Windows. This class contains no protocol
@@ -48,7 +47,7 @@ class FlClashWindowsBackend {
   /// The core is the source of truth; increment on every profile import.
   /// Each new profile must have the saved route mode reapplied to its rules.
   int profileRevision = 0;
-  String activeRoutingMode = 'global';
+  String activeRoutingMode = 'rule';
 
   Future<bool> updateRoutingMode(String mode) async {
     if (!imported || !const {'rule', 'global', 'direct'}.contains(mode)) {
@@ -110,7 +109,7 @@ class FlClashWindowsBackend {
     await initialize();
     if (listenerStarted) throw StateError('Disconnect before importing a profile');
     final result = await api.invoke('velaLoadProfile',
-        arguments: {'content': VelaRuleDefaults.prepare(raw)},
+        arguments: {'content': raw},
         timeout: const Duration(minutes: 2));
     if (result is! Map) {
       throw const FlClashCoreFailure('invalid_response', 'Profile RPC failed');
@@ -139,7 +138,7 @@ class FlClashWindowsBackend {
     }
     imported = true;
     profileRevision++;
-    activeRoutingMode = 'global'; // restored mode is reapplied after import
+    activeRoutingMode = 'rule'; // FlClash default; restore the saved mode
     lastImportedSource = raw;
     // Local text/file imports have no authoritative subscription HTTP header.
     subscriptionUsage = null;
