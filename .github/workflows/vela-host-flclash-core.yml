@@ -1,8 +1,8 @@
-name: Vela v1.4.3 Android Live VPN Speed + Dual Platform
+name: Vela v1.4.3 Android Notification, Map and Glass Fix
 
 on:
   push:
-    branches: [feature/v1.4.3-android-live-speed-notification]
+    branches: [feature/v1.4.3-android-notification-glass-map-fix]
   workflow_dispatch:
 
 permissions:
