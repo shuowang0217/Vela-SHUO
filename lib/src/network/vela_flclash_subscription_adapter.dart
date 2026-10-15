@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:yaml/yaml.dart';
 
 import '../subscription/flclash_profile_downloader.dart';
 import '../subscription/vela_subscription_controller.dart';
@@ -427,6 +428,57 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       return true;
     } catch (_) {
       _lastError = '机场更新失败，请检查 HTTPS 地址和网络；原存档已保留';
+      _emit();
+      return false;
+    } finally {
+      _storageBusy = false;
+      _emit();
+    }
+  }
+
+  /// FlClash-like raw YAML editing. Live proxy/TUN state is immutable:
+  /// offline active profiles are validated by Mihomo before applying, while
+  /// non-active profiles are staged and validated when activated.
+  Future<bool> editProfileYaml(String id, String raw) async {
+    if (_closed || _storageBusy || loading || _addingProfile) return false;
+    if (raw.trim().isEmpty || raw.length > 4 * 1024 * 1024) return false;
+    try {
+      if (loadYaml(raw) is! YamlMap) return false;
+    } catch (_) {
+      _lastError = '配置 YAML 语法不正确';
+      _emit();
+      return false;
+    }
+    final index = _profiles.indexWhere((p) => p.id == id);
+    if (index < 0) return false;
+    _storageBusy = true;
+    _emit();
+    final active = id == _activeProfileId;
+    try {
+      await _pendingWrites;
+      if (active && !backend.listenerStarted &&
+          isVpnActive?.call() != true) {
+        final previous = _raw;
+        final ok = await _import(() => backend.importText(raw), source: raw,
+            sourceUrl: _profiles[index].sourceUrl);
+        if (!ok) {
+          if (previous != null) {
+            try { await backend.importText(previous); _raw = previous; }
+            catch (_) {}
+          }
+          throw const FormatException('Native profile validator rejected YAML');
+        }
+      }
+      final next = [..._profiles];
+      next[index] = next[index].copyWith(
+        raw: raw, updatedAt: DateTime.now());
+      await _library.write(next, _activeProfileId);
+      _profiles = next;
+      _lastError = null;
+      _emit();
+      return true;
+    } catch (_) {
+      _lastError = '配置保存失败；原配置未改变，请检查 Mihomo 格式';
       _emit();
       return false;
     } finally {
