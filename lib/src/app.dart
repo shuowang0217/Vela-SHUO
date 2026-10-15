@@ -1,7 +1,6 @@
 // ignore_for_file: prefer_interpolation_to_compose_strings
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
