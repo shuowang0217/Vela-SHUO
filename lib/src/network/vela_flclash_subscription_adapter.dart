@@ -685,12 +685,10 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     return accepted;
   }
 
-  /// In FlClash, RULE mode edits individual native selector groups.
-  /// Switching a group requires disconnecting and picking its node.
+  /// FlClash group navigation is presentation state; it never disconnects
+  /// VPN, selects a node, or rewrites mode. URLTest/Fallback are valid tabs.
   bool selectRoutingGroup(String nativeGroup) {
-    if (_closed || loading || backend.listenerStarted ||
-        isVpnActive?.call() == true ||
-        !backend.selectRoutingGroup(nativeGroup)) {
+    if (_closed || loading || !backend.selectRoutingGroup(nativeGroup)) {
       return false;
     }
     final current = backend.activeName;
@@ -702,13 +700,30 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     return true;
   }
 
+  /// FlClash lets an airport's Selector point to an automatic/fallback
+  /// policy group, without inventing a physical node. Keep that exact
+  /// group -> member selection after native core acknowledges the change.
+  Future<bool> selectGroupMember(String member) async {
+    if (_closed || loading || !await backend.selectGroupMember(member)) {
+      _lastError = 'FlClash 未确认该下级策略组';
+      _emit();
+      return false;
+    }
+    _selection = null;
+    _lastError = null;
+    _queueCurrentSave();
+    _emit();
+    return true;
+  }
+
   /// The Android VPN Activity receives only the selected map. The real
   /// Mihomo config has already been parsed and installed by the FlClash Go
   /// backend; it is never reconstructed by Vela.
   @override
   String? get androidVpnProfile {
-    final node = selected;
-    if (node == null || backend.activeGroup == null) return null;
+    // A native policy selector can point to URLTest/Fallback rather than
+    // a leaf. FlClash permits starting VPN with the entire selectedMap.
+    if (!backend.imported) return null;
     // FlClash's SetupParams receives the complete per-profile selectedMap.
     // Passing only one group made RULE differ from GLOBAL after quickSetup.
     return jsonEncode({
