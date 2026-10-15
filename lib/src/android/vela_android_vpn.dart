@@ -91,8 +91,10 @@ class VelaAndroidVpnController extends ChangeNotifier {
   }
 
   Future<bool> start(VelaSubscriptionController subscription) async {
+    // FlClash can start VPN with native selectors and selectedMap even
+    // when the root selected outbound is URLTest/Fallback, not a leaf node.
     if (!Platform.isAndroid || _disposed || active ||
-        subscription.selected == null) {
+        subscription.androidVpnProfile == null) {
       return false;
     }
     final profile = subscription.androidVpnProfile;
