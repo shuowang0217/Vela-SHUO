@@ -284,7 +284,7 @@ class VelaVpnService : VpnService() {
                     }
                     try {
                         val tun = Builder()
-                            .setSession("Vela-SHUO")
+                            .setSession("Vela")
                             .setMtu(9000)
                             .addAddress("172.19.0.1", 30)
                             .addRoute("0.0.0.0", 0)
