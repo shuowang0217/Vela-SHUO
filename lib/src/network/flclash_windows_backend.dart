@@ -30,6 +30,8 @@ class FlClashWindowsBackend {
   List<String> groups = const [];
   Map<String, List<String>> groupMembers = const {};
   Set<String> selectableGroups = const {};
+  final Map<String, String> _selectedMap = {};
+  Map<String, String> get selectedMap => Map.unmodifiable(_selectedMap);
   String? activeName;
   String? activeGroup;
   // Provider downloads/updates belong to the upstream FlClash Go runtime.
@@ -130,7 +132,6 @@ class FlClashWindowsBackend {
       throw const FlClashCoreFailure(
           'no_global', '订阅的 GLOBAL 节点组缺失');
     }
-    const groupName = 'GLOBAL';
     final importedNodes = _nodesFromMihomo(
         proxies, groupNames, rawProxies: nativeProxies);
     if (importedNodes.isEmpty) {
@@ -155,7 +156,19 @@ class FlClashWindowsBackend {
                 'selector'))
           name,
     });
-    activeGroup = groupName;
+    // Show the real MATCH selector in RULE mode instead of automatically
+    // editing GLOBAL, which is only the outbound group for GLOBAL mode.
+    final match = result['match-group'];
+    activeGroup = match is String && selectableGroups.contains(match)
+        ? match : 'GLOBAL';
+    _selectedMap.clear();
+    for (final group in selectableGroups) {
+      final state = proxies[group];
+      final current = state is Map ? state['now'] : null;
+      if (current is String && current.isNotEmpty) {
+        _selectedMap[group] = current;
+      }
+    }
     activeName = null;
     internetVerified = false;
     providerCount = result['provider-count'] is int
@@ -296,6 +309,10 @@ class FlClashWindowsBackend {
     groups = List.unmodifiable(all.whereType<String>());
     groupMembers = _readGroupMembers(
         proxies, all.whereType<String>().toList());
+    _selectedMap.removeWhere((group, name) =>
+        !groups.contains(group) ||
+        (groupMembers[group]?.isNotEmpty == true &&
+            !groupMembers[group]!.contains(name)));
     if (activeName != null && !updated.any((n) => n.name == activeName)) {
       activeName = null;
     }
@@ -324,15 +341,53 @@ class FlClashWindowsBackend {
       return false;
     }
     activeGroup = name;
-    activeName = null;
+    final selected = _selectedMap[name];
+    activeName = selected != null &&
+        nodes.any((node) => node.name == selected) ? selected : null;
     internetVerified = false;
     return true;
+  }
+
+  /// Preserve FlClash Profile.selectedMap for every native selector, not
+  /// just the group currently visible in Vela's node list. Invalid/stale
+  /// provider selections are ignored rather than substituted by GLOBAL.
+  Future<void> restoreSelectedMap(Map<String, String> saved,
+      {String? selectedGroup}) async {
+    if (!imported || listenerStarted) return;
+    for (final entry in saved.entries) {
+      final group = entry.key;
+      final name = entry.value;
+      if (!selectableGroups.contains(group) || name.isEmpty ||
+          (groupMembers[group]?.isNotEmpty == true &&
+              !groupMembers[group]!.contains(name))) {
+        continue;
+      }
+      try {
+        await api.changeProxy(group, name);
+        final registry = await api.getProxies();
+        final all = registry['proxies'];
+        final state = all is Map ? all[group] : null;
+        if (state is Map && state['now'] == name) {
+          _selectedMap[group] = name;
+        }
+      } catch (_) {
+        // A stale selector must not discard the other valid groups.
+      }
+    }
+    if (selectedGroup != null && selectableGroups.contains(selectedGroup)) {
+      activeGroup = selectedGroup;
+    }
+    final chosen = _selectedMap[activeGroup];
+    activeName = chosen != null &&
+        nodes.any((node) => node.name == chosen) ? chosen : null;
   }
 
   Future<bool> selectNode(String name) async {
     if (!imported || !nodes.any((node) => node.name == name)) return false;
     final group = activeGroup;
-    if (group == null) return false;
+    if (group == null ||
+        (groupMembers[group]?.isNotEmpty == true &&
+            !groupMembers[group]!.contains(name))) return false;
     try {
       await api.changeProxy(group, name);
       // Do not confirm only because the RPC accepted the request. Read the
@@ -343,6 +398,7 @@ class FlClashWindowsBackend {
       if (selectedGroup is! Map || selectedGroup['now'] != name) {
         return false;
       }
+      _selectedMap[group] = name;
       activeName = name;
       internetVerified = false;
       return true;
