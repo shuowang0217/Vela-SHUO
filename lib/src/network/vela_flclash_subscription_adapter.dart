@@ -665,6 +665,20 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     return accepted;
   }
 
+  /// In FlClash, RULE mode edits individual native selector groups.
+  /// Switching a group requires disconnecting and picking its node.
+  bool selectRoutingGroup(String nativeGroup) {
+    if (_closed || loading || backend.listenerStarted ||
+        isVpnActive?.call() == true ||
+        !backend.selectRoutingGroup(nativeGroup)) {
+      return false;
+    }
+    _selection = null;
+    _queueCurrentSave();
+    _emit();
+    return true;
+  }
+
   /// The Android VPN Activity receives only the selected map. The real
   /// Mihomo config has already been parsed and installed by the FlClash Go
   /// backend; it is never reconstructed by Vela.
