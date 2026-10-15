@@ -650,8 +650,10 @@ class _DesktopHome extends StatelessWidget {
               Text('VELA', style: TextStyle(color: _foreground,
                 fontWeight: FontWeight.w800, fontSize: narrow ? 25 : 30,
                 letterSpacing: 2.8)),
+              Text('— SHUO —', style: TextStyle(
+                color: _blue, fontSize: 10, letterSpacing: 1.8)),
               Text(velaBrandTagline, style: TextStyle(
-                color: _muted, fontSize: 10, letterSpacing: 1.2)),
+                color: _muted, fontSize: 9, letterSpacing: .9)),
             ]),
           ]),
         ),

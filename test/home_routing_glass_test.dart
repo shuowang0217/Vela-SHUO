@@ -56,7 +56,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('routing_mode_rule')));
     await tester.pump();
     expect(transport.modes, contains('rule'));
-    await tester.pageBack();
+    // Tap outside the modal; there is no AppBar back arrow in this dialog.
+    await tester.tapAt(const Offset(12, 450));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('nav_1')));
