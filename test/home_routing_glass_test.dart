@@ -44,12 +44,20 @@ void main() {
     ));
     await tester.pump();
     expect(find.byType(VelaWorldAtlas), findsOneWidget);
+    expect(find.byKey(const ValueKey('voyage_speed_panel')), findsOneWidget);
+    expect(find.text('风速 · 上传'), findsOneWidget);
+    expect(find.text('航速 · 下载'), findsOneWidget);
+    expect(find.byKey(const ValueKey('home_routing_selector')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('home_routing_open')));
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('home_routing_selector')), findsOneWidget);
     expect(find.text('航线模式'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('routing_mode_rule')));
     await tester.pump();
     expect(transport.modes, contains('rule'));
+    await tester.pageBack();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('nav_1')));
     await tester.pump();

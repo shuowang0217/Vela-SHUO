@@ -25,6 +25,7 @@ import 'package:vela_shuo/src/core/vela_core_settings_card.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
+import 'package:vela_shuo/src/home/vela_voyage_speed.dart';
 import 'package:vela_shuo/src/brand/vela_sail_mark.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
@@ -336,6 +337,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       connection: connection, subscription: subscription, smart: smart,
       androidVpn: androidVpn, traffic: traffic, routing: routing,
       showNodes: () => navigate(1), showSmart: () => navigate(2),
+      onNavigate: navigate,
     ),
   };
 
@@ -350,7 +352,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         body: Stack(fit: StackFit.expand, children: [
           _EarthBackdrop(demo: demo),
           SafeArea(child: Row(children: [
-            if (desktop)
+            if (desktop && tab != 0)
               ClipRect(child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
                 child: Container(
@@ -533,6 +535,7 @@ class _HomePage extends StatelessWidget {
     required this.desktop,
     required this.showNodes,
     required this.showSmart,
+    required this.onNavigate,
     this.connection,
     this.subscription,
     this.smart,
@@ -550,6 +553,7 @@ class _HomePage extends StatelessWidget {
   final bool desktop;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
+  final ValueChanged<int> onNavigate;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -560,6 +564,7 @@ class _HomePage extends StatelessWidget {
           demo: demo, connection: connection, subscription: subscription,
           smart: smart, traffic: traffic, routing: routing,
           showNodes: showNodes, showSmart: showSmart,
+          onNavigate: onNavigate,
         )
       : _MobileHome(
           demo: demo, connection: connection, subscription: subscription,
@@ -572,8 +577,8 @@ class _HomePage extends StatelessWidget {
 class _DesktopHome extends StatelessWidget {
   const _DesktopHome({
     required this.demo, required this.showNodes, required this.showSmart,
-    this.connection, this.subscription, this.smart, this.traffic,
-    this.routing,
+    required this.onNavigate,
+    this.connection, this.subscription, this.smart, this.traffic, this.routing,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
@@ -583,72 +588,251 @@ class _DesktopHome extends StatelessWidget {
   final VelaRoutingModeController? routing;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
+  final ValueChanged<int> onNavigate;
+
+  void _toggle(BuildContext context) {
+    final conn = connection;
+    if (conn != null) {
+      unawaited(_toggleRealConnection(context, conn));
+    } else if (demo.isConnected || demo.phase == VelaPhase.connecting ||
+        demo.phase == VelaPhase.switching) {
+      demo.disconnect();
+    } else {
+      demo.connect();
+    }
+  }
+
+  void _openRouting(BuildContext context) {
+    final modes = routing;
+    if (modes == null) return;
+    showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 430),
+          child: VelaRoutingModeSelector(
+            key: const ValueKey('home_routing_selector'),
+            controller: modes,
+            activeProfileId:
+                subscription is VelaFlClashSubscriptionController
+                    ? (subscription! as VelaFlClashSubscriptionController)
+                        .activeProfileId
+                    : null,
+            locked: connection?.busy == true || smart?.scanning == true,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      // Fit the entire desktop dashboard to the available client area.
-      // Unlike a forced 790px scroll canvas, the default Windows window
-      // can display the connection controls and four metric cards together.
-      final availableWidth = constraints.maxWidth;
-      final availableHeight = constraints.maxHeight;
-      final designWidth = math.max(820.0, math.min(availableWidth - 24, 1320.0));
-      const designHeight = 760.0;
-
-      return Center(
-        child: SizedBox(
-          width: availableWidth,
-          height: availableHeight,
-          child: FittedBox(
-            fit: BoxFit.contain,
-            alignment: Alignment.center,
-            child: SizedBox(
-              width: designWidth,
-              height: designHeight,
-              child: Stack(clipBehavior: Clip.hardEdge, children: [
-                Positioned(top: 20, right: 12, child: subscription?.selected
-                    != null ? _RealTag() : _DemoTag()),
-                Positioned(left: 22, top: 62, child: _HeroIdentity()),
-                Positioned(
-                  left: 22,
-                  top: 335,
-                  width: math.min(designWidth * .39, 440.0),
-                  child: subscription?.selected != null && connection != null
-                      ? _RealConnectionCard(
-                          connection: connection!, showNodes: showNodes,
-                          compact: true)
-                      : _ConnectionCard(demo: demo, showNodes: showNodes,
-                          compact: true),
+      final narrow = constraints.maxWidth < 1000;
+      final connected = connection?.connected ?? demo.isConnected;
+      final busy = connection?.busy == true ||
+          (connection == null && (demo.phase == VelaPhase.connecting ||
+          demo.phase == VelaPhase.switching));
+      final node = connection?.nodeName ??
+          ('UI 演示 · ' + demo.selected.title);
+      final state = busy ? '正在建立航线' :
+          connected ? '已连接' : '未连接';
+      return Stack(children: [
+        Positioned(
+          left: narrow ? 20 : 32, top: narrow ? 16 : 25,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const VelaSailMark(size: 37),
+            const SizedBox(width: 9),
+            Column(crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min, children: [
+              Text('VELA', style: TextStyle(color: _foreground,
+                fontWeight: FontWeight.w800, fontSize: narrow ? 25 : 30,
+                letterSpacing: 2.8)),
+              Text(velaBrandTagline, style: TextStyle(
+                color: _muted, fontSize: 10, letterSpacing: 1.2)),
+            ]),
+          ]),
+        ),
+        Positioned(
+          right: narrow ? 16 : 29, top: narrow ? 15 : 22,
+          width: narrow ? 302 : 356,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                key: const ValueKey('immersive_connection'),
+                padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+                decoration: BoxDecoration(
+                  color: _panel.withValues(alpha: .69),
+                  border: Border.all(color: _line.withValues(alpha: .65)),
+                  borderRadius: BorderRadius.circular(28),
                 ),
-                if (routing != null)
-                  Positioned(
-                    key: const ValueKey('home_routing_position'),
-                    top: 346, right: 24,
-                    width: math.min(designWidth * .35, 400),
-                    child: VelaRoutingModeSelector(
-                      key: const ValueKey('home_routing_selector'),
-                      controller: routing!,
-                      activeProfileId:
-                          subscription is VelaFlClashSubscriptionController
-                              ? (subscription! as VelaFlClashSubscriptionController)
-                                  .activeProfileId
-                              : null,
-                      locked: connection?.busy == true ||
-                          smart?.scanning == true,
+                child: Row(children: [
+                  Icon(Icons.circle, size: 9,
+                    color: busy ? _blue : connected ? _mint : _muted),
+                  const SizedBox(width: 8),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(state, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: _foreground,
+                          fontSize: 13, fontWeight: FontWeight.w700)),
+                      Text(node, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: _muted, fontSize: 10)),
+                    ],
+                  )),
+                  if (routing != null)
+                    IconButton(
+                      key: const ValueKey('home_routing_open'),
+                      tooltip: '航线模式：' + routing!.current.label,
+                      icon: const Icon(Icons.alt_route_rounded),
+                      iconSize: 21, color: _blue,
+                      onPressed: () => _openRouting(context),
                     ),
+                  const SizedBox(width: 5),
+                  IconButton.filled(
+                    key: const ValueKey('immersive_power_button'),
+                    tooltip: busy ? '正在连接' :
+                        connected ? '安全断开' : '连接',
+                    onPressed: busy ? null : () => _toggle(context),
+                    icon: Icon(connected
+                        ? Icons.power_settings_new_rounded
+                        : Icons.sailing_rounded, size: 24),
+                    style: IconButton.styleFrom(
+                      backgroundColor: _blue.withValues(alpha: .87),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(48, 48)),
                   ),
-                Positioned(
-                  left: 42, right: 42, bottom: 15,
-                  child: _Stats(demo: demo, showSmart: showSmart,
-                    real: subscription?.selected != null,
-                    smart: smart, traffic: traffic),
-                ),
-              ]),
+                ]),
+              ),
             ),
           ),
         ),
-      );
+        Positioned(
+          left: narrow ? 16 : 29, bottom: narrow ? 14 : 27,
+          child: _VoyageRatePanel(traffic: traffic,
+            active: connection?.connected ?? false),
+        ),
+        Positioned(
+          right: narrow ? 16 : 29, bottom: narrow ? 14 : 27,
+          child: _VoyageDock(onNavigate: onNavigate),
+        ),
+      ]);
     },
+  );
+}
+
+class _VoyageRatePanel extends StatelessWidget {
+  const _VoyageRatePanel({required this.traffic, required this.active});
+  final VelaTrafficMonitor? traffic;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final upload = VelaVoyageSpeed.format(
+        active ? traffic?.uploadBytesPerSecond : null);
+    final download = VelaVoyageSpeed.format(
+        active ? traffic?.downloadBytesPerSecond : null);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(19),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          key: const ValueKey('voyage_speed_panel'),
+          width: 283, height: 79,
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+          decoration: BoxDecoration(
+            color: _panel.withValues(alpha: .72),
+            borderRadius: BorderRadius.circular(19),
+            border: Border.all(color: _line.withValues(alpha: .65)),
+          ),
+          child: Row(children: [
+            Expanded(child: _VoyageRate(label: '风速 · 上传',
+              icon: Icons.north_east_rounded,
+              number: upload.$1, unit: upload.$2)),
+            Container(width: 1, height: 38,
+              margin: const EdgeInsets.symmetric(horizontal: 11),
+              color: _line.withValues(alpha: .60)),
+            Expanded(child: _VoyageRate(label: '航速 · 下载',
+              icon: Icons.south_west_rounded,
+              number: download.$1, unit: download.$2)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _VoyageRate extends StatelessWidget {
+  const _VoyageRate({required this.label, required this.icon,
+      required this.number, required this.unit});
+  final String label;
+  final IconData icon;
+  final String number;
+  final String unit;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(children: [
+        Icon(icon, color: _blue, size: 14),
+        const SizedBox(width: 4),
+        Flexible(child: Text(label, maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: _muted, fontSize: 11))),
+      ]),
+      const SizedBox(height: 4),
+      FittedBox(fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text.rich(TextSpan(children: [
+          TextSpan(text: number, style: TextStyle(
+            color: _foreground, fontSize: 20,
+            fontWeight: FontWeight.w700)),
+          TextSpan(text: unit.isEmpty ? '' : ' $unit',
+            style: TextStyle(color: _muted, fontSize: 10)),
+        ]))),
+    ],
+  );
+}
+
+class _VoyageDock extends StatelessWidget {
+  const _VoyageDock({required this.onNavigate});
+  final ValueChanged<int> onNavigate;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(18),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: _panel.withValues(alpha: .72),
+          border: Border.all(color: _line.withValues(alpha: .6)),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          for (final (target, icon, hint) in [
+            (1, Icons.public_rounded, '代理节点'),
+            (4, Icons.book_outlined, '机场配置'),
+            (2, Icons.explore_outlined, '智能优选'),
+            (3, Icons.settings_outlined, '系统设置'),
+          ])
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: IconButton(
+                key: ValueKey('nav_$target'),
+                tooltip: hint, iconSize: 21, color: _foreground,
+                onPressed: () => onNavigate(target),
+                icon: Icon(icon),
+              )),
+        ]),
+      ),
+    ),
   );
 }
 
@@ -1631,16 +1815,8 @@ class _RealTag extends StatelessWidget {
   );
 }
 
-class _RealConnectionCard extends StatelessWidget {
-  const _RealConnectionCard({
-    required this.connection, required this.showNodes,
-    this.compact = false,
-  });
-  final VelaConnectionCoordinator connection;
-  final VoidCallback showNodes;
-  final bool compact;
-
-  Future<void> toggle(BuildContext context) async {
+Future<void> _toggleRealConnection(
+    BuildContext context, VelaConnectionCoordinator connection) async {
     if (connection.busy) return;
     if (connection.connected || connection.proxy.active) {
       await connection.disconnect();
@@ -1678,6 +1854,19 @@ class _RealConnectionCard extends StatelessWidget {
     );
     if (consent == true) await connection.connect();
   }
+
+
+class _RealConnectionCard extends StatelessWidget {
+  const _RealConnectionCard({
+    required this.connection, required this.showNodes,
+    this.compact = false,
+  });
+  final VelaConnectionCoordinator connection;
+  final VoidCallback showNodes;
+  final bool compact;
+
+  Future<void> toggle(BuildContext context) =>
+      _toggleRealConnection(context, connection);
 
   @override
   Widget build(BuildContext context) {
