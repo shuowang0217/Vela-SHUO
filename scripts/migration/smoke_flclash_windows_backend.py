@@ -267,6 +267,21 @@ rules:
             assert result["delay"] > 0
             assert not result.get("error")
 
+            # Unlike an explicit per-node latency test, an empty proxy-name
+            # goes through Mihomo's real RULE matcher and selected proxy-group.
+            # This catches the old Vela bug where only GLOBAL used the node.
+            routed = call("probe", {
+                "url": url_204, "proxy-name": "",
+                "timeout": 8000, "max-body": 0, "headers": {},
+            }, timeout=30)
+            assert routed["status-code"] == 204, (
+                "Native RULE-mode request failed through selected SOCKS5 exit")
+            assert "Local Socks Test" in routed.get("chains", []), (
+                "RULE matched an unexpected outbound: %r" %
+                routed.get("chains"))
+            assert routed.get("rule", "").upper() == "MATCH", (
+                "RULE matching did not use the subscription's MATCH rule")
+
             # This is the SAME one-RPC batch used by the Vela proxy page.
             # Check two legitimate measurements and one missing node without
             # requiring a public proxy or leaking real subscription tokens.
