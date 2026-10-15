@@ -69,8 +69,8 @@ class VelaVpnService : VpnService() {
                 context, 0, Intent(context, MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            val rates = if (connecting) "风速 ↑ 采集中    航速 ↓ 采集中"
-                        else "风速 ↑ $upload    航速 ↓ $download"
+            val rates = if (connecting) "风速 采集中 ↑    航速 采集中 ↓"
+                        else "风速 $upload ↑    航速 $download ↓"
             val builder = Notification.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.vela_notification_sail)
                 .setContentTitle(airportName(context))
@@ -86,10 +86,10 @@ class VelaVpnService : VpnService() {
             return builder.build()
         }
 
-        fun showIdleNotification(context: Context) {
-            if (VelaVpnState.state == "connecting" ||
+        fun showIdleNotification(context: Context, afterStop: Boolean = false) {
+            if (!afterStop && (VelaVpnState.state == "connecting" ||
                 VelaVpnState.state == "connected" ||
-                VelaVpnState.state == "preparing") return
+                VelaVpnState.state == "preparing")) return
             if (Build.VERSION.SDK_INT >= 33 &&
                 context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                     != android.content.pm.PackageManager.PERMISSION_GRANTED) return
@@ -384,7 +384,7 @@ class VelaVpnService : VpnService() {
         if (!failed) VelaVpnState.report("disconnected")
         stopForeground(STOP_FOREGROUND_REMOVE)
         // Keep the app-opened idle card; never leave stale VPN speeds on it.
-        showIdleNotification(this)
+        showIdleNotification(this, afterStop = true)
     }
 
     override fun onRevoke() {
