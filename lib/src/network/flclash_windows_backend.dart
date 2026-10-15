@@ -29,6 +29,7 @@ class FlClashWindowsBackend {
   List<VelaSubscriptionNode> nodes = const [];
   List<String> groups = const [];
   Map<String, List<String>> groupMembers = const {};
+  Set<String> selectableGroups = const {};
   String? activeName;
   String? activeGroup;
   // Provider downloads/updates belong to the upstream FlClash Go runtime.
@@ -145,6 +146,15 @@ class FlClashWindowsBackend {
     nodes = List.unmodifiable(importedNodes);
     groups = List.unmodifiable(groupNames);
     groupMembers = _readGroupMembers(proxies, groupNames);
+    // FlClash only permits explicit node selection in Selector groups.
+    // URLTest/Fallback/LoadBalance remain owned by their native strategy.
+    selectableGroups = Set.unmodifiable({
+      for (final name in groupNames)
+        if (proxies[name] is Map &&
+            ((proxies[name] as Map)['type']?.toString().toLowerCase() ==
+                'selector'))
+          name,
+    });
     activeGroup = groupName;
     activeName = null;
     internetVerified = false;
@@ -304,6 +314,19 @@ class FlClashWindowsBackend {
     // Commit quota only AFTER Mihomo accepts the new profile.
     subscriptionUsage = downloaded.usage;
     return loaded;
+  }
+
+  /// Choose the real Mihomo selector to edit in RULE mode. This is not
+  /// merely a UI filter: FlClash routes by each rule's target group.
+  /// Require an explicit new node choice after switching the active group.
+  bool selectRoutingGroup(String name) {
+    if (!imported || listenerStarted || !selectableGroups.contains(name)) {
+      return false;
+    }
+    activeGroup = name;
+    activeName = null;
+    internetVerified = false;
+    return true;
   }
 
   Future<bool> selectNode(String name) async {
