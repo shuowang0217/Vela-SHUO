@@ -21,6 +21,7 @@ void main() {
     expect(VelaStoredProfile.isSafeSubscriptionUrl('http://example.test'), false);
     expect(VelaStoredProfile.isSafeSubscriptionUrl('https://localhost/sub'), false);
     expect(VelaStoredProfile.isSafeSubscriptionUrl('https://127.0.0.1/sub'), false);
+    expect(VelaStoredProfile.isSafeSubscriptionUrl('https://123example.com/sub'), true);
   });
 
   test('encrypted library persists separate subscription selections', () async {

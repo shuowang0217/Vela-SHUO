@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'vela_subscription_vault.dart';
 
@@ -115,7 +116,7 @@ class VelaStoredProfile {
     final host = uri.host.toLowerCase();
     return host != 'localhost' && !host.endsWith('.localhost') &&
         !host.endsWith('.local') && !host.startsWith('[') &&
-        !RegExp(r'^[0-9.]+').hasMatch(host);
+        InternetAddress.tryParse(host) == null;
   }
 
   static Map<String, int>? _readUsage(Object? raw) {
