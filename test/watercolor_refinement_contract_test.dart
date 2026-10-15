@@ -23,7 +23,7 @@ void main() {
     expect('python3 scripts/prepare_watercolor_atlas.py'.allMatches(workflow).length,
         greaterThanOrEqualTo(2));
     expect(workflow, contains('python scripts/prepare_watercolor_atlas.py'));
-    expect(workflow, contains('Vela-v1.4.6-Android-arm64'));
-    expect(workflow, contains('Vela-v1.4.6-Windows-x64'));
+    expect(workflow, contains('Vela-v1.4.7-Android-arm64'));
+    expect(workflow, contains('Vela-v1.4.7-Windows-x64'));
   });
 }
