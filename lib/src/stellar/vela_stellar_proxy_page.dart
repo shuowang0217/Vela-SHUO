@@ -108,8 +108,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
           final nativeGroups = flclash?.backend.groups ?? const <String>[];
           final groupNames = ['全部节点',
             ...nativeGroups.where((name) => name != 'GLOBAL'
-                && (flclash?.backend.groupMembers[name]?.isNotEmpty ?? false))
-                .take(7),
+                && (flclash?.backend.selectableGroups.contains(name) ?? false)
+                && (flclash?.backend.groupMembers[name]?.isNotEmpty ?? false)),
           ];
           final group = groupNames.contains(_group) ? _group : '全部节点';
           final membership = group == '全部节点'
@@ -298,6 +298,18 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     );
   }
 
+  void _selectGroup(String label) {
+    final sub = widget.subscription;
+    if (sub is VelaFlClashSubscriptionController) {
+      if (!sub.selectRoutingGroup(label == '全部节点' ? 'GLOBAL' : label)) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('请先断开连接，再切换 FlClash 策略组并选择节点')));
+        return;
+      }
+    }
+    setState(() => _group = label);
+  }
+
   Widget _groupNavigation(BuildContext context,
       List<String> groups, String selected, bool narrow) {
     final t = VelaThemeRuntime.active;
@@ -319,11 +331,11 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
               key: ValueKey('stellar_group_$group'),
               label: Text(group),
               selected: selected == group,
-              onSelected: (_) => setState(() => _group = group),
+              onSelected: (_) => _selectGroup(group),
             ),
         ]),
         const SizedBox(height: 5),
-        StellarLabel('分组用于筛选列表；实际流量由当前航线模式和订阅规则决定。',
+        StellarLabel('选择策略组后再选择该组节点；规则模式由机场规则与各组选择共同决定。',
           size: 11),
       ],
     ));
