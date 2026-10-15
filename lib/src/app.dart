@@ -6,6 +6,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:vela_shuo/src/update/vela_update_service.dart';
 import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
@@ -72,7 +74,7 @@ class VelaShuoApp extends StatelessWidget {
               ? Brightness.light : Brightness.dark);
       VelaThemeRuntime.select(palette, brightness);
       return MaterialApp(
-        title: 'Vela-SHUO',
+        title: 'Vela',
         debugShowCheckedModeBanner: false,
         themeMode: settings.themeMode,
         theme: _theme(Brightness.light, palette),
@@ -1202,7 +1204,7 @@ class _SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _ScreenPadding(
     child: ListView(children: [
-      _ScreenHeading('设置', '为 Vela-SHUO 定义你的使用方式'),
+      _ScreenHeading('设置', '为 Vela 定义你的使用方式'),
       SizedBox(height: 18),
       Platform.isAndroid ? _AndroidVpnTag(vpn: androidVpn!) :
           subscription?.selected != null ? _RealTag() :
@@ -1242,11 +1244,60 @@ class _SettingsPage extends StatelessWidget {
         Divider(height: 1, color: _line),
         ListTile(
           leading: Icon(Icons.info_outline, color: _blue),
-          title: Text(Platform.isAndroid ? 'Vela-SHUO v1.4.2 · Android VPN'
-              : 'Vela-SHUO v1.4.2 · Windows'),
+          title: Text(Platform.isAndroid ? 'Vela v1.5.0 · Android VPN'
+              : 'Vela v1.5.0 · Windows'),
           subtitle: Text(Platform.isAndroid
               ? '可授权 Android 系统 VPN；真实连接以服务状态为准'
               : '仅代理接管的连接会使用系统代理；未启用 Windows TUN'),
+        ),
+        Divider(height: 1, color: _line),
+        ListTile(
+          key: const ValueKey('vela_check_update'),
+          leading: Icon(Icons.system_update_alt_rounded, color: _blue),
+          title: const Text('检查更新'),
+          subtitle: const Text('通过 Vela 官方 GitHub Release 获取已验证安装包'),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () async {
+            try {
+              final info = await const VelaUpdateService().check();
+              if (!context.mounted) return;
+              if (!info.available || info.assetUrl == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('当前已是最新正式版本')));
+                return;
+              }
+              final accepted = await showDialog<bool>(
+                context: context,
+                builder: (dialog) => AlertDialog(
+                  title: Text('发现 Vela ${info.latestVersion}'),
+                  content: Text(Platform.isAndroid
+                      ? '将打开官方 APK 下载页面。使用相同签名的正式版支持覆盖更新。'
+                      : '将下载 Windows 便携压缩包。请先安全退出，再替换旧版文件。'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialog, false),
+                      child: const Text('稍后')),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(dialog, true),
+                      child: const Text('下载更新')),
+                  ],
+                ),
+              );
+              if (accepted == true) {
+                final opened = await launchUrl(info.assetUrl!,
+                    mode: LaunchMode.externalApplication);
+                if (!opened && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('无法打开下载链接')));
+                }
+              }
+            } catch (_) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('检查更新失败，请确认网络后重试')));
+              }
+            }
+          },
         ),
         if (Platform.isWindows && windowExitGuard != null) ...[
           Divider(height: 1, color: _line),
@@ -1261,7 +1312,7 @@ class _SettingsPage extends StatelessWidget {
                 final accepted = await showDialog<bool>(
                   context: context,
                   builder: (dialog) => AlertDialog(
-                    title: const Text('退出 Vela-SHUO？'),
+                    title: const Text('退出 Vela？'),
                     content: const Text('将断开当前连接、恢复 Windows 系统代理设置，'
                         '然后安全关闭程序。'),
                     actions: [
