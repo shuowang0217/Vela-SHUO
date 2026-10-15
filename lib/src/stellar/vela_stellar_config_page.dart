@@ -92,27 +92,37 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
       SnackBar(content: Text(message)));
   }
 
-  Future<void> _refresh() async {
-    if (_busy || widget.connection?.connected == true ||
-        widget.androidVpn?.active == true) {
-      return;
-    }
+  Future<void> _refresh({String? profileId}) async {
+    if (_busy) return;
     final sub = widget.subscription;
     if (sub == null) return;
     setState(() => _busy = true);
     try {
       final native = _native;
-      bool ok;
-      if (sub.canRefresh) {
+      final id = profileId ?? native?.activeProfileId;
+      bool ok = false;
+      if (native != null && id != null) {
+        final target = native.profiles.where((p) => p.id == id).firstOrNull;
+        if (target?.sourceUrl != null) {
+          ok = await native.refreshProfile(id);
+        } else if (target != null && id == native.activeProfileId &&
+            native.canRefreshProviders &&
+            widget.connection?.connected != true &&
+            widget.androidVpn?.active != true) {
+          ok = await native.refreshNativeProviders();
+        } else {
+          _notify('该机场尚未设置 HTTPS 更新地址，请从菜单中选择「编辑机场」');
+          return;
+        }
+      } else if (sub.canRefresh) {
         ok = await sub.refreshLastUrl();
-      } else if (native?.canRefreshProviders == true) {
-        ok = await native!.refreshNativeProviders();
-      } else {
-        _notify('没有本次运行的订阅地址或可更新的 HTTP 提供者；可重新导入配置');
-        return;
       }
-      _notify(ok ? '航线配置更新成功'
-          : sub.error ?? '更新失败，原节点列表保持不变');
+      final connected = widget.connection?.connected == true ||
+          widget.androidVpn?.active == true;
+      _notify(ok
+          ? connected ? '机场已更新到加密存档；重新连接后启用新配置'
+              : '机场配置已更新'
+          : sub.error ?? '更新失败，原订阅未改变');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -219,12 +229,89 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
     }
   }
 
+  Future<void> _editAirport(VelaStoredProfile profile) async {
+    final native = _native;
+    if (native == null) return;
+    final name = TextEditingController(text: profile.name);
+    final url = TextEditingController(text: profile.sourceUrl ?? '');
+    final minutes = TextEditingController(
+      text: (profile.autoUpdateMinutes ?? 1440).toString());
+    var auto = profile.autoUpdateMinutes != null;
+    try {
+      final save = await showDialog<bool>(
+        context: context, builder: (context) => StatefulBuilder(
+          builder: (context, update) => AlertDialog(
+            title: const Text('编辑机场'),
+            content: SizedBox(width: 420,
+              child: SingleChildScrollView(child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(controller: name, maxLength: 64,
+                    decoration: const InputDecoration(labelText: '机场名称')),
+                  TextField(controller: url,
+                    keyboardType: TextInputType.url,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'HTTPS 订阅地址',
+                      helperText: '含令牌的网址仅保存于系统加密存储')),
+                  SwitchListTile.adaptive(
+                    title: const Text('自动更新'),
+                    contentPadding: EdgeInsets.zero,
+                    value: auto,
+                    onChanged: (v) => update(() => auto = v)),
+                  if (auto)
+                    TextField(controller: minutes,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: '更新间隔（分钟）',
+                        helperText: '最少 15 分钟；打开软件时自动更新')),
+                  const SizedBox(height: 8),
+                  const Text('编辑订阅来源或更新策略不影响正在连接的代理。',
+                    style: TextStyle(fontSize: 11)),
+                ],
+              ))),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消')),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('保存')),
+            ],
+          ),
+        ),
+      );
+      if (save != true) return;
+      final rawUrl = url.text.trim();
+      final interval = auto ? int.tryParse(minutes.text.trim()) : null;
+      if (auto && interval == null) {
+        _notify('请输入有效的自动更新分钟数');
+        return;
+      }
+      final ok = await native.updateProfileSettings(profile.id,
+        name: name.text.trim(),
+        sourceUrl: rawUrl.isEmpty ? null : rawUrl,
+        autoUpdateMinutes: interval);
+      _notify(ok ? '机场编辑已保存，随时可以更新订阅'
+          : native.error ?? '编辑失败');
+    } finally {
+      name.dispose();
+      url.dispose();
+      minutes.dispose();
+    }
+  }
+
   Future<void> _handleAirportMenu(VelaStoredProfile profile,
       String action) async {
     final native = _native;
     if (native == null || _busy) return;
     if (action == 'switch') {
       await _activateAirport(profile.id);
+    } else if (action == 'edit') {
+      await _editAirport(profile);
+    } else if (action == 'refresh') {
+      await _refresh(profileId: profile.id);
     } else if (action == 'rename') {
       final name = await _askAirportName(profile.name);
       if (name != null) {
@@ -267,13 +354,14 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
             ListTile(
               leading: const Icon(Icons.sync_rounded),
               title: const Text('更新当前配置'),
-              enabled: sub.canRefresh || _native?.canRefreshProviders == true,
+              enabled: _native?.activeProfileId != null ||
+                  sub.canRefresh || _native?.canRefreshProviders == true,
               onTap: () { Navigator.pop(ctx); _refresh(); },
             ),
             ListTile(
               leading: const Icon(Icons.shield_outlined),
               title: const Text('加密保存本机'),
-              subtitle: const Text('使用系统安全存储，不保存订阅 URL'),
+              subtitle: const Text('使用系统安全存储保存配置和订阅来源'),
               enabled: sub.canSave,
               onTap: () async {
                 Navigator.pop(ctx);
@@ -334,8 +422,8 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                       if (!narrow)
                         StellarAction(label: '刷新配置',
                           icon: Icons.sync_rounded,
-                          onPressed: _busy || !hasProfile ||
-                            online ? null : _refresh),
+                          onPressed: _busy || !hasProfile
+                            ? null : _refresh),
                     ]),
                     const SizedBox(height: 16),
                     _hero(context, narrow, hasProfile, online,
@@ -346,7 +434,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                         Expanded(child: StellarAction(
                           label: '刷新当前配置',
                           icon: Icons.refresh_rounded,
-                          onPressed: _busy || !hasProfile || online
+                          onPressed: _busy || !hasProfile
                               ? null : _refresh)),
                         const SizedBox(width: 10),
                         StellarAction(label: '管理', icon: Icons.more_horiz,
@@ -526,6 +614,10 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
               itemBuilder: (_) => [
                 PopupMenuItem(value: 'switch', enabled: !selected,
                     child: const Text('切换到此机场')),
+                const PopupMenuItem(value: 'edit',
+                    child: Text('编辑机场 · 地址和自动更新')),
+                const PopupMenuItem(value: 'refresh',
+                    child: Text('立即更新机场')),
                 const PopupMenuItem(value: 'rename',
                     child: Text('重命名机场')),
                 const PopupMenuItem(value: 'delete',
@@ -549,6 +641,11 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
             _iconLabel(Icons.schedule_outlined,
                 _elapsed(profile.updatedAt)),
             _iconLabel(Icons.lock_outline, '已加密保存'),
+            if (profile.sourceUrl != null)
+              _iconLabel(Icons.link, '可更新'),
+            if (profile.autoUpdateMinutes != null)
+              _iconLabel(Icons.autorenew,
+                  '每 ${profile.autoUpdateMinutes} 分钟'),
           ]),
         ]),
       ),
