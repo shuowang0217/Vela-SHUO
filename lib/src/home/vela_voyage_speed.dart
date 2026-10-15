@@ -4,7 +4,9 @@ class VelaVoyageSpeed {
 
   static (String, String) format(double? bytesPerSecond) {
     if (bytesPerSecond == null || !bytesPerSecond.isFinite ||
-        bytesPerSecond < 0) return ('—', '');
+        bytesPerSecond < 0) {
+      return ('—', '');
+    }
     const units = ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'];
     var value = bytesPerSecond;
     var step = 0;
