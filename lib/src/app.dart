@@ -394,29 +394,13 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final desktop = constraints.maxWidth >= 820;
-      final extended = constraints.maxWidth >= 1250;
       return Scaffold(
         backgroundColor: Colors.transparent,
         extendBody: true,
         body: Stack(fit: StackFit.expand, children: [
           _EarthBackdrop(demo: demo),
-          SafeArea(child: Row(children: [
-            if (desktop && tab != 0)
-              ClipRect(child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                child: Container(
-                  width: extended ? 190 : 90,
-                  decoration: BoxDecoration(
-                    color: _panel.withValues(alpha:
-                        VelaThemeRuntime.active.dark ? .50 : .50),
-                    border: Border(right: BorderSide(
-                        color: _foreground.withValues(alpha: .17))),
-                  ),
-                  child: _DesktopNav(
-                      selected: tab, extended: extended, onSelect: navigate),
-                ),
-              )),
-            Expanded(child: TweenAnimationBuilder<double>(
+          SafeArea(child: Stack(fit: StackFit.expand, children: [
+            TweenAnimationBuilder<double>(
               key: ValueKey('vela_page_$tab'),
               tween: Tween(begin: 0, end: 1),
               duration: const Duration(milliseconds: 320),
@@ -424,12 +408,18 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
               builder: (context, value, child) => Opacity(
                 opacity: value,
                 child: Transform.translate(
-                  offset: Offset(0, (1 - value) * 9),
-                  child: child,
-                ),
+                  offset: Offset(0, (1 - value) * 8), child: child),
               ),
               child: page(desktop),
-            )),
+            ),
+            if (desktop && tab != 0)
+              Positioned(top: 14, left: 22,
+                child: _VoyageHomeShortcut(
+                  onTap: () => navigate(0))),
+            if (desktop)
+              Positioned(right: 27, bottom: 20,
+                child: _VoyageDock(
+                  selected: tab, onNavigate: navigate)),
           ])),
         ]),
         bottomNavigationBar: desktop ? null : ClipRect(child: BackdropFilter(
@@ -476,85 +466,6 @@ class _EarthBackdrop extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       VelaWorldAtlas(demo: demo);
-}
-
-class _DesktopNav extends StatelessWidget {
-  const _DesktopNav({
-    required this.selected,
-    required this.extended,
-    required this.onSelect,
-  });
-  final int selected;
-  final bool extended;
-  final ValueChanged<int> onSelect;
-
-  @override
-  Widget build(BuildContext context) => Column(children: [
-    SizedBox(height: 32),
-    VelaBrandLogo(size: 68),
-    if (extended) ...[
-      SizedBox(height: 8),
-      Text('VELA', style: TextStyle(
-        color: _foreground, fontSize: 21,
-        letterSpacing: 3, fontWeight: FontWeight.w700,
-      )),
-      Text('— SHUO —', style: TextStyle(
-        color: _blue, fontSize: 12, letterSpacing: 2,
-      )),
-     ],
-    SizedBox(height: 46),
-    for (final i in _ShellState.navOrder)
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        child: Material(
-          color: selected == i
-              ? _blue.withValues(alpha: .15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(13),
-          child: InkWell(
-            key: ValueKey('nav_$i'),
-            onTap: () => onSelect(i),
-            borderRadius: BorderRadius.circular(13),
-            child: Container(
-              height: 52,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(13),
-                border: Border.all(
-                  color: selected == i
-                    ? _blue.withValues(alpha: .38) : Colors.transparent,
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: extended
-                    ? MainAxisAlignment.start : MainAxisAlignment.center,
-                children: [
-                  if (extended) SizedBox(width: 15),
-                  if (i == 0)
-                    VelaSailMark(size: 26, monochrome: selected != 0)
-                  else
-                    Icon(
-                      selected == i
-                          ? _ShellState.destinations[i].$2
-                          : _ShellState.destinations[i].$1,
-                      color: selected == i ? _blue : _muted, size: 22,
-                    ),
-                  if (extended) ...[
-                    SizedBox(width: 15),
-                    Text(_ShellState.destinations[i].$3,
-                      style: TextStyle(
-                        color: selected == i ? _foreground : _muted,
-                        fontWeight: selected == i
-                            ? FontWeight.w600 : FontWeight.normal,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    Spacer(),
-  ]);
 }
 
 /// Animated master mark shared with launcher and system-tray branding.
@@ -767,10 +678,6 @@ class _DesktopHome extends StatelessWidget {
           child: _VoyageRatePanel(traffic: traffic,
             active: connection?.connected ?? false),
         ),
-        Positioned(
-          right: narrow ? 16 : 29, bottom: narrow ? 14 : 27,
-          child: _VoyageDock(onNavigate: onNavigate),
-        ),
       ]);
     },
   );
@@ -851,37 +758,81 @@ class _VoyageRate extends StatelessWidget {
   );
 }
 
+/// Four truly separate floating travel-journal buttons. No shared pill.
 class _VoyageDock extends StatelessWidget {
-  const _VoyageDock({required this.onNavigate});
+  const _VoyageDock({required this.onNavigate, required this.selected});
   final ValueChanged<int> onNavigate;
+  final int selected;
 
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min, children: [
+      for (final (target, symbol, hint) in const [
+        (1, VelaVoyageSymbol.globe, '代理节点'),
+        (4, VelaVoyageSymbol.logbook, '机场配置'),
+        (2, VelaVoyageSymbol.compass, '智能优选'),
+        (3, VelaVoyageSymbol.helm, '系统设置'),
+      ])
+        Padding(padding: const EdgeInsets.only(left: 11),
+          child: Tooltip(message: hint,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(17),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+                child: VelaWatercolorSurface(
+                  selected: selected == target,
+                  padding: EdgeInsets.zero,
+                  radius: 17,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      key: ValueKey('nav_$target'),
+                      onTap: () => onNavigate(target),
+                      borderRadius: BorderRadius.circular(17),
+                      child: SizedBox(width: 49, height: 49,
+                        child: Center(child: VelaVoyageGlyph(
+                          symbol: symbol, size: 26,
+                          active: selected == target))),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
+class _VoyageHomeShortcut extends StatelessWidget {
+  const _VoyageHomeShortcut({required this.onTap});
+  final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(18),
     child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: _panel.withValues(alpha: .72),
-          border: Border.all(color: _line.withValues(alpha: .6)),
-          borderRadius: BorderRadius.circular(18),
+      filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+      child: VelaWatercolorSurface(
+        radius: 18, padding: EdgeInsets.zero,
+        child: Material(color: Colors.transparent,
+          child: InkWell(
+            key: const ValueKey('nav_0'),
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 15, vertical: 8),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const VelaSailMark(size: 27),
+                const SizedBox(width: 7),
+                Text('VELA  /  HOME', style: TextStyle(
+                  fontFamily: 'Georgia', letterSpacing: 1.3,
+                  fontSize: 11, fontWeight: FontWeight.w700,
+                  color: _foreground)),
+              ]),
+            ),
+          ),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          for (final (target, icon, hint) in [
-            (1, Icons.public_rounded, '代理节点'),
-            (4, Icons.book_outlined, '机场配置'),
-            (2, Icons.explore_outlined, '智能优选'),
-            (3, Icons.settings_outlined, '系统设置'),
-          ])
-            Padding(padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: IconButton(
-                key: ValueKey('nav_$target'),
-                tooltip: hint, iconSize: 21, color: _foreground,
-                onPressed: () => onNavigate(target),
-                icon: Icon(icon),
-              )),
-        ]),
       ),
     ),
   );
@@ -1257,9 +1208,12 @@ class _ScreenPadding extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
     child: ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: 1000),
+      constraints: BoxConstraints(
+        maxWidth: Platform.isAndroid ? 1000 : 870),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 27),
+        padding: Platform.isAndroid
+            ? const EdgeInsets.symmetric(horizontal: 22, vertical: 27)
+            : const EdgeInsets.fromLTRB(23, 75, 23, 96),
         child: child,
       ),
     ),
@@ -1291,7 +1245,7 @@ class _SmartPage extends StatelessWidget {
       _ScreenHeading('智能优选', '稳定优先 · 让每一次连接更从容'),
       SizedBox(height: 18),
       _DemoTag(),
-      SizedBox(height: 24),
+      SizedBox(height: 13),
       _GlassCard(child: Column(children: [
         SwitchListTile(
           secondary: Icon(Icons.auto_awesome, color: _blue),

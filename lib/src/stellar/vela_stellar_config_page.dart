@@ -321,10 +321,11 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
               ? (used / total).clamp(0.0, 1.0).toDouble() : null;
           return SingleChildScrollView(
             child: Center(child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1190),
+              constraints: const BoxConstraints(maxWidth: 875),
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                  narrow ? 16 : 28, 22, narrow ? 16 : 28, 30),
+                  narrow ? 16 : 25, narrow ? 20 : 77,
+                  narrow ? 16 : 25, narrow ? 30 : 106),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
@@ -339,7 +340,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                     const SizedBox(height: 16),
                     _hero(context, narrow, hasProfile, online,
                       used, total, percent, updated),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 12),
                     if (narrow)
                       Row(children: [
                         Expanded(child: StellarAction(
@@ -428,7 +429,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
       DateTime? updated) {
     final t = VelaThemeRuntime.active;
     return StellarPanel(padding: EdgeInsets.zero, radius: 24,
-      child: SizedBox(height: narrow ? 246 : 285,
+      child: SizedBox(height: narrow ? 210 : 182,
         child: ClipRRect(borderRadius: BorderRadius.circular(24),
           child: Stack(children: [
             Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(
@@ -437,7 +438,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                 t.surface.withValues(alpha: .10),
                 t.surface.withValues(alpha: .015)],
               stops: const [0, .51, 1])))),
-            Positioned(left: 20, top: 22, right: narrow ? 66 : 270,
+            Positioned(left: 20, top: 20, right: 24,
               child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
