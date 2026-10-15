@@ -43,8 +43,17 @@ void main() {
     expect(vpn, contains('setOngoing(true)'));
     expect(vpn, isNot(contains('.addAction(')));
     expect(vpn, isNot(contains('断开 VPN')));
-    expect(vpn, contains('else "↑ \$upload    ↓ \$download"'));
-    expect(vpn, isNot(contains('setContentText(')));
+    // The first line is the airport label; the second is actual traffic.
+    expect(vpn, contains('setContentTitle(airportName(context))'));
+    expect(vpn, contains('setContentText(rates)'));
+    expect(vpn, contains('风速 ↑ $upload'));
+    expect(vpn, contains('航速 ↓ $download'));
+    expect(vpn, contains('showIdleNotification(context)'));
+    expect(vpn, contains('showIdleNotification(this)'));
+    expect(vpn, contains('ongoing = false'));
+    expect(bridge, contains('override fun onResume()'));
+    expect(bridge, contains('"setNotificationAirport"'));
+    expect(bridge, contains('VelaVpnService.saveAirportName(this, name)'));
 
     // Android 13+ notification permission, not overlay/accessibility hacks.
     expect(bridge, contains('Manifest.permission.POST_NOTIFICATIONS'));
