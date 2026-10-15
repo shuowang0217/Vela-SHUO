@@ -46,8 +46,8 @@ void main() {
     // The first line is the airport label; the second is actual traffic.
     expect(vpn, contains('setContentTitle(airportName(context))'));
     expect(vpn, contains('setContentText(rates)'));
-    expect(vpn, contains('风速 $upload ↑'));
-    expect(vpn, contains('航速 $download ↓'));
+    expect(vpn, contains('风速 \$upload ↑'));
+    expect(vpn, contains('航速 \$download ↓'));
     expect(vpn, contains('showIdleNotification(context)'));
     expect(vpn, contains('showIdleNotification(this)'));
     expect(vpn, contains('ongoing = false'));
