@@ -168,6 +168,9 @@ func init() {
                     "groups": views.All,
                     "proxies": views.Proxies,
                     "raw-proxies": raw.Proxy,
+                    // Native group attributes such as hidden do not always
+                    // survive getProxies metadata; FlClash filters them.
+                    "raw-proxy-groups": raw.ProxyGroup,
                     "provider-count": len(raw.ProxyProvider),
                 })
             })
