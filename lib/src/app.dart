@@ -255,6 +255,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       }
       unawaited(subscription!.restoreSaved());
       if (subscription is VelaFlClashSubscriptionController) {
+        (subscription! as VelaFlClashSubscriptionController).isVpnActive =
+            () => androidVpn?.active == true;
         widget.windowExitGuard?.flushSavedProfiles =
             (subscription! as VelaFlClashSubscriptionController)
                 .flushPendingSaves;

@@ -45,6 +45,8 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   String? _raw;
   String? _sessionUrl;
   Timer? _autoRefreshTimer;
+  /// Android VpnService can be active when the Dart backend listener flag is false.
+  bool Function()? isVpnActive;
   int? _selection;
   bool _stored = false;
   bool _storageBusy = false;
@@ -381,7 +383,8 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       // Never overwrite a live Windows/Android native core. Staging still
       // updates the encrypted profile so the next disconnect/switch uses it.
       final active = _activeProfileId == id;
-      if (active && !backend.listenerStarted) {
+      if (active && !backend.listenerStarted &&
+          isVpnActive?.call() != true) {
         final previousRaw = _raw;
         final previousName = selected?.name;
         final applied = await _import(() => backend.importText(fetched.content),
@@ -414,7 +417,8 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       }
       await _library.write(next, _activeProfileId);
       _profiles = next;
-      if (active && !backend.listenerStarted) {
+      if (active && !backend.listenerStarted &&
+          isVpnActive?.call() != true) {
         _updatedAt = next[index].updatedAt;
         _stored = true;
       }
