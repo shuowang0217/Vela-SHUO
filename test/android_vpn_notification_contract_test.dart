@@ -49,7 +49,7 @@ void main() {
     expect(vpn, contains('风速 \$upload ↑'));
     expect(vpn, contains('航速 \$download ↓'));
     expect(vpn, contains('showIdleNotification(context)'));
-    expect(vpn, contains('showIdleNotification(this)'));
+    expect(vpn, contains('showIdleNotification(this, afterStop = true)'));
     expect(vpn, contains('ongoing = false'));
     expect(bridge, contains('override fun onResume()'));
     expect(bridge, contains('"setNotificationAirport"'));
