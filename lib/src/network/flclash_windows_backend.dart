@@ -73,9 +73,61 @@ class FlClashWindowsBackend {
     if (!imported || !const {'rule', 'global', 'direct'}.contains(mode)) {
       return false;
     }
+    final previousMode = activeRoutingMode;
     final reply = await api.invoke('updateConfig',
         arguments: {'mode': mode});
     if (reply is! String || reply.isNotEmpty) return false;
+    if (mode == 'global') {
+      // The GLOBAL tab is only presentation. The real Mihomo selector may
+      // still point at DIRECT or a stale choice after Android quickSetup.
+      // Read it back, restore the saved native policy, and confirm its "now".
+      // Never generate a new proxy group or replace the airport's rules.
+      try {
+        var snapshot = await api.getProxies();
+        var all = snapshot['proxies'];
+        var state = all is Map ? all['GLOBAL'] : null;
+        if (state is! Map || state['all'] is! List) {
+          throw StateError('GLOBAL selector missing');
+        }
+        final members = (state['all'] as List).whereType<String>().toSet();
+        final saved = _selectedMap['GLOBAL'];
+        final now = state['now']?.toString();
+        String? target;
+        if (saved != null && members.contains(saved) &&
+            !const {'DIRECT', 'REJECT', 'REJECT-DROP'}.contains(saved)) {
+          target = saved;
+        } else if (now == null ||
+            const {'DIRECT', 'REJECT', 'REJECT-DROP'}.contains(now)) {
+          // On first global use prefer the already working RULE/MATCH group.
+          // A policy group stays native (URLTest/Fallback are not flattened).
+          if (members.contains(_defaultRuleGroup) &&
+              _defaultRuleGroup != 'GLOBAL') {
+            target = _defaultRuleGroup;
+          } else if (activeName != null && members.contains(activeName)) {
+            target = activeName;
+          }
+        }
+        if (target != null && target != now) {
+          await api.changeProxy('GLOBAL', target);
+          snapshot = await api.getProxies();
+          all = snapshot['proxies'];
+          state = all is Map ? all['GLOBAL'] : null;
+        }
+        final actual = state is Map ? state['now'] : null;
+        if (actual is! String || actual.isEmpty ||
+            (target != null && actual != target)) {
+          throw StateError('GLOBAL native selection was not acknowledged');
+        }
+        _selectedMap['GLOBAL'] = actual;
+        groupNow = Map.unmodifiable({...groupNow, 'GLOBAL': actual});
+      } catch (_) {
+        // Do not claim GLOBAL works when the native selector is unknown.
+        // A failed readback leaves the previous core mode in place.
+        await api.invoke('updateConfig',
+            arguments: {'mode': previousMode});
+        return false;
+      }
+    }
     activeRoutingMode = mode;
     if (mode == 'global') {
       activeGroup = 'GLOBAL';
@@ -85,6 +137,15 @@ class FlClashWindowsBackend {
     final chosen = _selectedMap[activeGroup];
     activeName = chosen != null &&
         nodes.any((node) => node.name == chosen) ? chosen : null;
+    if (previousMode != mode) {
+      // Existing TCP sessions retain their old decision; FlClash's native
+      // connection manager must close them so the new mode takes effect.
+      try {
+        await api.invoke('closeConnections');
+      } catch (_) {
+        // Route mode and selector were already acknowledged by the core.
+      }
+    }
     return true;
   }
 
