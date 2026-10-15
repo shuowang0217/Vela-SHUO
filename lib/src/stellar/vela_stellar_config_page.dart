@@ -302,6 +302,59 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
     }
   }
 
+  Future<void> _editYaml(VelaStoredProfile profile) async {
+    final native = _native;
+    if (native == null) return;
+    final text = TextEditingController(text: profile.raw);
+    try {
+      final save = await showDialog<bool>(
+        context: context, builder: (dialog) => Dialog(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680, maxHeight: 660),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(children: [
+                Text('编辑 ' + profile.name + ' 的 Mihomo 配置',
+                  style: Theme.of(dialog).textTheme.titleLarge),
+                const SizedBox(height: 8),
+                const Text('保存前验证 YAML。运行中的代理不会被热替换；'
+                    '新配置将在重新切换或连接机场后生效。',
+                  style: TextStyle(fontSize: 12)),
+                const SizedBox(height: 12),
+                Expanded(child: TextField(
+                  key: const ValueKey('airport_yaml_editor'),
+                  controller: text, expands: true,
+                  maxLines: null, minLines: null,
+                  textAlignVertical: TextAlignVertical.top,
+                  style: const TextStyle(
+                    fontFamily: 'monospace', fontSize: 12),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Mihomo YAML',
+                  ),
+                )),
+                const SizedBox(height: 10),
+                Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  TextButton(onPressed: () => Navigator.pop(dialog, false),
+                    child: const Text('取消')),
+                  const SizedBox(width: 8),
+                  FilledButton(onPressed: () => Navigator.pop(dialog, true),
+                    child: const Text('验证并保存')),
+                ]),
+              ]),
+            ),
+          ),
+        ),
+      );
+      if (save != true) return;
+      _notify(await native.editProfileYaml(profile.id, text.text)
+          ? '配置已安全保存；如连接中，重新连接后启用'
+          : native.error ?? '配置修改失败');
+    } finally {
+      text.dispose();
+    }
+  }
+
   Future<void> _handleAirportMenu(VelaStoredProfile profile,
       String action) async {
     final native = _native;
@@ -312,6 +365,8 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
       await _editAirport(profile);
     } else if (action == 'refresh') {
       await _refresh(profileId: profile.id);
+    } else if (action == 'edit_yaml') {
+      await _editYaml(profile);
     } else if (action == 'rename') {
       final name = await _askAirportName(profile.name);
       if (name != null) {
@@ -618,6 +673,8 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                     child: Text('编辑机场 · 地址和自动更新')),
                 const PopupMenuItem(value: 'refresh',
                     child: Text('立即更新机场')),
+                const PopupMenuItem(value: 'edit_yaml',
+                    child: Text('编辑 Mihomo 配置')),
                 const PopupMenuItem(value: 'rename',
                     child: Text('重命名机场')),
                 const PopupMenuItem(value: 'delete',
