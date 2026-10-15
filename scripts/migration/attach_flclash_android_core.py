@@ -130,8 +130,8 @@ android {
         "Go quickSetup",
     )
     old = '''                        Clash.startTUN(goFd, tunCallback, "vela-tun",
-                            "mixed", "172.19.0.1/30,fd80:19::1/126",
-                            "198.18.0.2", 1400)'''
+                            "mixed", "172.19.0.1/30",
+                            "172.19.0.2", 9000)'''
     new = '''                        val started = Core.startTun(
                             fd = goFd,
                             protect = { socketFd -> this@VelaVpnService.protect(socketFd) },
@@ -145,8 +145,8 @@ android {
                                 packageManager.getPackagesForUid(uid)?.firstOrNull() ?: ""
                             },
                             stack = "mixed",
-                            address = "172.19.0.1/30,fd80:19::1/126",
-                            dns = "198.18.0.2",
+                            address = "172.19.0.1/30",
+                            dns = "172.19.0.2",
                         )
                         check(started) { "FlClash Go core rejected TUN descriptor" }'''
     # Both Windows and Android now load the same complete Mihomo profile
@@ -177,6 +177,57 @@ android {
         "Do not delete FlClash's own subscription on VPN disconnect",
     )
     src = replace_once(src, old, new, "FlClash Go TUN hook")
+
+    # Core.quickSetup reloads config.yaml and resets the in-memory routing
+    # mode. Reapply the desired mode BEFORE creating the VPN TUN, exactly via
+    # FlClash's updateConfig handler (not by changing cosmetic Flutter state).
+    start_marker = '''                    try {
+                        val tun = Builder()'''
+    mode_start = '''                    val requestedMode = try {
+                        org.json.JSONObject(selection).optString("route-mode", "rule")
+                    } catch (_: Exception) {
+                        "rule"
+                    }
+                    if (requestedMode !in setOf("rule", "global", "direct")) {
+                        fail("未知的 FlClash 代理模式")
+                        return@quickSetup
+                    }
+                    val modeRequest = org.json.JSONObject()
+                        .put("id", "vela-vpn-routing")
+                        .put("method", "updateConfig")
+                        .put("arguments", org.json.JSONObject()
+                            .put("mode", requestedMode))
+                    Core.invokeMethod(modeRequest.toString()) { answer ->
+                        if (ticket != generation.get()) return@invokeMethod
+                        val applied = try {
+                            val response = org.json.JSONObject(
+                                answer?.decodeToString() ?: "")
+                            response.isNull("error") &&
+                                response.opt("result") == ""
+                        } catch (_: Exception) {
+                            false
+                        }
+                        if (!applied) {
+                            fail("FlClash 核心未确认规则模式，VPN 未启动")
+                            return@invokeMethod
+                        }
+                    try {
+                        val tun = Builder()'''
+    src = replace_once(src, start_marker, mode_start,
+                       "Android TUN starts only after FlClash route mode")
+    end_marker = '''                    } catch (_: Exception) {
+                        if (ticket == generation.get()) fail("无法创建 VPN TUN 通道")
+                    }
+                }
+            } catch (_: Throwable)'''
+    end_replacement = '''                    } catch (_: Exception) {
+                        if (ticket == generation.get()) fail("无法创建 VPN TUN 通道")
+                    }
+                    } // native updateConfig completion
+                }
+            } catch (_: Throwable)'''
+    src = replace_once(src, end_marker, end_replacement,
+                       "Close Android mode confirmation callback")
     src = replace_once(
         src, "if (Clash.isLoaded()) Clash.stopTun()",
         "if (nativeStarted) Core.stopTun()",
