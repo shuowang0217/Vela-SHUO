@@ -109,7 +109,9 @@ class VelaStoredProfile {
     final uri = Uri.tryParse(input);
     if (uri == null || uri.scheme != 'https' || !uri.hasAuthority ||
         uri.host.isEmpty || uri.userInfo.isNotEmpty ||
-        uri.fragment.isNotEmpty) return false;
+        uri.fragment.isNotEmpty) {
+      return false;
+    }
     final host = uri.host.toLowerCase();
     return host != 'localhost' && !host.endsWith('.localhost') &&
         !host.endsWith('.local') && !host.startsWith('[') &&

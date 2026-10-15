@@ -232,7 +232,16 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     final index = _profiles.indexWhere((p) => p.id == id);
     if (index < 0) return;
     final copy = [..._profiles];
-    copy[index] = _currentProfile(id, copy[index].name);
+    if (copy[index].raw != _raw &&
+        (backend.listenerStarted || isVpnActive?.call() == true)) {
+      // Preserve a newly staged source while only updating selected-node UI.
+      copy[index] = copy[index].copyWith(
+        selectedName: selected?.name,
+        favorites: _favoriteNames.toList()..sort(),
+      );
+    } else {
+      copy[index] = _currentProfile(id, copy[index].name);
+    }
     _profiles = copy;
     _stored = false;
     _pendingWrites = _pendingWrites.then((_) async {
@@ -554,6 +563,52 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
         }
       }
     });
+  }
+
+  /// Apply staged active airport on the NEXT safe connection, never while
+  /// its Windows listener or Android VpnService is running.
+  Future<bool> applyPendingProfileIfIdle() async {
+    final id = _activeProfileId;
+    if (id == null) return true;
+    final saved = _profiles.where((p) => p.id == id).firstOrNull;
+    if (saved == null || saved.raw == _raw) return true;
+    if (backend.listenerStarted || isVpnActive?.call() == true) return false;
+    final previous = _raw;
+    final previousSelection = selected?.name;
+    final ok = await _import(() => backend.importText(saved.raw),
+        source: saved.raw, sourceUrl: saved.sourceUrl);
+    if (!ok) {
+      if (previous != null) {
+        try {
+          await backend.importText(previous);
+          _raw = previous;
+          if (previousSelection != null) {
+            await backend.selectNode(previousSelection);
+          }
+        } catch (_) {}
+      }
+      return false;
+    }
+    _updatedAt = saved.updatedAt;
+    _favoriteNames
+      ..clear()
+      ..addAll(saved.favorites.where(
+          (n) => nodes.any((node) => node.name == n)));
+    if (saved.selectedName != null) {
+      final i = nodes.indexWhere((n) => n.name == saved.selectedName);
+      if (i >= 0 && await backend.selectNode(saved.selectedName!)) {
+        _selection = i;
+      }
+    }
+    final quota = saved.usage;
+    if (quota != null && quota['total'] != null) {
+      backend.subscriptionUsage = FlClashSubscriptionUsage(
+        upload: quota['upload'] ?? 0, download: quota['download'] ?? 0,
+        total: quota['total']!, expire: quota['expire']);
+    }
+    _stored = true;
+    _emit();
+    return true;
   }
 
   /// Same native FlClash provider.Update() used by FlClash itself.

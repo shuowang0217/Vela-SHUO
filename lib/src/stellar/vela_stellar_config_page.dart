@@ -313,7 +313,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
             child: Padding(
               padding: const EdgeInsets.all(18),
               child: Column(children: [
-                Text('编辑 ' + profile.name + ' 的 Mihomo 配置',
+                Text('编辑 ${profile.name} 的 Mihomo 配置',
                   style: Theme.of(dialog).textTheme.titleLarge),
                 const SizedBox(height: 8),
                 const Text('保存前验证 YAML。运行中的代理不会被热替换；'

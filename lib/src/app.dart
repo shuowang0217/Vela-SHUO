@@ -248,6 +248,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         unawaited(routing!.restore().then((_) => _synchronizeRouting()));
         subscription!.addListener(_synchronizeRouting);
         runtime.ensureRoutingMode = () async {
+          final sub = subscription! as VelaFlClashSubscriptionController;
+          if (!await sub.applyPendingProfileIfIdle()) return false;
           await routing!.restore();
           return routing!.synchronize(
               (subscription! as VelaFlClashSubscriptionController).activeProfileId);
@@ -887,6 +889,14 @@ class _MobileHome extends StatelessWidget {
         return;
       }
       // The first-use Android VPN permission dialog is REQUIRED by Android.
+      if (sub is VelaFlClashSubscriptionController &&
+          !await sub.applyPendingProfileIfIdle()) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('新机场配置加载失败，VPN 未启动')));
+        }
+        return;
+      }
       await vpn.start(sub!);
       if (vpn.error != null && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

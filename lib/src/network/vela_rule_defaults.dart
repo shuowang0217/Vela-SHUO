@@ -36,7 +36,7 @@ class VelaRuleDefaults {
         '  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve\n'
         '  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve\n'
         '  - DOMAIN-SUFFIX,cn,DIRECT\n'
-        '  - GEOIP,CN,DIRECT,no-resolve\n'
+        '  - GEOIP,CN,DIRECT\n'
         '  - MATCH,GLOBAL\n';
   }
 
