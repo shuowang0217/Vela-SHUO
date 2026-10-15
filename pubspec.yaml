@@ -1,7 +1,7 @@
 name: vela_shuo
 description: Original SHUO cross-platform network client.
 publish_to: none
-version: 1.4.6+21
+version: 1.4.7+22
 
 environment:
   sdk: '>=3.9.0 <4.0.0'
