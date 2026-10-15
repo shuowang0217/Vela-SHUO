@@ -54,18 +54,19 @@ func init() {
                 // A user's actual mode is applied separately with updateConfig.
                 raw.Mode = T.Rule
 
-                // Mirror FlClash's PatchClashConfig defaults rather than
-                // Mihomo's bare RawConfig defaults. FlClash applies these
-                // three baseline DNS overrides to every imported profile,
-                // even when the airport supplies its own DNS values.
-                raw.DNS.Enable = true
-                raw.DNS.EnhancedMode = constant.DNSFakeIP
-                raw.DNS.NameServer = []string{
-                    "https://doh.pub/dns-query",
-                    "https://dns.alidns.com/dns-query",
+                // FlClash lib/common/task.dart (makeRealProfileTask):
+                // baseline DNS keys are patched ONLY if the source DNS
+                // section is not enabled. A configured airport DNS remains
+                // untouched unless the user explicitly enables DNS overrides.
+                if !raw.DNS.Enable {
+                    raw.DNS.Enable = true
+                    raw.DNS.EnhancedMode = constant.DNSFakeIP
+                    raw.DNS.NameServer = []string{
+                        "https://doh.pub/dns-query",
+                        "https://dns.alidns.com/dns-query",
+                    }
                 }
                 raw.IPv6 = false
-                raw.DNS.IPv6 = false
                 raw.UnifiedDelay = true
                 raw.TCPConcurrent = true
                 raw.AllowLan = false
@@ -146,7 +147,19 @@ func init() {
                     response.failure("no_proxies", "FlClash core returned no proxies", nil)
                     return
                 }
+                // UI hint only, not a routing override. FlClash's Mihomo
+                // engine still evaluates every actual rule and group.
+                matchGroup := ""
+                for i := len(raw.Rule)-1; i >= 0; i-- {
+                    fields := strings.SplitN(raw.Rule[i], ",", 3)
+                    if len(fields) >= 2 &&
+                        strings.EqualFold(strings.TrimSpace(fields[0]), "MATCH") {
+                        matchGroup = strings.TrimSpace(fields[1])
+                        break
+                    }
+                }
                 response.success(map[string]any{
+                    "match-group": matchGroup,
                     "groups": views.All,
                     "proxies": views.Proxies,
                     "raw-proxies": raw.Proxy,
