@@ -1,18 +1,20 @@
-# Vela v1.3.1 Unified Watercolor
+# Unified watercolor preview — Vela v1.3.1
 
-Continuation of 9f05ab6931a0f212e0e3138ff3ab4b7730cf05b9.
-All windows use the same map backdrop and hand-inked palette. Routing,
-subscriptions, HTTPS verification, proxy restore and VPN remain unchanged.
+This branch continues from the user-approved Immersive build.
+1. All four bottom-right navigation shortcuts are distinct circular
+   frosted watercolor buttons, even on the proxy/config/smart/settings pages.
+   A separate top-left "VELA / HOME" button returns home on desktop.
+2. The old desktop navigation rail is removed entirely to reveal the world
+   map. All other pages are constrained to <=885px and reserve space for
+   the detached navigation controls.
+3. The tall (285px) subscription and proxy hero panels shrink to ~190px.
+   Card material uses unified watercolor glass with etched pen lines.
+   Fonts, labels, sail identity, compass glyph and native launcher icons are
+   retinted to nautical paper/ink/teal/gold.
+4. Windows connection uses one click: the repeat system-proxy consent modal
+   is gone by explicit user request. Existing coordinator still verifies
+   remote HTTPS before setting WinINet, snapshots proxy state and restores it
+   when disconnecting or exiting. Failure is reported in the home snackbar.
 
-Navigation: remove grouped dock background, make four independent circular
-buttons. The same four controls appear on all desktop pages; Home is a
-compact top-left shortcut outside Home. No more opaque left navigation rail.
-
-One-click Windows system-proxy connect: no repeat confirmation modal.
-The explicit user request is handled by calling the existing coordinator
-whose HTTPS check, proxy state snapshot and restoration are retained.
-Connection failures surface errors via a snackbar.
-
-Screens: narrow and height-limit the very large subscription/profile hero
-panels, use watercolored glass for shared cards and controls, ink-style
-compass/sail/dock icons, and keep mobile VPN permission handling untouched.
+Android VPN permission and Android mobile navigation behavior are preserved.
+All proxy protocols, subscriptions, smart engine and native bridges unchanged.

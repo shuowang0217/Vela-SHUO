@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/vela_core_controller.dart';
 import '../android/vela_android_vpn.dart';
 import '../theme/vela_palettes.dart';
+import '../brand/vela_watercolor_chrome.dart';
 import 'vela_subscription_controller.dart';
 import '../network/vela_flclash_subscription_adapter.dart';
 import 'vela_node_filter_panel.dart';
@@ -98,13 +99,9 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
           core.busy || runtimeActive;
       final importingBusy = subscription.loading || subscription.vaultBusy ||
           core.busy || (_offlineMode && runtimeActive);
-      return Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: colors.surface.withValues(alpha: .94),
-          border: Border.all(color: colors.line),
-          borderRadius: BorderRadius.circular(18),
-        ),
+      return VelaWatercolorSurface(
+        padding: const EdgeInsets.all(17),
+        radius: 18,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
