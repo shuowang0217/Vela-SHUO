@@ -42,6 +42,8 @@ class VelaFlClashCoreController extends VelaCoreController {
   @override
   bool get remoteVerified => _remoteVerified && backend.internetVerified;
   @override
+  bool get requiresRemoteProbeBeforeTakeover => false;
+  @override
   bool get probing => _probing;
   @override
   bool get directTestProfile => false;
@@ -105,21 +107,21 @@ class VelaFlClashCoreController extends VelaCoreController {
     required String currentName,
     required String nextName,
   }) async {
-    if (_working || !isListening || !remoteVerified) {
+    if (_working || !isListening) {
       return VelaNodeSwitchResult.unverified;
     }
     if (currentName == nextName) return VelaNodeSwitchResult.success;
     _working = true;
     _changed();
     try {
-      if (await backend.selectNode(nextName) &&
-          await backend.verifyInternet()) {
-        _remoteVerified = true;
+      // FlClash treats the acknowledged core selector as authoritative.
+      // A blocked HTTPS test destination is not grounds to undo a change.
+      if (await backend.selectNode(nextName)) {
+        _remoteVerified = false;
         return VelaNodeSwitchResult.success;
       }
-      if (await backend.selectNode(currentName) &&
-          await backend.verifyInternet()) {
-        _remoteVerified = true;
+      if (await backend.selectNode(currentName)) {
+        _remoteVerified = false;
         return VelaNodeSwitchResult.restored;
       }
       _remoteVerified = false;
