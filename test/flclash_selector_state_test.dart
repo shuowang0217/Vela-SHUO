@@ -62,7 +62,101 @@ class _NativeTransport implements FlClashCoreTransport {
   }
 }
 
+/// The three native tabs shown in the user's FlClash screenshot are
+/// NOT separate routing modes; they are the profile's actual group list.
+class _GroupTransport extends _NativeTransport {
+  _GroupTransport() {
+    now.addAll({
+      '🐮牛逼': '自动选择',
+      '自动选择': 'JP',
+      '故障转移': 'US',
+      '隐藏组': 'US',
+    });
+  }
+
+  @override
+  Map<String, Object?> get registry {
+    final base = super.registry;
+    return {
+      ...base,
+      'groups': ['GLOBAL', '🐮牛逼', '自动选择', '故障转移', '隐藏组'],
+      'match-group': '🐮牛逼',
+      'raw-proxy-groups': [
+        {'name': '🐮牛逼', 'type': 'select'},
+        {'name': '自动选择', 'type': 'url-test'},
+        {'name': '故障转移', 'type': 'fallback'},
+        {'name': '隐藏组', 'type': 'select', 'hidden': true},
+      ],
+      'proxies': {
+        ...base['proxies'] as Map,
+        '🐮牛逼': {
+          'type': 'Selector', 'now': now['🐮牛逼'],
+          'all': ['JP', 'US', '自动选择', '故障转移'],
+        },
+        '自动选择': {
+          'type': 'URLTest', 'now': now['自动选择'],
+          'all': ['JP', 'US'],
+        },
+        '故障转移': {
+          'type': 'Fallback', 'now': now['故障转移'],
+          'all': ['JP', 'US'],
+        },
+        '隐藏组': {
+          'type': 'Selector', 'now': now['隐藏组'],
+          'all': ['JP', 'US'],
+        },
+      },
+    };
+  }
+}
+
 void main() {
+  test('RULE has only exact upstream visible groups, no fake ALL or GLOBAL',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('vela_flclash_tabs_');
+    addTearDown(() => dir.delete(recursive: true));
+    final transport = _GroupTransport();
+    final backend = FlClashWindowsBackend(
+        homeDir: dir.path, transport: transport);
+    await backend.importText('rules:\n  - MATCH,🐮牛逼\n');
+    expect(backend.visibleGroups, ['🐮牛逼', '自动选择', '故障转移']);
+    expect(backend.groupTypes['自动选择'], 'URLTest');
+    expect(backend.groupTypes['故障转移'], 'Fallback');
+    expect(backend.groupMembers['🐮牛逼'],
+        containsAll(['自动选择', '故障转移']));
+    expect(backend.selectableGroups.contains('自动选择'), false);
+
+    // FlClash changes its current *tab* even with an active connection,
+    // without calling changeProxy or affecting upstream RULE mode.
+    backend.listenerStarted = true;
+    expect(backend.selectRoutingGroup('自动选择'), true);
+    expect(transport.changes, isEmpty);
+    expect(transport.mode, 'rule');
+    backend.listenerStarted = false;
+
+    expect(backend.selectRoutingGroup('🐮牛逼'), true);
+    expect(await backend.selectGroupMember('故障转移'), true);
+    expect(backend.selectedMap['🐮牛逼'], '故障转移');
+    expect(transport.changes.last, '🐮牛逼=>故障转移');
+    expect(backend.activeName, isNull);
+
+    expect(await backend.updateRoutingMode('global'), true);
+    expect(backend.visibleGroups, contains('GLOBAL'));
+    expect(backend.visibleGroups, contains('隐藏组'));
+    expect(await backend.updateRoutingMode('direct'), true);
+    expect(backend.visibleGroups, isEmpty);
+  });
+
+  test('Vela group page uses the native FlClash group list', () {
+    final source = File('lib/src/stellar/vela_stellar_proxy_page.dart')
+        .readAsStringSync();
+    expect(source, contains('backend.visibleGroups'));
+    expect(source, contains('backend.groups.contains(member)'));
+    expect(source, isNot(contains("final groupNames = ['全部节点'")));
+    expect(source, contains('widget.routing'));
+  });
+
+
   test('RULE selects MATCH strategy, not built-in GLOBAL', () async {
     final dir = await Directory.systemTemp.createTemp('vela_rule_strategy_');
     addTearDown(() => dir.delete(recursive: true));
