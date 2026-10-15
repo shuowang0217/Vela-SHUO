@@ -15,6 +15,7 @@ void main() {
     expect(vpn, contains('scheduleWithFixedDelay'));
     expect(vpn, contains('2L, TimeUnit.SECONDS'));
     expect(vpn, contains('Clash.getTotalTraffic()'));
+    expect(vpn, contains('private fun nativeTrafficTotals()'));
     expect(vpn, contains('SystemClock.elapsedRealtime()'));
     expect(vpn, contains('(up - previousUp).toDouble() * 1000.0 / elapsed'));
     expect(vpn, contains('(down - previousDown).toDouble() * 1000.0 / elapsed'));

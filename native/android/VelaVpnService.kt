@@ -113,6 +113,14 @@ class VelaVpnService : VpnService() {
         }
     }
 
+    /** Read cumulative JNI counters outside scheduled Java SAM code. */
+    private fun nativeTrafficTotals(): Pair<Long, Long>? {
+        val values = JSONObject(Clash.getTotalTraffic())
+        val up = values.optLong("up", -1L)
+        val down = values.optLong("down", -1L)
+        return if (up >= 0L && down >= 0L) Pair(up, down) else null
+    }
+
     /**
      * Runs inside VpnService, independently of Flutter Activity. The native
      * Mihomo up/down values are cumulative bytes, NOT instantaneous speeds.
@@ -134,11 +142,10 @@ class VelaVpnService : VpnService() {
             var uploadText = "采集中"
             var downloadText = "采集中"
             try {
-                val totals = JSONObject(Clash.getTotalTraffic())
-                val up = totals.optLong("up", -1L)
-                val down = totals.optLong("down", -1L)
+                val totals = nativeTrafficTotals()
                 val now = SystemClock.elapsedRealtime()
-                if (up >= 0L && down >= 0L) {
+                if (totals != null) {
+                    val (up, down) = totals
                     val previousUp = lastUp
                     val previousDown = lastDown
                     val elapsed = now - lastAt
