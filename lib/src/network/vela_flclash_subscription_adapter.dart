@@ -538,7 +538,9 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   void _scheduleAutoUpdates() {
     _autoRefreshTimer?.cancel();
     if (!_profiles.any((p) => p.sourceUrl != null &&
-        p.autoUpdateMinutes != null)) return;
+        p.autoUpdateMinutes != null)) {
+      return;
+    }
     _autoRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (_closed || _storageBusy || _addingProfile || loading) return;
       final now = DateTime.now();

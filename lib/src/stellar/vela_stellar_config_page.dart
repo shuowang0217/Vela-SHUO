@@ -271,7 +271,6 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                     style: TextStyle(fontSize: 11)),
                 ],
               ))),
-            ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(context, false),
                 child: const Text('取消')),

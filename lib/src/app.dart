@@ -366,11 +366,10 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       demo: demo, subscription: subscription, core: widget.core,
       connection: connection, androidVpn: androidVpn),
     3 => _SettingsPage(
-      demo: demo, settings: widget.settings,
+      settings: widget.settings,
       diagnostics: widget.diagnostics, core: widget.core,
       subscription: subscription, connection: connection,
       androidVpn: androidVpn, windowExitGuard: widget.windowExitGuard,
-      goHome: () => navigate(0),
     ),
     _ => _HomePage(
       demo: demo, desktop: desktop,
