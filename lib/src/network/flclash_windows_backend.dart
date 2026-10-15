@@ -493,8 +493,10 @@ class FlClashWindowsBackend {
   }
 
   Future<void> start() async {
-    if (!ready || !imported || activeName == null) {
-      throw StateError('请先选择节点再连接');
+    // Mihomo rules can route to a nested URLTest/Fallback selector. A
+    // concrete leaf node is NOT mandatory for FlClash listener startup.
+    if (!ready || !imported) {
+      throw StateError('请先导入有效机场配置再连接');
     }
     // The upstream RPC can return true even when WinSock fails to bind
     // its local MixedPort. Check exclusive availability BEFORE starting,
