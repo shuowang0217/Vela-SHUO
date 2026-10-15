@@ -13,7 +13,6 @@ import (
     "strings"
 
     "github.com/metacubex/mihomo/config"
-    yaml "github.com/metacubex/mihomo/common/yaml"
     "github.com/metacubex/mihomo/constant"
     T "github.com/metacubex/mihomo/tunnel"
 )
@@ -55,26 +54,20 @@ func init() {
                 // A user's actual mode is applied separately with updateConfig.
                 raw.Mode = T.Rule
 
-                // FlClash adds its baseline DNS settings when a profile does
-                // not supply them. Mihomo's bare RawConfig defaults DNS to
-                // DISABLED, which makes Android TUN DNS queries fail even
-                // though the same profile works when loaded by FlClash.
-                var supplied struct {
-                    DNS struct {
-                        Enable *bool `yaml:"enable"`
-                        EnhancedMode *string `yaml:"enhanced-mode"`
-                    } `yaml:"dns"`
+                // Mirror FlClash's PatchClashConfig defaults rather than
+                // Mihomo's bare RawConfig defaults. FlClash applies these
+                // three baseline DNS overrides to every imported profile,
+                // even when the airport supplies its own DNS values.
+                raw.DNS.Enable = true
+                raw.DNS.EnhancedMode = constant.DNSFakeIP
+                raw.DNS.NameServer = []string{
+                    "https://doh.pub/dns-query",
+                    "https://dns.alidns.com/dns-query",
                 }
-                if err := yaml.Unmarshal([]byte(params.Content), &supplied); err != nil {
-                    response.failure("invalid_profile", "Could not inspect profile DNS", nil)
-                    return
-                }
-                if supplied.DNS.Enable == nil {
-                    raw.DNS.Enable = true
-                }
-                if supplied.DNS.EnhancedMode == nil {
-                    raw.DNS.EnhancedMode = constant.DNSFakeIP
-                }
+                raw.IPv6 = false
+                raw.DNS.IPv6 = false
+                raw.UnifiedDelay = true
+                raw.TCPConcurrent = true
                 raw.AllowLan = false
                 raw.BindAddress = "127.0.0.1"
                 raw.ExternalController = ""
