@@ -7,7 +7,7 @@ void main() {
   testWidgets('Android floating watercolor glass has 50% opacity',
       (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
-    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    try {
     await tester.pumpWidget(const MaterialApp(home: Center(
       child: VelaWatercolorSurface(child: Text('Android glass')))));
     final decorated = tester.widget<DecoratedBox>(
@@ -20,6 +20,9 @@ void main() {
     final gradient = decoration.gradient! as LinearGradient;
     for (final color in gradient.colors) {
       expect(color.a, closeTo(.5, .003));
+    }
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
     }
   });
 }
