@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../brand/vela_sail_mark.dart';
 import 'demo_connection.dart';
-import 'flight_route.dart';
+import 'maritime_route.dart';
 
 /// Camera for a precisely georeferenced 2:1 equirectangular world map.
 @immutable
@@ -120,11 +120,8 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
 
   Offset get _currentBoatLocation {
     final fraction = Curves.easeInOutCubic.transform(_sail.value);
-    return Offset(
-      _routeFrom.dx +
-          VelaWorldCamera.shortestDelta(_routeFrom.dx, _routeTo.dx) * fraction,
-      _routeFrom.dy + (_routeTo.dy - _routeFrom.dy) * fraction,
-    );
+    return VelaMaritimeRoute(from: _routeFrom, to: _routeTo)
+        .pointAt(fraction);
   }
 
   void _sync() {
@@ -149,7 +146,7 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
       if (!sameNode) {
         // The route starts at the current boat position if retargeted.
         _routeFrom = _destination == null
-            ? VelaWorldCamera.beijing : _currentBoatLocation;
+            ? VelaMaritimeRoute.shanghai : _currentBoatLocation;
         _routeTo = Offset(node.longitude, node.latitude);
         _destination = node;
         _sail.forward(from: 0);
@@ -279,20 +276,17 @@ class _WorldRoutePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final home = camera.project(VelaWorldCamera.beijing);
+    final home = camera.project(VelaMaritimeRoute.shanghai);
     _drawGeographicCities(canvas);
-    _marker(canvas, home, 'BEIJING', const Color(0xFFE3B777),
+    _marker(canvas, home, 'SHANGHAI', const Color(0xFFE3B777),
       showLabel: !active || homebound);
     if (!active || (from - to).distance < .01) return;
-    final route = VelaFlightRoute(
-      start: camera.project(from),
-      end: camera.projectAlong(from, to),
-      globeRadius: size.shortestSide * .42,
-    );
-    canvas.drawPath(route.path(), Paint()
+    final route = VelaMaritimeRoute(from: from, to: to);
+    Offset geoProject(Offset geo) => camera.projectAlong(from, geo);
+    canvas.drawPath(route.path(geoProject), Paint()
       ..style = PaintingStyle.stroke ..strokeWidth = 2.8
       ..color = const Color(0xA4B9DFFF));
-    final traveled = route.path(until: progress);
+    final traveled = route.path(geoProject, until: progress);
     canvas.drawPath(traveled, Paint()
       ..style = PaintingStyle.stroke ..strokeWidth = 13
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 11)
@@ -302,7 +296,7 @@ class _WorldRoutePainter extends CustomPainter {
       ..strokeCap = StrokeCap.round ..color = const Color(0xFFE6BB76));
     _marker(canvas, camera.projectAlong(from, to), label,
       const Color(0xFF84D0FF), showLabel: true);
-    final boat = route.pointAt(progress);
+    final boat = geoProject(route.pointAt(progress));
     canvas.drawCircle(boat, 25, Paint()
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)
       ..color = const Color(0x6685D4FF));
