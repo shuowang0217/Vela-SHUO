@@ -13,6 +13,10 @@ void main() {
     expect(dart, isNot(contains("VelaRuleDefaults.prepare(raw)")));
     expect(go, contains('config.UnmarshalRawConfig([]byte(params.Content))'));
     expect(go, contains('raw.Mode = T.Rule'));
+    // Pinned Mihomo has Rule yaml:"rules" vs json:"rule".
+    // json.Marshal(raw) previously dropped the entire RULE table on reload.
+    expect(go, contains('serialized, err := yaml.Marshal(raw)'));
+    expect(go, isNot(contains('serialized, err := json.Marshal(raw)')));
     // These are the exact default baseline DNS values in FlClash's
     // PatchClashConfig / Dns model at the pinned upstream source SHA.
     // FlClash does not replace an airport's own enabled DNS section.
