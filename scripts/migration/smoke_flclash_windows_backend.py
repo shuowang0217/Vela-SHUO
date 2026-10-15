@@ -198,6 +198,8 @@ rules:
             "Expose the native MATCH strategy without rewriting routes")
         config = call("getConfig", os.path.join(home, "config.yaml"))
         assert config["mode"] == "rule", "FlClash default RULE must not be replaced"
+        assert config["rules"] == ["MATCH,VELA_SELECT"], (
+            "RawConfig YAML serialization must preserve plural 'rules'")
         # Mode changes are FlClash's native updateConfig RPC, not rewrites
         # of subscription YAML. Test the exact GLOBAL selection behavior.
         assert call("updateConfig", {"mode": "global"}) == ""
