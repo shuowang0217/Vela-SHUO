@@ -13,6 +13,7 @@ import (
     "strings"
 
     "github.com/metacubex/mihomo/config"
+    yaml "github.com/metacubex/mihomo/common/yaml"
     "github.com/metacubex/mihomo/constant"
     T "github.com/metacubex/mihomo/tunnel"
 )
@@ -49,11 +50,31 @@ func init() {
                 // the local client into an externally reachable proxy server.
                 raw.Port, raw.SocksPort, raw.RedirPort, raw.TProxyPort = 0, 0, 0, 0
                 raw.MixedPort = 20808
-                // Vela's single-node Connect action corresponds to FlClash
-                // GLOBAL mode, NOT the imported subscription's RULE mode.
-                // Otherwise a selected proxy can be ignored by MATCH,DIRECT.
-                // FlClash/Mihomo itself still owns every routing decision.
-                raw.Mode = T.Global
+                // FlClash defaults to RULE; do not silently turn every
+                // imported profile into GLOBAL on every Android VPN restart.
+                // A user's actual mode is applied separately with updateConfig.
+                raw.Mode = T.Rule
+
+                // FlClash adds its baseline DNS settings when a profile does
+                // not supply them. Mihomo's bare RawConfig defaults DNS to
+                // DISABLED, which makes Android TUN DNS queries fail even
+                // though the same profile works when loaded by FlClash.
+                var supplied struct {
+                    DNS struct {
+                        Enable *bool `yaml:"enable"`
+                        EnhancedMode *string `yaml:"enhanced-mode"`
+                    } `yaml:"dns"`
+                }
+                if err := yaml.Unmarshal([]byte(params.Content), &supplied); err != nil {
+                    response.failure("invalid_profile", "Could not inspect profile DNS", nil)
+                    return
+                }
+                if supplied.DNS.Enable == nil {
+                    raw.DNS.Enable = true
+                }
+                if supplied.DNS.EnhancedMode == nil {
+                    raw.DNS.EnhancedMode = constant.DNSFakeIP
+                }
                 raw.AllowLan = false
                 raw.BindAddress = "127.0.0.1"
                 raw.ExternalController = ""
