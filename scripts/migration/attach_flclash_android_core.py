@@ -228,6 +228,22 @@ android {
             } catch (_: Throwable)'''
     src = replace_once(src, end_marker, end_replacement,
                        "Close Android mode confirmation callback")
+    # A new, non-inline Core.invokeMethod callback surrounds the TUN code.
+    # Returning to the outer quickSetup callback from inside it is illegal in
+    # Kotlin; return from the currently executing invokeMethod callback.
+    src = replace_once(
+        src,
+        '''                        if (ticket != generation.get()) {
+                            tun.close()
+                            return@quickSetup
+                        }''',
+        '''                        if (ticket != generation.get()) {
+                            tun.close()
+                            return@invokeMethod
+                        }''',
+        "Stop stale TUN only inside native routing callback",
+    )
+
     src = replace_once(
         src, "if (Clash.isLoaded()) Clash.stopTun()",
         "if (nativeStarted) Core.stopTun()",
