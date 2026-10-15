@@ -30,6 +30,22 @@ class FlClashWindowsBackend {
   List<String> groups = const [];
   Map<String, List<String>> groupMembers = const {};
   Set<String> selectableGroups = const {};
+  Map<String, String> groupTypes = const {};
+  Set<String> hiddenGroups = const {};
+  Map<String, String> groupNow = const {};
+
+  /// FlClash's currentGroupsStateProvider filters groups by native mode:
+  /// RULE hides GLOBAL and hidden groups; GLOBAL shows every core group;
+  /// DIRECT displays none. The UI must not invent "全部节点" as a group.
+  List<String> get visibleGroups => switch (activeRoutingMode) {
+    'direct' => const <String>[],
+    'global' => groups,
+    _ => groups.where(
+        (name) => name != 'GLOBAL' && !hiddenGroups.contains(name))
+        .toList(growable: false),
+  };
+  bool groupIsSelector(String name) => selectableGroups.contains(name);
+
   final Map<String, String> _selectedMap = {};
   Map<String, String> get selectedMap => Map.unmodifiable(_selectedMap);
   String? activeName;
@@ -155,7 +171,7 @@ class FlClashWindowsBackend {
     subscriptionUsage = null;
     nodes = List.unmodifiable(importedNodes);
     groups = List.unmodifiable(groupNames);
-    groupMembers = _readGroupMembers(proxies, groupNames);
+    _updateGroupMetadata(proxies, groupNames);
     // FlClash only permits explicit node selection in Selector groups.
     // URLTest/Fallback/LoadBalance remain owned by their native strategy.
     selectableGroups = Set.unmodifiable({
@@ -260,6 +276,27 @@ class FlClashWindowsBackend {
     ).hasMatch(name.trim());
   }
 
+  void _updateGroupMetadata(Map proxies, List<String> names) {
+    groupMembers = _readGroupMembers(proxies, names);
+    groupTypes = Map.unmodifiable({
+      for (final name in names)
+        if (proxies[name] is Map)
+          name: ((proxies[name] as Map)['type'] ?? '').toString(),
+    });
+    hiddenGroups = Set.unmodifiable({
+      for (final name in names)
+        if (proxies[name] is Map &&
+            (proxies[name] as Map)['hidden'] == true)
+          name,
+    });
+    groupNow = Map.unmodifiable({
+      for (final name in names)
+        if (proxies[name] is Map &&
+            (proxies[name] as Map)['now'] is String)
+          name: (proxies[name] as Map)['now'] as String,
+    });
+  }
+
   Map<String, List<String>> _readGroupMembers(
       Map proxies, List<String> groupNames) {
     return Map.unmodifiable({
@@ -319,8 +356,7 @@ class FlClashWindowsBackend {
     }
     nodes = List.unmodifiable(updated);
     groups = List.unmodifiable(all.whereType<String>());
-    groupMembers = _readGroupMembers(
-        proxies, all.whereType<String>().toList());
+    _updateGroupMetadata(proxies, groups);
     _selectedMap.removeWhere((group, name) =>
         !groups.contains(group) ||
         (groupMembers[group]?.isNotEmpty == true &&
@@ -345,11 +381,11 @@ class FlClashWindowsBackend {
     return loaded;
   }
 
-  /// Choose the real Mihomo selector to edit in RULE mode. This is not
-  /// merely a UI filter: FlClash routes by each rule's target group.
-  /// Require an explicit new node choice after switching the active group.
+  /// FlClash switches displayed group tabs without touching the native
+  /// routing configuration. Auto/Fallback are legitimate tabs too. Changing
+  /// tabs while connected is safe: the existing Mihomo pick stays unchanged.
   bool selectRoutingGroup(String name) {
-    if (!imported || listenerStarted || !selectableGroups.contains(name)) {
+    if (!imported || !visibleGroups.contains(name)) {
       return false;
     }
     activeGroup = name;
@@ -421,6 +457,7 @@ class FlClashWindowsBackend {
         return false;
       }
       _selectedMap[group] = name;
+      groupNow = Map.unmodifiable({...groupNow, group: name});
       activeName = name;
       internetVerified = false;
       return true;
