@@ -198,8 +198,19 @@ rules:
             "Expose the native MATCH strategy without rewriting routes")
         config = call("getConfig", os.path.join(home, "config.yaml"))
         assert config["mode"] == "rule", "FlClash default RULE must not be replaced"
-        assert config["rules"] == ["MATCH,VELA_SELECT"], (
-            "RawConfig YAML serialization must preserve plural 'rules'")
+        # FlClash RPC uses the Mihomo RawConfig *JSON* tag "rule", while
+        # the on-disk YAML config must use the distinct tag "rules".
+        # Assert both separately to avoid mistaking an RPC key for the
+        # native engine's parsed routing table.
+        assert config["rule"] == ["MATCH,VELA_SELECT"], (
+            "FlClash native getConfig did not load the rule table")
+        with open(os.path.join(home, "config.yaml"),
+                  encoding="utf-8") as profile_stream:
+            generated_yaml = profile_stream.read()
+        assert "\nrules:\n" in "\n" + generated_yaml, (
+            "Mihomo config.yaml is missing the plural YAML rules key")
+        assert "MATCH,VELA_SELECT" in generated_yaml, (
+            "Mihomo config.yaml dropped the subscription MATCH rule")
         # Mode changes are FlClash's native updateConfig RPC, not rewrites
         # of subscription YAML. Test the exact GLOBAL selection behavior.
         assert call("updateConfig", {"mode": "global"}) == ""
