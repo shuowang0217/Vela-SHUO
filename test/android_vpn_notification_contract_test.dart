@@ -16,6 +16,11 @@ void main() {
     expect(vpn, contains('2L, TimeUnit.SECONDS'));
     expect(vpn, contains('Clash.getTotalTraffic()'));
     expect(vpn, contains('private fun nativeTrafficTotals()'));
+    final adapter = File('scripts/migration/attach_flclash_android_core.py')
+        .readAsStringSync();
+    expect(adapter, contains('val values = JSONObject(Core.getTotalTraffic(false))'));
+    expect(adapter, contains('VPN notification counters: FlClash native Core'));
+
     expect(vpn, contains('SystemClock.elapsedRealtime()'));
     expect(vpn, contains('(up - previousUp).toDouble() * 1000.0 / elapsed'));
     expect(vpn, contains('(down - previousDown).toDouble() * 1000.0 / elapsed'));

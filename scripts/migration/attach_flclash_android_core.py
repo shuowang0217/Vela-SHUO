@@ -182,6 +182,12 @@ android {
         "if (nativeStarted) Core.stopTun()",
         "FlClash stop TUN",
     )
+    src = replace_once(
+        src,
+        "val values = JSONObject(Clash.getTotalTraffic())",
+        "val values = JSONObject(Core.getTotalTraffic(false))",
+        "VPN notification counters: FlClash native Core",
+    )
     src = src.replace(
         "// AAR contains libclash.so (Mihomo) and libmihomo-jni.so.",
         "// FlClash pinned Go source supplies libclash.so; JNI wrapper is libcore.so.",
