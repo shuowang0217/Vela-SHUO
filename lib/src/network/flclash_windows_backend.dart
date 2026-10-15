@@ -5,6 +5,7 @@ import '../subscription/flclash_profile_downloader.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../subscription/vela_subscription_parser.dart';
 import 'flclash_core_api.dart';
+import 'vela_rule_defaults.dart';
 import 'flclash_windows_transport.dart';
 
 /// Single FlClash runtime for Windows. This class contains no protocol
@@ -109,7 +110,8 @@ class FlClashWindowsBackend {
     await initialize();
     if (listenerStarted) throw StateError('Disconnect before importing a profile');
     final result = await api.invoke('velaLoadProfile',
-        arguments: {'content': raw}, timeout: const Duration(minutes: 2));
+        arguments: {'content': VelaRuleDefaults.prepare(raw)},
+        timeout: const Duration(minutes: 2));
     if (result is! Map) {
       throw const FlClashCoreFailure('invalid_response', 'Profile RPC failed');
     }
