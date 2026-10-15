@@ -194,7 +194,10 @@ rules:
         assert "Example SS" in res["proxies"], "Node missing from actual Mihomo"
         assert "GLOBAL" in res["groups"], "Built-in GLOBAL mode is missing"
         config = call("getConfig", os.path.join(home, "config.yaml"))
-        assert config["mode"] == "global", "Vela selection must control traffic route"
+        assert config["mode"] == "rule", "FlClash default RULE must not be replaced"
+        # Mode changes are FlClash's native updateConfig RPC, not rewrites
+        # of subscription YAML. Test the exact GLOBAL selection behavior.
+        assert call("updateConfig", {"mode": "global"}) == ""
         actual = call("getProxies")
         assert "Example SS" in actual["proxies"], "FlClash core not populated"
         assert call("changeProxy", {
