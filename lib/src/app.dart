@@ -177,6 +177,22 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   VelaAndroidVpnController? androidVpn;
   VelaTrafficMonitor? traffic;
   int tab = 0;
+  String? _lastNotifiedAirport;
+
+  // Store only the user's airport display name in Android private prefs.
+  // Notification speed is sampled independently by native VpnService.
+  void _syncAndroidNotificationName() {
+    if (!Platform.isAndroid) return;
+    final sub = subscription;
+    final name = sub is VelaFlClashSubscriptionController
+        ? sub.profileName?.trim() : null;
+    final label = name == null || name.isEmpty ? 'Vela' : name;
+    if (_lastNotifiedAirport == label) return;
+    _lastNotifiedAirport = label;
+    unawaited(const MethodChannel('vela_shuo/android_vpn')
+        .invokeMethod<void>('setNotificationAirport', {'name': label})
+        .catchError((Object _) {}));
+  }
 
   void _synchronizeRouting() {
     final mode = routing;
@@ -248,6 +264,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         routing = VelaRoutingModeController(runtime.backend);
         unawaited(routing!.restore().then((_) => _synchronizeRouting()));
         subscription!.addListener(_synchronizeRouting);
+        subscription!.addListener(_syncAndroidNotificationName);
+        _syncAndroidNotificationName();
         runtime.ensureRoutingMode = () async {
           final sub = subscription! as VelaFlClashSubscriptionController;
           if (!await sub.applyPendingProfileIfIdle()) return false;
@@ -329,6 +347,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     subscription?.removeListener(syncRealGlobe);
     subscription?.removeListener(_synchronizeRouting);
+    subscription?.removeListener(_syncAndroidNotificationName);
     connection?.removeListener(syncRealGlobe);
     smart?.dispose();
     androidVpn?.removeListener(syncRealGlobe);
