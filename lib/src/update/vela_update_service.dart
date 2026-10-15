@@ -71,7 +71,9 @@ class VelaUpdateService {
       for (final item in json['assets'] as List) {
         if (item is! Map || item['name'] is! String ||
             item['browser_download_url'] is! String ||
-            !(item['name'] as String).endsWith(suffix)) continue;
+            !(item['name'] as String).endsWith(suffix)) {
+          continue;
+        }
         final url = Uri.tryParse(item['browser_download_url'] as String);
         if (url != null && url.scheme == 'https' &&
             url.host == 'github.com' &&
