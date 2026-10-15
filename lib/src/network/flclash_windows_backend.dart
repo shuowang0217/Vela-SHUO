@@ -406,7 +406,9 @@ class FlClashWindowsBackend {
     final group = activeGroup;
     if (group == null ||
         (groupMembers[group]?.isNotEmpty == true &&
-            !groupMembers[group]!.contains(name))) return false;
+            !groupMembers[group]!.contains(name))) {
+      return false;
+    }
     try {
       await api.changeProxy(group, name);
       // Do not confirm only because the RPC accepted the request. Read the
