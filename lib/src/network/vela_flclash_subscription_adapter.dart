@@ -675,6 +675,9 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     if (group == null || node == null) return null;
     return jsonEncode({
       'selected-map': {group: node.name},
+      // Passed to VpnService and reapplied after native quickSetup reloads
+      // config.yaml; otherwise Android silently falls back to RULE.
+      'route-mode': backend.activeRoutingMode,
       'test-url': 'https://www.gstatic.com/generate_204',
     });
   }
