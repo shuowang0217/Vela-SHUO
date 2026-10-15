@@ -184,6 +184,7 @@ proxy-groups:
     type: select
     proxies:
       - Example SS
+      - Local Socks Test
 rules:
   - MATCH,VELA_SELECT
 """
@@ -193,6 +194,8 @@ rules:
         assert "Local Socks Test" in res["proxies"]
         assert "Example SS" in res["proxies"], "Node missing from actual Mihomo"
         assert "GLOBAL" in res["groups"], "Built-in GLOBAL mode is missing"
+        assert res["match-group"] == "VELA_SELECT", (
+            "Expose the native MATCH strategy without rewriting routes")
         config = call("getConfig", os.path.join(home, "config.yaml"))
         assert config["mode"] == "rule", "FlClash default RULE must not be replaced"
         # Mode changes are FlClash's native updateConfig RPC, not rewrites
@@ -206,6 +209,14 @@ rules:
         actual = call("getProxies")
         assert actual["proxies"]["GLOBAL"]["now"] == "Example SS", (
             "Mihomo did not route GLOBAL mode through the selected node")
+        assert call("changeProxy", {
+            "group-name": "VELA_SELECT", "proxy-name": "Local Socks Test"
+        })["message"] == ""
+        assert call("updateConfig", {"mode": "rule"}) == ""
+        actual = call("getProxies")
+        assert actual["proxies"]["GLOBAL"]["now"] == "Example SS"
+        assert actual["proxies"]["VELA_SELECT"]["now"] == "Local Socks Test", (
+            "RULE policy group must be independent of GLOBAL")
 
         # Actual RPC latency verification with a deterministic local 204
         # endpoint. No public network / credential is needed for this test.
