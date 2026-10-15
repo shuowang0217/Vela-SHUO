@@ -15,6 +15,8 @@ void main() {
     expect(go, contains('raw.Mode = T.Rule'));
     // These are the exact default baseline DNS values in FlClash's
     // PatchClashConfig / Dns model at the pinned upstream source SHA.
+    // FlClash does not replace an airport's own enabled DNS section.
+    expect(go, contains('if !raw.DNS.Enable {'));
     expect(go, contains('raw.DNS.Enable = true'));
     expect(go, contains('raw.DNS.EnhancedMode = constant.DNSFakeIP'));
     expect(go, contains('https://doh.pub/dns-query'));
@@ -50,5 +52,12 @@ void main() {
     expect(service, contains('.addDnsServer("172.19.0.2")'));
     expect(service, contains('.setBlocking(false)'));
     expect(service, contains('VelaVpnState.report("connected")'));
+    final subscriptions = File('lib/src/network/vela_flclash_subscription_adapter.dart')
+        .readAsStringSync();
+    final profile = File('lib/src/subscription/vela_profile_library.dart')
+        .readAsStringSync();
+    expect(subscriptions, contains("'selected-map': backend.selectedMap"));
+    expect(profile, contains("'selectedMap': selectedMap"));
+    expect(subscriptions, contains('_restoreProfileSelections(saved)'));
   });
 }
