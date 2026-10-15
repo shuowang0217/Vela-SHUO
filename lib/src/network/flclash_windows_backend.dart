@@ -389,7 +389,7 @@ class FlClashWindowsBackend {
       return false;
     }
     activeGroup = name;
-    final selected = _selectedMap[name];
+    final selected = _selectedMap[name] ?? groupNow[name];
     activeName = selected != null &&
         nodes.any((node) => node.name == selected) ? selected : null;
     internetVerified = false;
@@ -436,6 +436,32 @@ class FlClashWindowsBackend {
     if (!selectableGroups.contains(group)) return;
     _selectedMap[group] = name;
     if (group == activeGroup) activeName = name;
+  }
+
+  /// A Selector can select another policy group (e.g. 自动选择/故障转移)
+  /// rather than a leaf proxy. FlClash sends the exact member name to
+  /// Mihomo; routing of that nested group remains native and automatic.
+  Future<bool> selectGroupMember(String member) async {
+    final group = activeGroup;
+    if (!imported || group == null || !selectableGroups.contains(group) ||
+        !groups.contains(member) ||
+        !(groupMembers[group]?.contains(member) ?? false)) {
+      return false;
+    }
+    try {
+      await api.changeProxy(group, member);
+      final snapshot = await api.getProxies();
+      final proxies = snapshot['proxies'];
+      final state = proxies is Map ? proxies[group] : null;
+      if (state is! Map || state['now'] != member) return false;
+      _selectedMap[group] = member;
+      groupNow = Map.unmodifiable({...groupNow, group: member});
+      activeName = null; // Policy group, not a concrete server.
+      internetVerified = false;
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> selectNode(String name) async {
