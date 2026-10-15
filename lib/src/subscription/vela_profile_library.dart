@@ -11,6 +11,8 @@ class VelaStoredProfile {
     required this.name,
     required this.raw,
     this.selectedName,
+    this.selectedMap = const {},
+    this.selectedGroup,
     this.favorites = const [],
     this.usage,
     this.updatedAt,
@@ -23,6 +25,9 @@ class VelaStoredProfile {
   final String name;
   final String raw;
   final String? selectedName;
+  /// Every native FlClash Selector has its own persisted selection.
+  final Map<String, String> selectedMap;
+  final String? selectedGroup;
   final List<String> favorites;
   /// FlClash subscription-userinfo counters; never infer from node counts.
   final Map<String, int>? usage;
@@ -33,6 +38,7 @@ class VelaStoredProfile {
 
   VelaStoredProfile copyWith({
     String? name, String? raw, String? selectedName,
+    Map<String, String>? selectedMap, String? selectedGroup,
     List<String>? favorites,
     Map<String, int>? usage, DateTime? updatedAt, int? nodeCount,
     String? sourceUrl, bool clearSourceUrl = false,
@@ -42,6 +48,8 @@ class VelaStoredProfile {
     name: name ?? this.name,
     raw: raw ?? this.raw,
     selectedName: selectedName ?? this.selectedName,
+    selectedMap: selectedMap ?? this.selectedMap,
+    selectedGroup: selectedGroup ?? this.selectedGroup,
     favorites: favorites ?? this.favorites,
     usage: usage ?? this.usage,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -56,6 +64,8 @@ class VelaStoredProfile {
     'name': name,
     'raw': raw,
     'selectedName': selectedName,
+    'selectedMap': selectedMap,
+    if (selectedGroup != null) 'selectedGroup': selectedGroup,
     'favorites': favorites,
     if (usage != null) 'usage': usage,
     if (updatedAt != null) 'updatedAt': updatedAt!.millisecondsSinceEpoch,
@@ -86,11 +96,28 @@ class VelaStoredProfile {
       return null;
     }
     final favorites = object['favorites'];
+    final choices = object['selectedMap'];
+    if (choices != null &&
+        (choices is! Map || choices.length > 256 ||
+         choices.entries.any((entry) =>
+             entry.key is! String || entry.value is! String ||
+             (entry.key as String).length > 256 ||
+             (entry.value as String).length > 256))) {
+      return null;
+    }
+    final group = object['selectedGroup'];
+    if (group != null && (group is! String || group.length > 256)) {
+      return null;
+    }
     return VelaStoredProfile(
       id: id, name: name, raw: raw,
       sourceUrl: url as String?, autoUpdateMinutes: interval as int?,
       selectedName: object['selectedName'] is String
           ? object['selectedName'] as String : null,
+      selectedMap: choices is Map
+          ? Map<String, String>.from(choices)
+          : const {},
+      selectedGroup: group as String?,
       favorites: favorites is List && favorites.length <= 4096
           ? favorites.whereType<String>().take(4096).toList()
           : const [],
