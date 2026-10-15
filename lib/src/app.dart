@@ -805,8 +805,7 @@ class _VoyageHomeShortcut extends StatelessWidget {
 }
 
 class _DemoTag extends StatelessWidget {
-  const _DemoTag({this.compact = false});
-  final bool compact;
+  const _DemoTag();
 
   @override
   Widget build(BuildContext context) => Container(
@@ -820,7 +819,7 @@ class _DemoTag extends StatelessWidget {
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(Icons.visibility_outlined, color: _blue, size: 14),
       SizedBox(width: 6),
-      Text(compact ? 'UI 演示' : 'UI 演示 · 尚未接入代理',
+      Text('UI 演示 · 尚未接入代理',
           style: TextStyle(color: _muted, fontSize: 11)),
     ]),
   );
@@ -830,11 +829,9 @@ class _DemoTag extends StatelessWidget {
 /// Hover elevation is subtle to preserve a calm, precise interface.
 class _GlassCard extends StatefulWidget {
   const _GlassCard({
-    required this.child, this.padding = const EdgeInsets.all(18),
+    required this.child,
   });
   final Widget child;
-  final EdgeInsets padding;
-
   @override
   State<_GlassCard> createState() => _GlassCardState();
 }
@@ -850,7 +847,8 @@ class _GlassCardState extends State<_GlassCard> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
         child: VelaWatercolorSurface(
-          hovered: _hover, padding: widget.padding, child: widget.child),
+          hovered: _hover, padding: const EdgeInsets.all(18),
+          child: widget.child),
       ),
     ),
   );
@@ -1474,13 +1472,12 @@ class _AndroidVpnTag extends StatelessWidget {
 
 
 class _RealTag extends StatelessWidget {
-  const _RealTag({this.compact = false});
-  final bool compact;
+  const _RealTag();
 
   @override
   Widget build(BuildContext context) => Container(
     padding: EdgeInsets.symmetric(
-      horizontal: compact ? 8 : 13, vertical: compact ? 5 : 8,
+      horizontal: 13, vertical: 8,
     ),
     decoration: BoxDecoration(
       color: _mint.withValues(alpha: .11),
@@ -1488,7 +1485,7 @@ class _RealTag extends StatelessWidget {
       borderRadius: BorderRadius.circular(30),
     ),
     child: Text('真实代理模式 · Windows 系统代理',
-      style: TextStyle(color: _foreground, fontSize: compact ? 9 : 11),
+      style: TextStyle(color: _foreground, fontSize: 11),
     ),
   );
 }
