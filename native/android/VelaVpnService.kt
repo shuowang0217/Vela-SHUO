@@ -58,28 +58,20 @@ class VelaVpnService : VpnService() {
             CHANNEL_ID, "Vela-SHUO VPN", NotificationManager.IMPORTANCE_LOW))
     }
 
+    // One compact status line: the sail icon, upload speed and download speed.
+    // Keep all disconnection controls inside Vela's existing UI.
     private fun buildNotification(upload: String, download: String,
                                   connecting: Boolean = false): Notification {
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val stop = PendingIntent.getService(this, 1,
-            Intent(this, VelaVpnService::class.java).setAction(ACTION_STOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val title = if (connecting) "Vela · VPN 正在连接"
-            else "Vela · ↑ 风速 $upload"
-        val details = if (connecting) "正在建立航线 · 等待真实流量"
-            else "↓ 航速 $download · VPN 已连接"
+        val title = if (connecting) "Vela · 正在连接"
+            else "↑ $upload    ↓ $download"
         val builder = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.vela_notification_sail)
             .setContentTitle(title)
-            .setContentText(details)
-            .setStyle(Notification.BigTextStyle().bigText(details))
             .setContentIntent(open)
-            .addAction(Notification.Action.Builder(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                "断开 VPN", stop).build())
             .setCategory(Notification.CATEGORY_SERVICE)
             .setOnlyAlertOnce(true)
             .setOngoing(true)

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/vela_palettes.dart';
@@ -24,11 +25,20 @@ class VelaWatercolorSurface extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
         gradient: LinearGradient(
           begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [
-            t.surface.withValues(alpha: t.dark ? .82 : .88),
-            wash.withValues(alpha: t.dark ? .69 : .78),
-            t.surface.withValues(alpha: t.dark ? .79 : .84),
-          ], stops: const [0, .58, 1],
+          // Android floats on a genuine 50%-opaque watercolor wash;
+          // Windows preserves its already approved desktop material.
+          colors: defaultTargetPlatform == TargetPlatform.android
+              ? [
+                  t.surface.withValues(alpha: .50),
+                  wash.withValues(alpha: .50),
+                  t.surface.withValues(alpha: .50),
+                ]
+              : [
+                  t.surface.withValues(alpha: t.dark ? .82 : .88),
+                  wash.withValues(alpha: t.dark ? .69 : .78),
+                  t.surface.withValues(alpha: t.dark ? .79 : .84),
+                ],
+          stops: const [0, .58, 1],
         ),
         border: Border.all(color: selected || hovered
             ? t.accent.withValues(alpha: .78)

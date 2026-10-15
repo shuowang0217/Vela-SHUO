@@ -40,7 +40,10 @@ void main() {
     expect(vpn, contains('stopForeground(STOP_FOREGROUND_REMOVE)'));
     expect(vpn, contains('setOnlyAlertOnce(true)'));
     expect(vpn, contains('setOngoing(true)'));
-    expect(vpn, contains('setAction(ACTION_STOP)'));
+    expect(vpn, isNot(contains('.addAction(')));
+    expect(vpn, isNot(contains('断开 VPN')));
+    expect(vpn, contains('else "↑ $upload    ↓ $download"'));
+    expect(vpn, isNot(contains('setContentText(')));
 
     // Android 13+ notification permission, not overlay/accessibility hacks.
     expect(bridge, contains('Manifest.permission.POST_NOTIFICATIONS'));

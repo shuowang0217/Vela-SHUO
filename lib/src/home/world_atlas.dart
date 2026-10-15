@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../brand/vela_sail_mark.dart';
 import 'demo_connection.dart';
@@ -8,10 +10,12 @@ import 'maritime_route.dart';
 @immutable
 class VelaWorldCamera {
   const VelaWorldCamera({required this.size, required this.longitude,
-    required this.latitude});
+    required this.latitude,
+    this.portraitWidthScale = portraitHeightScale});
   final Size size;
   final double longitude;
   final double latitude;
+  final double portraitWidthScale;
   static const beijing = Offset(116.4, 39.9);
 
   static double shortestDelta(double from, double to) =>
@@ -22,15 +26,21 @@ class VelaWorldCamera {
   // keep enough height to cover the canvas without stretching the 2:1 map.
   static const double landscapeWidthScale = 1.28;
   static const double portraitHeightScale = 2.08;
+  static const double androidCompactScale = 1.68;
   double get worldWidth => math.max(
       size.width * landscapeWidthScale,
-      size.height * portraitHeightScale);
+      size.height * portraitWidthScale);
   double get worldHeight => worldWidth / 2;
 
   // Land near the poles may sit above/below the visual center. Keep the
   // background fully covering the viewport rather than exposing black strips.
   // The route and city labels must share this exact same vertical transform.
   double get top {
+    if (worldHeight < size.height) {
+      // Compact portrait atlas is centered over a blurred full-bleed map,
+      // instead of stretching the artwork to fit the tall Android screen.
+      return (size.height - worldHeight) / 2;
+    }
     final desired = size.height / 2 -
         (90 - latitude) / 180 * worldHeight;
     return desired.clamp(size.height - worldHeight, 0.0).toDouble();
@@ -193,18 +203,54 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
       return RepaintBoundary(child: AnimatedBuilder(
         animation: Listenable.merge([_pan, _sail]),
         builder: (context, _) {
+          final size = Size(bounds.maxWidth, bounds.maxHeight);
+          final compactAndroid = defaultTargetPlatform ==
+              TargetPlatform.android && size.height > size.width * 1.25;
           final camera = VelaWorldCamera(
-            size: Size(bounds.maxWidth, bounds.maxHeight),
-            longitude: _focusLongitude, latitude: _focusLatitude);
+            size: size,
+            longitude: _focusLongitude, latitude: _focusLatitude,
+            portraitWidthScale: compactAndroid
+                ? VelaWorldCamera.androidCompactScale
+                : VelaWorldCamera.portraitHeightScale);
+          final coverCamera = compactAndroid ? VelaWorldCamera(
+            size: size, longitude: _focusLongitude,
+            latitude: _focusLatitude) : camera;
           final active = _returning || (
               widget.demo.phase != VelaPhase.idle &&
               widget.demo.phase != VelaPhase.error);
           return ClipRect(child: Stack(fit: StackFit.expand, children: [
             const ColoredBox(color: Color(0xFF071929)),
-            _WorldTiles(camera: camera,
-              asset: 'assets/world/watercolor_day.webp', show: !dark),
-            _WorldTiles(camera: camera,
-              asset: 'assets/world/watercolor_night.webp', show: dark),
+            if (compactAndroid)
+              ImageFiltered(
+                // Full-bleed soft watercolor beneath a smaller atlas avoids
+                // exposed black strips at the north/south edges.
+                imageFilter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Stack(fit: StackFit.expand, children: [
+                  _WorldTiles(camera: coverCamera,
+                    asset: 'assets/world/watercolor_day.webp', show: !dark),
+                  _WorldTiles(camera: coverCamera,
+                    asset: 'assets/world/watercolor_night.webp', show: dark),
+                ]),
+              ),
+            ShaderMask(
+              shaderCallback: (rect) => (compactAndroid
+                ? const LinearGradient(
+                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.white,
+                      Colors.white, Colors.transparent],
+                    stops: [0, .16, .84, 1],
+                  )
+                : const LinearGradient(
+                    colors: [Colors.white, Colors.white],
+                  )).createShader(rect),
+              blendMode: BlendMode.dstIn,
+              child: Stack(fit: StackFit.expand, children: [
+                _WorldTiles(camera: camera,
+                  asset: 'assets/world/watercolor_day.webp', show: !dark),
+                _WorldTiles(camera: camera,
+                  asset: 'assets/world/watercolor_night.webp', show: dark),
+              ]),
+            ),
             IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft, end: Alignment.bottomRight,

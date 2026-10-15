@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
@@ -672,7 +673,9 @@ class _VoyageRatePanel extends StatelessWidget {
           width: 283, height: 79,
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
           decoration: BoxDecoration(
-            color: _panel.withValues(alpha: .72),
+            color: _panel.withValues(
+              alpha: defaultTargetPlatform == TargetPlatform.android
+                  ? .50 : .72),
             borderRadius: BorderRadius.circular(19),
             border: Border.all(color: _line.withValues(alpha: .65)),
           ),
