@@ -117,6 +117,62 @@ proxy-providers:
 ''';
 
 void main() {
+  test('edit airport HTTPS URL, refresh disconnected and stage safely online',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('vela_edited_airport_');
+    addTearDown(() => dir.delete(recursive: true));
+    final vault = _Vault();
+    final backend = FlClashWindowsBackend(homeDir: dir.path,
+      transport: _NativeFlClash());
+    final core = VelaFlClashCoreController(backend);
+    var version = 1;
+    final downloader = FlClashProfileDownloader(
+      mode: VelaSubscriptionDownloadMode.direct,
+      requestStep: (_, route) async => FlClashProfileResponse(
+        200, Uint8List.fromList(utf8.encode('$_profile\n# server=$version')),
+        subscriptionUserInfo: 'upload=4; download=6; total=200',
+      ),
+    );
+    final sub = VelaFlClashSubscriptionController(
+      backend: backend, core: core, vault: _Vault(),
+      profileVault: vault, downloader: downloader);
+    expect(await sub.importFromText(_profile), true);
+    final id = sub.activeProfileId!;
+    expect(sub.profiles.single.sourceUrl, isNull);
+    const url = 'https://example.test/subscribe?token=editable-secret';
+    expect(await sub.updateProfileSettings(id, name: 'Updated Airport',
+      sourceUrl: url, autoUpdateMinutes: null), true);
+    expect(sub.profiles.single.sourceUrl, url);
+    expect(await sub.refreshProfile(id), true);
+    expect(sub.profiles.single.raw, contains('server=1'));
+    expect(sub.profiles.single.usage?['total'], 200);
+
+    version = 2;
+    backend.listenerStarted = true;
+    final oldNative = backend.lastImportedSource;
+    expect(await sub.refreshProfile(id), true);
+    expect(sub.profiles.single.raw, contains('server=2'));
+    expect(backend.lastImportedSource, oldNative,
+        reason: 'Live native core must remain unchanged');
+    backend.listenerStarted = false;
+    expect(await sub.applyPendingProfileIfIdle(), true);
+    expect(backend.lastImportedSource, contains('server=2'));
+
+    sub.dispose();
+    core.dispose();
+    final restoredBackend = FlClashWindowsBackend(homeDir: dir.path,
+        transport: _NativeFlClash());
+    final restoredCore = VelaFlClashCoreController(restoredBackend);
+    final restored = VelaFlClashSubscriptionController(
+      backend: restoredBackend, core: restoredCore,
+      vault: _Vault(), profileVault: vault, downloader: downloader);
+    expect(await restored.restoreSaved(), true);
+    expect(restored.profiles.single.sourceUrl, url);
+    expect(restored.canRefresh, true);
+    restored.dispose();
+    restoredCore.dispose();
+  });
+
   test('online fetch stages a second airport without interrupting active core',
       () async {
     final dir = await Directory.systemTemp.createTemp('vela_staged_airport_');
