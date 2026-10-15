@@ -62,7 +62,7 @@ void main() {
     final modes = VelaRoutingModeController(backend);
     await modes.restore();
     expect(await modes.setMode(VelaRoutingMode.direct, 'airport-a'), false);
-    expect(modes.current, VelaRoutingMode.global);
+    expect(modes.current, VelaRoutingMode.rule);
     expect(modes.error, contains('保留原模式'));
     modes.dispose();
   });
