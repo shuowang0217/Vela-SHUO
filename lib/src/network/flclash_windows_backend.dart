@@ -168,9 +168,10 @@ class FlClashWindowsBackend {
     // Show the real MATCH selector in RULE mode instead of automatically
     // editing GLOBAL, which is only the outbound group for GLOBAL mode.
     final match = result['match-group'];
+    // If the rule set has no MATCH target, there is no safe single
+    // default group: do not guess one from the order of group names.
     _defaultRuleGroup = match is String && selectableGroups.contains(match)
-        ? match : selectableGroups.firstWhere(
-            (group) => group != 'GLOBAL', orElse: () => 'GLOBAL');
+        ? match : 'GLOBAL';
     activeGroup = _defaultRuleGroup;
     _selectedMap.clear();
     for (final group in selectableGroups) {
