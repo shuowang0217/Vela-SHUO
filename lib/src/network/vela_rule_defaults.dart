@@ -1,8 +1,7 @@
 import 'package:yaml/yaml.dart';
 
-/// Applies a conservative, documented split policy only when a user's Mihomo
-/// YAML has NO usable rules. All user-provided rules remain authoritative.
-/// Both Windows named-pipe and Android JNI import paths use this same code.
+/// FlClash parity: Mihomo is authoritative for all user-supplied rules.
+/// Never invent CN/DIRECT/MATCH rules or change rule order during import.
 class VelaRuleDefaults {
   const VelaRuleDefaults._();
 
@@ -14,35 +13,14 @@ class VelaRuleDefaults {
       return rules is YamlList && rules.any(
           (line) => line is String && line.trim().isNotEmpty);
     } catch (_) {
-      // Leave invalid/unsupported formats to Mihomo's native validator.
       return false;
     }
   }
 
-  static String prepare(String source) {
-    if (hasRules(source)) return source;
-    try {
-      final root = loadYaml(source);
-      if (root is! YamlMap || root['rules'] != null) return source;
-    } catch (_) {
-      return source;
-    }
-    // GEOIP is evaluated by Mihomo's own geodata engine; local-address rules
-    // prevent RFC1918 networks and localhost from leaving the machine.
-    return '$source\n'
-        'rules:\n'
-        '  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve\n'
-        '  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve\n'
-        '  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve\n'
-        '  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve\n'
-        '  - DOMAIN-SUFFIX,cn,DIRECT\n'
-        '  - GEOIP,CN,DIRECT\n'
-        '  - MATCH,GLOBAL\n';
-  }
+  /// Exact pass-through: same config the FlClash native core sees.
+  static String prepare(String source) => source;
 
-  /// A source may deliberately choose another split policy. Do not silently
-  /// rewrite MATCH,DIRECT or remote rule-providers in their custom rules.
   static String explanation(String source) => hasRules(source)
-      ? '遵循机场配置的规则，未强制重写'
-      : '使用默认分流：内网/国内直连，其他经 GLOBAL 节点';
+      ? '按机场原始规则及 Mihomo 策略组执行'
+      : '机场未提供规则，按 Mihomo 默认行为执行；不自动补写分流策略';
 }
