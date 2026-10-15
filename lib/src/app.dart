@@ -886,9 +886,9 @@ class _MobileHome extends StatelessWidget {
         return;
       }
       final sub = subscription;
-      if (sub?.selected == null) {
+      if (sub == null || sub.androidVpnProfile == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请先导入机场配置并选择真实节点，再连接 VPN')));
+          const SnackBar(content: Text('请先导入有效机场配置，再连接 VPN')));
         return;
       }
       // The first-use Android VPN permission dialog is REQUIRED by Android.
