@@ -107,8 +107,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
               ? sub : null;
           final nativeGroups = flclash?.backend.groups ?? const <String>[];
           final groupNames = ['全部节点',
-            ...nativeGroups.where((name) => name != 'GLOBAL'
-                && (flclash?.backend.selectableGroups.contains(name) ?? false)
+            ...nativeGroups.where((name) =>
+                (flclash?.backend.selectableGroups.contains(name) ?? false)
                 && (flclash?.backend.groupMembers[name]?.isNotEmpty ?? false)),
           ];
           final group = groupNames.contains(_group) ? _group : '全部节点';
@@ -300,8 +300,10 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
 
   void _selectGroup(String label) {
     final sub = widget.subscription;
-    if (sub is VelaFlClashSubscriptionController) {
-      if (!sub.selectRoutingGroup(label == '全部节点' ? 'GLOBAL' : label)) {
+    // "All nodes" is a view filter, not the Mihomo GLOBAL selector.
+    // FlClash never rewrites routing when the user only clears a filter.
+    if (label != '全部节点' && sub is VelaFlClashSubscriptionController) {
+      if (!sub.selectRoutingGroup(label)) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('请先断开连接，再切换 FlClash 策略组并选择节点')));
         return;
@@ -322,7 +324,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
           Text('航线分组', style: TextStyle(color: t.text,
               fontWeight: FontWeight.w600)),
           const Spacer(),
-          StellarLabel('按订阅分组浏览'),
+          StellarLabel(
+              '当前出口组：${widget.subscription is VelaFlClashSubscriptionController ? (widget.subscription! as VelaFlClashSubscriptionController).backend.activeGroup ?? "未选中" : "未选中"}'),
         ]),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 7, children: [
