@@ -58,7 +58,8 @@ class VelaVpnService : VpnService() {
             CHANNEL_ID, "Vela-SHUO VPN", NotificationManager.IMPORTANCE_LOW))
     }
 
-    private fun buildNotification(details: String): Notification {
+    private fun buildNotification(upload: String, download: String,
+                                  connecting: Boolean = false): Notification {
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
@@ -66,9 +67,13 @@ class VelaVpnService : VpnService() {
         val stop = PendingIntent.getService(this, 1,
             Intent(this, VelaVpnService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val title = if (connecting) "Vela · VPN 正在连接"
+            else "Vela · ↑ 风速 $upload"
+        val details = if (connecting) "正在建立航线 · 等待真实流量"
+            else "↓ 航速 $download · VPN 已连接"
         val builder = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.vela_notification_sail)
-            .setContentTitle("Vela · 航行中")
+            .setContentTitle(title)
             .setContentText(details)
             .setStyle(Notification.BigTextStyle().bigText(details))
             .setContentIntent(open)
@@ -86,7 +91,7 @@ class VelaVpnService : VpnService() {
     }
 
     private fun showForeground() {
-        val notification = buildNotification("正在建立航线 · 等待真实流量")
+        val notification = buildNotification("采集中", "采集中", connecting = true)
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(NOTIFICATION_ID, notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
@@ -126,7 +131,8 @@ class VelaVpnService : VpnService() {
             if (ticket != generation.get() || !nativeStarted) {
                 return@scheduleWithFixedDelay
             }
-            var text = "↑ 风速 采集中 · ↓ 航速 采集中"
+            var uploadText = "采集中"
+            var downloadText = "采集中"
             try {
                 val totals = JSONObject(Clash.getTotalTraffic())
                 val up = totals.optLong("up", -1L)
@@ -140,20 +146,23 @@ class VelaVpnService : VpnService() {
                         up >= previousUp && down >= previousDown && elapsed > 0L) {
                         val uploadRate = (up - previousUp).toDouble() * 1000.0 / elapsed
                         val downloadRate = (down - previousDown).toDouble() * 1000.0 / elapsed
-                        text = "↑ 风速 ${formatSpeed(uploadRate)} · ↓ 航速 ${formatSpeed(downloadRate)}"
+                        uploadText = formatSpeed(uploadRate)
+                        downloadText = formatSpeed(downloadRate)
                     }
                     lastUp = up
                     lastDown = down
                     lastAt = now
                 } else {
-                    text = "↑ 风速 暂无数据 · ↓ 航速 暂无数据"
+                    uploadText = "暂无数据"
+                    downloadText = "暂无数据"
                     lastUp = null
                     lastDown = null
                     lastAt = 0L
                 }
             } catch (_: Throwable) {
                 // A transient native counter failure must never stop the VPN.
-                text = "↑ 风速 暂无数据 · ↓ 航速 暂无数据"
+                uploadText = "暂无数据"
+                downloadText = "暂无数据"
                 lastUp = null
                 lastDown = null
                 lastAt = 0L
@@ -161,7 +170,8 @@ class VelaVpnService : VpnService() {
             if (ticket == generation.get() && nativeStarted) {
                 try {
                     getSystemService(NotificationManager::class.java)
-                        .notify(NOTIFICATION_ID, buildNotification(text))
+                        .notify(NOTIFICATION_ID,
+                            buildNotification(uploadText, downloadText))
                 } catch (_: Exception) {
                     // Permission may be denied or notifications disabled;
                     // network forwarding remains unaffected.
