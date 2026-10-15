@@ -289,7 +289,7 @@ jobs:
             echo 'Unexpected legacy native core included' >&2
             exit 1
           fi
-          sha256sum dist/Vela-v1.4.0-Android-arm64.apk > dist/SHA256-Android.txt
+          sha256sum dist/Vela-v1.4.0-Android-arm64.apk | sed 's#  dist/#  #' > dist/SHA256-Android.txt
       - uses: actions/upload-artifact@v4
         with:
           name: Vela-v1.4.0-Android-arm64
@@ -322,6 +322,8 @@ jobs:
           set -euo pipefail
           grep -qx 'version: 1.4.0+15' pubspec.yaml
           (cd release/windows && sha256sum -c SHA256-Windows.txt)
+          # Compatible with the pre-release build layout as well.
+          sed -i 's#  dist/#  #' release/android/SHA256-Android.txt
           (cd release/android && sha256sum -c SHA256-Android.txt)
           unzip -t release/windows/Vela-v1.4.0-Windows-x64.zip >/dev/null
           unzip -l release/windows/Vela-v1.4.0-Windows-x64.zip | grep -q 'Vela-SHUO.exe'
