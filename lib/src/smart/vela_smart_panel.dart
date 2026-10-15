@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../subscription/vela_subscription_controller.dart';
 import '../theme/vela_palettes.dart';
+import '../brand/vela_watercolor_chrome.dart';
 import 'vela_smart_controller.dart';
 import 'vela_smart_country.dart';
 
@@ -71,20 +72,15 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
         borderRadius: BorderRadius.circular(18),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-          child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: theme.surface.withValues(alpha:
-               .50),
-          border: Border.all(color: theme.text.withValues(alpha: theme.dark ? .30 : .24)),
-          borderRadius: BorderRadius.circular(18),
-        ),
+          child: VelaWatercolorSurface(
+        radius: 18,
+        padding: const EdgeInsets.all(17),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('SHUO Smart · 智能航线优选',
+            Text('航海罗盘 · 智能优选',
                 style: TextStyle(color: theme.text,
-                    fontWeight: FontWeight.w600, fontSize: 17)),
+                    fontWeight: FontWeight.w600, fontFamily: 'Georgia', fontSize: 17)),
             const SizedBox(height: 8),
             Text('当前节点：' + (s.selected?.name ?? '未选择') +
                 '  ·  下载速度：' +

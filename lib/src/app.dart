@@ -27,6 +27,7 @@ import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
 import 'package:vela_shuo/src/home/vela_voyage_speed.dart';
 import 'package:vela_shuo/src/brand/vela_sail_mark.dart';
+import 'package:vela_shuo/src/brand/vela_watercolor_chrome.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_proxy_page.dart';
@@ -85,22 +86,70 @@ class VelaShuoApp extends StatelessWidget {
 }
 
 ThemeData _theme(Brightness brightness, VelaPalette palette) {
-  final tokens = palette.tokens(brightness);
+  final t = palette.tokens(brightness);
   final scheme = ColorScheme.fromSeed(
-    seedColor: tokens.accent,
-    brightness: brightness,
-    surface: tokens.background,
-  );
+    seedColor: t.accent, brightness: brightness,
+    primary: t.accent, secondary: t.accentSoft, surface: t.background);
+  final shape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(16),
+    side: BorderSide(color: t.line.withValues(alpha: .6)));
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
     colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
-    cardTheme: CardThemeData(
-      elevation: 0,
-      color: tokens.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    scaffoldBackgroundColor: t.background,
+    fontFamily: 'Georgia',
+    textTheme: TextTheme(
+      headlineSmall: TextStyle(fontFamily: 'Georgia',
+        color: t.text, fontSize: 24, fontWeight: FontWeight.w600),
+      titleLarge: TextStyle(fontFamily: 'Georgia',
+        color: t.text, fontSize: 21, fontWeight: FontWeight.w600),
+      titleMedium: TextStyle(color: t.text, fontSize: 16,
+        fontWeight: FontWeight.w600),
+      bodyLarge: TextStyle(color: t.text, fontSize: 15),
+      bodyMedium: TextStyle(color: t.text, fontSize: 13.5),
+      bodySmall: TextStyle(color: t.muted, fontSize: 12),
     ),
+    iconTheme: IconThemeData(color: t.accent, size: 21),
+    cardTheme: CardThemeData(elevation: 0,
+      color: t.surface.withValues(alpha: .79), shape: shape),
+    listTileTheme: ListTileThemeData(
+      iconColor: t.accent, textColor: t.text,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13))),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true, fillColor: t.surface.withValues(alpha: .84),
+      hintStyle: TextStyle(color: t.muted),
+      prefixIconColor: t.accent,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15),
+        borderSide: BorderSide(color: t.line)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: BorderSide(color: t.line.withValues(alpha: .8))),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: BorderSide(color: t.accent, width: 1.4)),
+    ),
+    filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(
+      backgroundColor: t.accent, foregroundColor: Colors.white,
+      shape: shape, elevation: 0)),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: t.text,
+        side: BorderSide(color: t.line),
+        shape: shape)),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(foregroundColor: t.accent)),
+    chipTheme: ChipThemeData(
+      backgroundColor: t.surface.withValues(alpha: .8),
+      selectedColor: t.accent.withValues(alpha: .24),
+      side: BorderSide(color: t.line.withValues(alpha: .55)),
+      shape: shape,
+      labelStyle: TextStyle(color: t.text)),
+    dialogTheme: DialogThemeData(
+      backgroundColor: t.surface,
+      shape: shape),
+    dividerTheme: DividerThemeData(
+      color: t.line.withValues(alpha: .56), thickness: .75),
   );
 }
 
@@ -875,41 +924,19 @@ class _GlassCard extends StatefulWidget {
 
 class _GlassCardState extends State<_GlassCard> {
   bool _hover = false;
-
   @override
-  Widget build(BuildContext context) {
-    final t = VelaThemeRuntime.active;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 190),
-            curve: Curves.easeOutCubic,
-            padding: widget.padding,
-            decoration: BoxDecoration(
-              color: _panel.withValues(alpha: .50),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: _hover
-                  ? _blue.withValues(alpha: .60)
-                  : _foreground.withValues(alpha: t.dark ? .33 : .24)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: t.dark ? .24 : .10),
-                  blurRadius: _hover ? 23 : 15,
-                  offset: Offset(0, _hover ? 7 : 4),
-                ),
-              ],
-            ),
-            child: widget.child,
-          ),
-        ),
+  Widget build(BuildContext context) => MouseRegion(
+    onEnter: (_) => setState(() => _hover = true),
+    onExit: (_) => setState(() => _hover = false),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+        child: VelaWatercolorSurface(
+          hovered: _hover, padding: widget.padding, child: widget.child),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _ConnectionCard extends StatelessWidget {
@@ -1746,31 +1773,13 @@ Future<void> _toggleRealConnection(
       );
       return;
     }
-    // One-click after clear, explicit user consent to changing WinINet.
-    final consent = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('允许接管 Windows 系统代理？'),
-        content: const Text(
-          'Vela-SHUO 将先验证选中的节点，验证成功后才把本机 HTTP 系统代理'
-          '设置为 127.0.0.1:20808。\n\n'
-          '软件会保存当前代理设置并在断开时恢复；'
-          '如果你正在使用其他代理软件，其设置可能暂时被替换。'
-          '目前仅接管遵循 Windows 代理设置的应用，并非 VPN/TUN 全局代理。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('允许并连接'),
-          ),
-        ],
-      ),
-    );
-    if (consent == true) await connection.connect();
+    // The user explicitly chose one-click behavior. Retain the coordinator's
+    // HTTPS verification, proxy snapshot, rollback and safe disconnect.
+    final ok = await connection.connect();
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(connection.error ?? '连接失败，系统代理未更改')));
+    }
   }
 
 
