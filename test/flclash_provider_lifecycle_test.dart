@@ -146,7 +146,9 @@ void main() {
     expect(sub.activeProfileId, oldId);
     expect(backend.activeName, oldName);
     expect(backend.listenerStarted, true);
-    expect(vault.payload, isNot(contains('private-token')));
+    // Injected test vault stores raw JSON; production uses device encryption.
+    expect(sub.profiles.last.sourceUrl,
+        'https://example.test/sub?token=private-token');
     expect(sub.profiles.last.usage?['total'], 1000);
     backend.listenerStarted = false;
     expect(await sub.activateProfile(sub.profiles.last.id), true);

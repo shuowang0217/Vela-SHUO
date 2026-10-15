@@ -1144,11 +1144,10 @@ class _SmartPage extends StatelessWidget {
 
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
-    required this.demo, required this.settings, this.diagnostics, this.core,
+    required this.settings, this.diagnostics, this.core,
     this.subscription, this.connection, this.androidVpn,
-    this.windowExitGuard, required this.goHome,
+    this.windowExitGuard,
   });
-  final VelaDemoController demo;
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
@@ -1156,15 +1155,15 @@ class _SettingsPage extends StatelessWidget {
   final VelaConnectionCoordinator? connection;
   final VelaAndroidVpnController? androidVpn;
   final VelaWindowExitGuard? windowExitGuard;
-  final VoidCallback goHome;
-
   @override
   Widget build(BuildContext context) => _ScreenPadding(
     child: ListView(children: [
       _ScreenHeading('设置', '为 Vela-SHUO 定义你的使用方式'),
       SizedBox(height: 18),
       Platform.isAndroid ? _AndroidVpnTag(vpn: androidVpn!) :
-          subscription?.selected != null ? _RealTag() : _DemoTag(),
+          subscription?.selected != null ? _RealTag() :
+              (core == null ? _DemoTag() :
+                  const Text('请先添加机场配置')),
       SizedBox(height: 24),
       if (core != null) ...[
         if (!Platform.isAndroid) ...[
@@ -1199,11 +1198,11 @@ class _SettingsPage extends StatelessWidget {
         Divider(height: 1, color: _line),
         ListTile(
           leading: Icon(Icons.info_outline, color: _blue),
-          title: Text(Platform.isAndroid ? 'Vela-SHUO v1.4.0 · Android VPN'
-              : 'Vela-SHUO v1.4.0 · Windows'),
+          title: Text(Platform.isAndroid ? 'Vela-SHUO v1.4.2 · Android VPN'
+              : 'Vela-SHUO v1.4.2 · Windows'),
           subtitle: Text(Platform.isAndroid
               ? '可授权 Android 系统 VPN；真实连接以服务状态为准'
-              : '真实系统代理连接测试 · 尚非 TUN/VPN 全局代理'),
+              : '仅代理接管的连接会使用系统代理；未启用 Windows TUN'),
         ),
         if (Platform.isWindows && windowExitGuard != null) ...[
           Divider(height: 1, color: _line),
@@ -1248,32 +1247,6 @@ class _SettingsPage extends StatelessWidget {
         ],
       ])),
       SizedBox(height: 16),
-      _GlassCard(child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('视觉状态预览',
-              style: TextStyle(fontSize: 18,
-                  fontWeight: FontWeight.w600)),
-          SizedBox(height: 7),
-          Text('以下操作只改变演示状态，不会连接网络。',
-              style: TextStyle(color: _muted)),
-          SizedBox(height: 14),
-          Wrap(spacing: 9, runSpacing: 9, children: [
-            OutlinedButton(
-              onPressed: () { demo.disconnect(); goHome(); },
-              child: Text('未连接'),
-            ),
-            OutlinedButton(
-              onPressed: () { demo.connect(); goHome(); },
-              child: Text('演示连接'),
-            ),
-            OutlinedButton(
-              onPressed: () { demo.simulateError(); goHome(); },
-              child: Text('连接异常'),
-            ),
-          ]),
-        ],
-      )),
       if (diagnostics != null) ...[
         SizedBox(height: 16),
         _DiagnosticsCard(diagnostics: diagnostics!),
