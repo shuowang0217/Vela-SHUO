@@ -41,7 +41,8 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Vela-SHUO'), findsOneWidget);
+    expect(find.text('VELA'), findsOneWidget);
+    expect(find.text('— SHUO —'), findsOneWidget);
     expect(find.text(velaBrandTagline), findsOneWidget);
     expect(find.text('INTELLIGENT CONNECTIVITY'), findsNothing);
     expect(find.textContaining('UI 演示'), findsWidgets);

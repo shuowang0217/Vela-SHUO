@@ -134,8 +134,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
               constraints: const BoxConstraints(maxWidth: 885),
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                    narrow ? 16 : 25, narrow ? 24 : 77,
-                    narrow ? 16 : 25, narrow ? 28 : 105),
+                    narrow ? 16 : 25, narrow ? 78 : 77,
+                    narrow ? 16 : 25, narrow ? 110 : 105),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [

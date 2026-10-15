@@ -324,8 +324,8 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
               constraints: const BoxConstraints(maxWidth: 875),
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                  narrow ? 16 : 25, narrow ? 20 : 77,
-                  narrow ? 16 : 25, narrow ? 30 : 106),
+                  narrow ? 16 : 25, narrow ? 78 : 77,
+                  narrow ? 16 : 25, narrow ? 110 : 106),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
