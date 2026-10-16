@@ -18,7 +18,10 @@ void main() {
     expect(generator, contains('signingConfigs.getByName("velaRelease")'));
     expect(workflow, contains('SHUO_SIGNING_PASSWORD'));
     expect(workflow, contains('shuo_signing.py restore'));
-    expect(workflow, contains(
+    final signer = File('scripts/finalize_android_signing.py')
+        .readAsStringSync();
+    expect(workflow, contains('scripts/finalize_android_signing.py'));
+    expect(signer, contains(
         '3e8826e8aa48576ddfce7a9a2e78106a159c7be05dbb3b2f89eb60fb095ac9d9'));
     expect(generator, contains('keyAlias = "shuo-release"'));
     expect(workflow, contains('Vela-v1.5.0-Android-arm64.apk'));
