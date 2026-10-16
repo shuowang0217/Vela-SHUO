@@ -161,6 +161,9 @@ jobs:
           }
       - name: Bundle engine into Vela native core location
         shell: pwsh
+        env:
+          VELA_WINDOWS_CODESIGN_PFX_B64: ${{ secrets.VELA_WINDOWS_CODESIGN_PFX_B64 }}
+          VELA_WINDOWS_CODESIGN_PASSWORD: ${{ secrets.VELA_WINDOWS_CODESIGN_PASSWORD }}
         run: |
           $release = Get-ChildItem 'vela/build/windows' -Directory -Recurse |
             Where-Object { $_.Name -eq 'Release' -and
@@ -180,6 +183,10 @@ jobs:
           }
           Copy-Item 'flclash/core/Clash.Meta/LICENSE' (Join-Path $coreDir 'LICENSE-mihomo.txt')
           Copy-Item 'flclash/LICENSE' (Join-Path $coreDir 'LICENSE-FlClash-GPL-3.0.txt')
+          # Only a publisher-verified cert removes "Unknown publisher".
+          # If secrets are absent we ship an explicitly unsigned test build.
+          & 'vela/scripts/sign_vela_windows.ps1' -ReleaseDirectory $release.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Trusted Windows signing failed' }
           $target = 'vela/Vela-v1.5.2-Windows-x64.zip'
           Compress-Archive -Path (Join-Path $release.FullName '*') -DestinationPath $target
           $sha = (Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant()
