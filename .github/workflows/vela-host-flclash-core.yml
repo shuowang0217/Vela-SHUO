@@ -257,23 +257,19 @@ jobs:
           cp ../android/core/src/main/jniLibs/arm64-v8a/libclash.h ../android/core/src/main/cpp/includes/arm64-v8a/libclash.h
           test -s ../android/core/src/main/jniLibs/arm64-v8a/libclash.so
           test -s ../android/core/src/main/cpp/includes/arm64-v8a/libclash.h
-      - name: Enforce durable Android release signing
+      - name: Enforce existing FlClash-Custom permanent Android signing
         shell: bash
         env:
-          VELA_ANDROID_KEYSTORE_B64: ${{ secrets.VELA_ANDROID_KEYSTORE_B64 }}
-          VELA_ANDROID_STORE_PASSWORD: ${{ secrets.VELA_ANDROID_STORE_PASSWORD }}
-          VELA_ANDROID_KEY_ALIAS: ${{ secrets.VELA_ANDROID_KEY_ALIAS }}
-          VELA_ANDROID_KEY_PASSWORD: ${{ secrets.VELA_ANDROID_KEY_PASSWORD }}
-          VELA_ANDROID_CERT_SHA256: ${{ secrets.VELA_ANDROID_CERT_SHA256 }}
+          SHUO_SIGNING_PASSWORD: ${{ secrets.SHUO_SIGNING_PASSWORD }}
         run: |
           set -euo pipefail
-          for key in VELA_ANDROID_KEYSTORE_B64 VELA_ANDROID_STORE_PASSWORD VELA_ANDROID_KEY_ALIAS VELA_ANDROID_KEY_PASSWORD VELA_ANDROID_CERT_SHA256; do
-            if [ -z "${!key:-}" ]; then
-              echo "::error::Missing permanent Vela release-signing secret: $key" >&2
-              exit 1
-            fi
-          done
-          echo "Permanent Vela Android signing configuration is available"
+          if [ -z "$SHUO_SIGNING_PASSWORD" ]; then
+            echo "::error::Copy SHUO_SIGNING_PASSWORD into Vela-SHUO Actions Repository Secrets"
+            exit 1
+          fi
+          test -s flclash/android/signing/shuo-release.jks.enc
+          test -s flclash/scripts/shuo_signing.py
+          echo "Pinned encrypted SHUO key available; will verify certificate after signing"
       - name: Generate original Vela Android app and replace only native bridge
         working-directory: vela
         shell: bash
@@ -293,19 +289,19 @@ jobs:
           grep -q 'home: _Shell(settings: settings' lib/src/app.dart
           grep -q 'import com.follow.clash.core.Core' android/app/src/main/kotlin/com/shuowang/vela_shuo/VelaVpnService.kt
           flutter pub get
-      - name: Build signed Vela 1.5.0 Android with FlClash Go VPN backend
+      - name: Build permanently signed Vela 1.5.0 with FlClash Go VPN
         working-directory: vela
         shell: bash
         env:
-          VELA_ANDROID_KEYSTORE_B64: ${{ secrets.VELA_ANDROID_KEYSTORE_B64 }}
-          VELA_ANDROID_STORE_PASSWORD: ${{ secrets.VELA_ANDROID_STORE_PASSWORD }}
-          VELA_ANDROID_KEY_ALIAS: ${{ secrets.VELA_ANDROID_KEY_ALIAS }}
-          VELA_ANDROID_KEY_PASSWORD: ${{ secrets.VELA_ANDROID_KEY_PASSWORD }}
-          VELA_ANDROID_CERT_SHA256: ${{ secrets.VELA_ANDROID_CERT_SHA256 }}
+          SHUO_SIGNING_PASSWORD: ${{ secrets.SHUO_SIGNING_PASSWORD }}
         run: |
           set -euo pipefail
           umask 077
-          printf '%s' "$VELA_ANDROID_KEYSTORE_B64" | base64 -d > android/app/vela-release.jks
+          trap 'rm -f android/app/vela-release.jks' EXIT
+          python3 -m pip install --disable-pip-version-check 'cryptography>=43,<48'
+          python3 ../flclash/scripts/shuo_signing.py restore \
+            --encrypted ../flclash/android/signing/shuo-release.jks.enc \
+            --output android/app/vela-release.jks
           test -s android/app/vela-release.jks
           flutter build apk --release --target-platform android-arm64
           mkdir -p dist
@@ -320,7 +316,8 @@ jobs:
           test -x "$signer"
           "$signer" verify --verbose --print-certs dist/Vela-v1.5.0-Android-arm64.apk > dist/apk-signing-check.txt
           actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' dist/apk-signing-check.txt | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -d ': ')"
-          expected="$(printf '%s' "$VELA_ANDROID_CERT_SHA256" | tr '[:upper:]' '[:lower:]' | tr -d ': ')"
+          # Public fingerprint from the already-proven FlClash-Custom 1.0.x stable signer.
+          expected="3e8826e8aa48576ddfce7a9a2e78106a159c7be05dbb3b2f89eb60fb095ac9d9"
           test -n "$actual" && test "$actual" = "$expected" || {
             echo '::error::Vela Android release certificate does not match the pinned stable signer'
             exit 1
