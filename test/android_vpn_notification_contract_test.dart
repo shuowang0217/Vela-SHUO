@@ -48,10 +48,11 @@ void main() {
     expect(vpn, contains('setContentText(rates)'));
     expect(vpn, contains('风速 \$upload ↑'));
     expect(vpn, contains('航速 \$download ↓'));
-    expect(vpn, contains('showIdleNotification(context)'));
-    expect(vpn, contains('showIdleNotification(this, afterStop = true)'));
-    expect(vpn, contains('ongoing = false'));
-    expect(bridge, contains('override fun onResume()'));
+    expect(vpn, isNot(contains('showIdleNotification')));
+    expect(vpn, contains('.cancel(NOTIFICATION_ID)'));
+    expect(bridge, isNot(contains('override fun onResume()')));
+    expect(bridge, contains('requestVpnNotificationPermission()'));
+    expect(bridge, contains('ContextCompat.startForegroundService(this, intent)'));
     expect(bridge, contains('"setNotificationAirport"'));
     expect(bridge, contains('VelaVpnService.saveAirportName(this, name)'));
 
