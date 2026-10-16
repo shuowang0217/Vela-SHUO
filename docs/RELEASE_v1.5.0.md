@@ -27,34 +27,45 @@ traffic notification and the Vela interface. Version is `1.5.0+23`.
   Users approve opening the official package link; this is **not** silent
   installation and does not bypass Android installation prompts.
 
-## Mandatory signing setup before publishing
+## Permanent signing (reuse existing FlClash-Custom key)
 
-Configure these repository **Actions secrets** (never in source, artifacts,
-logs or chat): `VELA_ANDROID_KEYSTORE_B64`,
-`VELA_ANDROID_STORE_PASSWORD`, `VELA_ANDROID_KEY_ALIAS`,
-`VELA_ANDROID_KEY_PASSWORD`, `VELA_ANDROID_CERT_SHA256`.
+Vela 1.5.0 **reuses the existing fixed FlClash-Custom certificate**, not a
+new key and not Flutter's ephemeral debug signer.
 
-Generate one durable keystore using a trusted local machine:
+- Source: `shuowang0217/FlClash-Custom` pinned revision
+  `086d91b619538809d4b0aa86b57c7dc85e9d16ce`.
+- Encrypted key: `android/signing/shuo-release.jks.enc` (safe ciphertext;
+  never commit the decrypted `.jks`).
+- Restore program: `scripts/shuo_signing.py restore`.
+- Alias: `shuo-release`.
+- Pinned **public certificate SHA-256**:
+  `3e8826e8aa48576ddfce7a9a2e78106a159c7be05dbb3b2f89eb60fb095ac9d9`.
 
-```sh
-keytool -genkeypair -v -keystore vela-release.jks -alias vela \
-  -keyalg RSA -keysize 3072 -validity 10000
-base64 -w0 vela-release.jks > vela-release.jks.b64   # GNU/Linux
-keytool -list -v -keystore vela-release.jks -alias vela
-```
+**One secret is required in the Vela-SHUO repository:**
+`SHUO_SIGNING_PASSWORD` with exactly the **same saved password value** as
+the original secret in FlClash-Custom. GitHub Actions secrets are scoped per
+repository, so they are not automatically shared. GitHub does not allow
+reading a stored secret value; retrieve it from the original password manager
+or secure offline backup. Do **not** paste it into chats, issue comments,
+source code, or workflow inputs.
 
-Use the Base64 file contents as `VELA_ANDROID_KEYSTORE_B64`.
-Set SHA-256 fingerprint without spaces or colons (lowercase) for
-`VELA_ANDROID_CERT_SHA256`. The alias/password secrets must match the key.
-Store a secure offline backup of the original `.jks` and passwords.
-**Losing the key makes future in-place APK updates impossible.**
+In `Vela-SHUO → Settings → Secrets and variables → Actions → New repository secret`,
+create `SHUO_SIGNING_PASSWORD`. When it is configured, rerun the release
+build. CI decrypts the immutable ciphertext on the temporary runner, signs
+the APK under the stable Vela package ID, verifies the certificate digest
+against the pinned public fingerprint, and removes plaintext private keys.
+A missing secret or mismatch **fails the release**; no unsigned fallback.
 
-The release workflow refuses to build the Android stable APK without all
-five secrets and checks that the signed APK's certificate matches the
-pinned fingerprint. Only after UI tests, Android and Windows builds, and
-SHA-256 checks pass may the workflow publish GitHub Release `v1.5.0`.
-The GitHub release contains durable APK/ZIP assets (not expiring Actions
-artifacts).
+The signing certificate can be used by two **different application IDs**
+(`com.shuowang.flclash.custom` and `com.shuowang.vela`) without making
+them install over each other. Existing Vela beta data still requires
+one-time migration as described above. Future Vela updates must keep
+`com.shuowang.vela`, the pinned signing certificate, and an increased
+Android `versionCode`.
+
+Only after UI tests, Android and Windows builds, checksum and signer checks
+pass may CI publish durable GitHub Release `v1.5.0` assets.
+
 
 ## Release qualification
 
