@@ -225,8 +225,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                               style: TextStyle(color: t.muted))),
                         ))
                       else LayoutBuilder(builder: (context, grid) {
-                        final count = grid.maxWidth > 850 ? 3
-                            : grid.maxWidth > 470 ? 2 : 1;
+                        // Two compact columns on phones, three on large desktops.
+                        final count = grid.maxWidth > 850 ? 3 : 2;
                         final gap = 11.0;
                         final cellWidth = (grid.maxWidth -
                             gap * (count - 1)) / count;
@@ -234,7 +234,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                           children: [
                             for (final index in filtered)
                               SizedBox(width: cellWidth,
-                                child: _nodeCard(context, index, busy)),
+                                child: _nodeCard(context, index, busy,
+                                    compact: cellWidth < 230)),
                           ],
                         );
                       }),
@@ -427,7 +428,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     ]));
   }
 
-  Widget _nodeCard(BuildContext context, int index, bool busy) {
+  Widget _nodeCard(BuildContext context, int index, bool busy,
+      {bool compact = false}) {
     final sub = widget.subscription!;
     final t = VelaThemeRuntime.active;
     final node = sub.nodes[index];
@@ -437,80 +439,68 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     final delay = health?.lastMs;
     final latencyError = sub is VelaFlClashSubscriptionController
         ? sub.backend.delayFailureFor(node.name) : null;
-    final region = _nodeRegion(node.name);
+    final delayText = health?.samples == null ? '延迟 —'
+        : health!.reachable ? '延迟 $delay ms' : '延迟超时';
+    final downloadText = download == null ? '下载 —'
+        : download.ok && download.megabytesPerSecond != null
+            ? '下载 ${download.megabytesPerSecond!.toStringAsFixed(2)} MB/s'
+            : download.failureLabel;
+    final latencyColor = health?.samples == null ? t.muted
+        : health!.reachable
+            ? ((delay ?? 0) < 250
+                ? const Color(0xFF38C9A4) : const Color(0xFFE6A54C))
+            : const Color(0xFFD47575);
+    final downloadColor = download == null ? t.muted : download.ok
+        ? const Color(0xFF38C9A4) : const Color(0xFFD47575);
     return StellarPanel(
       padding: EdgeInsets.zero, selected: picked, radius: 15,
       child: Material(color: Colors.transparent, child: InkWell(
         key: ValueKey('stellar_node_$index'),
         borderRadius: BorderRadius.circular(15),
         onTap: busy ? null : () => _choose(index),
-        child: Padding(padding: const EdgeInsets.all(13),
+        child: Padding(
+          padding: EdgeInsets.all(compact ? 8 : 13),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                Text(_flag(region), style: const TextStyle(fontSize: 19)),
-                const SizedBox(width: 7),
-                Expanded(child: Text(node.name,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: t.text,
+                Text(_flag(_nodeRegion(node.name)),
+                    style: TextStyle(fontSize: compact ? 15 : 19)),
+                SizedBox(width: compact ? 3 : 7),
+                Expanded(child: Text(node.name, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: t.text, fontSize: compact ? 12 : 14,
                     fontWeight: picked ? FontWeight.bold : FontWeight.w500))),
-                SizedBox(width: 33, height: 33, child: IconButton(
-                  padding: EdgeInsets.zero,
-                  tooltip: sub.isFavorite(index) ? '取消收藏' : '收藏节点',
-                  onPressed: () => sub.toggleFavorite(index),
-                  icon: Icon(sub.isFavorite(index)
-                      ? Icons.star_rounded : Icons.star_border_rounded,
-                      size: 19, color: sub.isFavorite(index)
-                          ? t.accent : t.muted),
-                )),
+                SizedBox(width: compact ? 26 : 33,
+                  height: compact ? 28 : 33,
+                  child: IconButton(padding: EdgeInsets.zero,
+                    tooltip: sub.isFavorite(index) ? '取消收藏' : '收藏节点',
+                    onPressed: () => sub.toggleFavorite(index),
+                    icon: Icon(sub.isFavorite(index)
+                        ? Icons.star_rounded : Icons.star_border_rounded,
+                        size: compact ? 17 : 19,
+                        color: sub.isFavorite(index) ? t.accent : t.muted))),
               ]),
-              const SizedBox(height: 12),
+              SizedBox(height: compact ? 5 : 12),
               Row(children: [
-                Expanded(child: Row(children: [
-                  Flexible(child: StellarLabel(node.protocol.toUpperCase())),
-                  if (picked) ...[
-                    const SizedBox(width: 7),
-                    Icon(Icons.check_circle, color: t.accent, size: 16),
-                  ],
-                ])),
-                const SizedBox(width: 8),
-                Column(crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Tooltip(
-                      message: health?.samples == null
-                          ? '尚未进行延迟测速'
-                          : health!.reachable
-                              ? '真实节点延迟测试'
-                              : (latencyError ?? '节点延迟测试失败'),
-                      child: Text(
-                        health?.samples == null ? '延迟 —'
-                            : health!.reachable ? '延迟 $delay ms'
-                            : '延迟超时',
-                        style: TextStyle(fontSize: 12,
-                          color: health?.samples == null ? t.muted
-                              : health!.reachable
-                                  ? (delay! < 250
-                                      ? const Color(0xFF38C9A4)
-                                      : const Color(0xFFE6A54C))
-                                  : const Color(0xFFD47575)),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      download == null ? '下载 —'
-                          : download.ok &&
-                                  download.megabytesPerSecond != null
-                              ? '下载 ${download.megabytesPerSecond!.toStringAsFixed(2)} MB/s'
-                              : download.failureLabel,
-                      style: TextStyle(fontSize: 12,
-                        color: download == null ? t.muted
-                            : download.ok
-                                ? const Color(0xFF38C9A4)
-                                : const Color(0xFFD47575)),
-                    ),
-                  ],
-                ),
+                Expanded(child: Text(node.protocol.toUpperCase(),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: t.muted, fontSize: 11))),
+                if (picked) Icon(Icons.check_circle, color: t.accent,
+                    size: compact ? 14 : 16),
               ]),
+              SizedBox(height: compact ? 5 : 7),
+              Tooltip(message: health?.samples == null ? '尚未进行延迟测速'
+                  : health!.reachable ? '真实节点延迟测试'
+                  : (latencyError ?? '节点延迟测试失败'),
+                child: Text(delayText, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: compact ? 11 : 12,
+                    color: latencyColor))),
+              const SizedBox(height: 3),
+              Text(downloadText, maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: compact ? 11 : 12,
+                  color: downloadColor)),
             ],
           ),
         ),
