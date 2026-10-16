@@ -377,7 +377,9 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  void navigate(int i) => setState(() => tab = i);
+  // The same dock button acts as Back/Home when its destination is open.
+  // Home shortcut and other programmatic navigation still go to their target.
+  void navigate(int i) => setState(() => tab = i != 0 && tab == i ? 0 : i);
 
 
   Widget page(bool desktop) => switch (tab) {
