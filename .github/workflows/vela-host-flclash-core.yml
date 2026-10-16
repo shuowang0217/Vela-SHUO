@@ -38,6 +38,8 @@ jobs:
         run: |
           set -o pipefail
           flutter pub get 2>&1 | tee pub-get-output.txt
+      - name: Android signing fingerprint parser regression tests
+        run: python3 -m unittest discover -s scripts -p 'test_android_signing.py'
       - name: Flutter static analysis
         run: |
           set -o pipefail
