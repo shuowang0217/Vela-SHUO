@@ -314,15 +314,40 @@ jobs:
           fi
           signer="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -x "$signer"
-          "$signer" verify --verbose --print-certs dist/Vela-v1.5.0-Android-arm64.apk > dist/apk-signing-check.txt
-          actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' dist/apk-signing-check.txt | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -d ': ')"
-          # Public fingerprint from the already-proven FlClash-Custom 1.0.x stable signer.
-          expected="3e8826e8aa48576ddfce7a9a2e78106a159c7be05dbb3b2f89eb60fb095ac9d9"
-          test -n "$actual" && test "$actual" = "$expected" || {
-            echo '::error::Vela Android release certificate does not match the pinned stable signer'
-            exit 1
+          # Parse the certificate digest without depending on the apksigner
+          # output indentation or whitespace of the installed Build-Tools.
+          cert_digest() {
+            "$signer" verify --verbose --print-certs "$1" |
+              sed -nE 's/^[[:space:]]*Signer #1 certificate SHA-256 digest:[[:space:]]*([0-9a-fA-F]{64}).*/\\1/p' |
+              head -n 1 | tr '[:upper:]' '[:lower:]'
           }
-          rm -f android/app/vela-release.jks dist/apk-signing-check.txt
+          expected="3e8826e8aa48576ddfce7a9a2e78106a159c7be05dbb3b2f89eb60fb095ac9d9"
+          apk="dist/Vela-v1.5.0-Android-arm64.apk"
+          actual="$(cert_digest "$apk")"
+          if [ -z "$actual" ]; then
+            echo "::error::Cannot read Android APK signing certificate fingerprint"
+            exit 1
+          fi
+          if [ "$actual" != "$expected" ]; then
+            # Flutter's generated runner may still apply the default debug
+            # release signingConfig. Re-sign the ALREADY zipaligned APK with
+            # the restored permanent keystore, without changing program data.
+            echo "::notice::Flutter APK uses a different signer; applying pinned permanent SHUO certificate"
+            "$signer" sign \
+              --ks android/app/vela-release.jks \
+              --ks-key-alias shuo-release \
+              --ks-pass env:SHUO_SIGNING_PASSWORD \
+              --key-pass env:SHUO_SIGNING_PASSWORD \
+              --out dist/Vela-v1.5.0-Android-arm64.resigned.apk "$apk"
+            mv -f dist/Vela-v1.5.0-Android-arm64.resigned.apk "$apk"
+            actual="$(cert_digest "$apk")"
+          fi
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::Vela APK certificate is not the pinned permanent SHUO certificate"
+            exit 1
+          fi
+          echo "Verified permanent SHUO certificate SHA-256: $actual"
+          rm -f android/app/vela-release.jks
           sha256sum dist/Vela-v1.5.0-Android-arm64.apk | sed 's#  dist/#  #' > dist/SHA256-Android.txt
       - uses: actions/upload-artifact@v4
         with:
