@@ -50,18 +50,58 @@ class FlClashSubscriptionUsage {
 }
 
 class FlClashProfileDownload {
-  const FlClashProfileDownload(this.content, this.usage);
+  const FlClashProfileDownload(this.content, this.usage,
+      {this.suggestedName});
   final String content;
   final FlClashSubscriptionUsage? usage;
+  /// Origin-provided filename, same source used for FlClash's profile label.
+  /// Null when the response did not supply trustworthy filename metadata.
+  final String? suggestedName;
+}
+
+/// FlClash Profile.update() uses the final response's Content-Disposition
+/// filename when the user left the profile label blank.
+class VelaSubscriptionSuggestedName {
+  const VelaSubscriptionSuggestedName._();
+
+  static String? fromContentDisposition(String? header) {
+    if (header == null || header.isEmpty || header.length > 2048) return null;
+    try {
+      final parsed = HeaderValue.parse(header);
+      final params = parsed.parameters;
+      String? candidate;
+      final extended = params['filename*'];
+      if (extended != null) {
+        final parts = extended.split("''");
+        if (parts.length >= 2 && parts.first.toLowerCase() == 'utf-8') {
+          candidate = Uri.decodeComponent(parts.skip(1).join("''"));
+        }
+      }
+      candidate ??= params['filename'];
+      if (candidate == null) return null;
+      final trimmed = candidate.trim();
+      // Never treat a URL with query tokens, a local path, control
+      // characters or separators as a displayable airport name.
+      if (trimmed.isEmpty || trimmed.length > 64 ||
+          RegExp(r'[\\/\r\n\x00-\x1f\x7f]').hasMatch(trimmed)) {
+        return null;
+      }
+      return trimmed;
+    } on FormatException {
+      return null;
+    }
+  }
 }
 
 class FlClashProfileResponse {
   const FlClashProfileResponse(this.statusCode, this.body,
-      {this.redirect, this.subscriptionUserInfo});
+      {this.redirect, this.subscriptionUserInfo,
+       this.contentDisposition});
   final int statusCode;
   final Uint8List body;
   final String? redirect;
   final String? subscriptionUserInfo;
+  final String? contentDisposition;
 }
 typedef FlClashProfileRequest = Future<FlClashProfileResponse> Function(
     Uri uri, String route);
@@ -150,7 +190,9 @@ class FlClashProfileDownloader implements VelaSubscriptionFetcher {
           response.data ?? Uint8List(0),
           redirect: response.headers.value(HttpHeaders.locationHeader),
           subscriptionUserInfo:
-              response.headers.value('subscription-userinfo'));
+              response.headers.value('subscription-userinfo'),
+          contentDisposition:
+              response.headers.value(HttpHeaders.contentDispositionHeader));
     } finally {
       dio.close(force: true);
     }
@@ -198,6 +240,8 @@ class FlClashProfileDownloader implements VelaSubscriptionFetcher {
           return FlClashProfileDownload(
             utf8.decode(response.body),
             FlClashSubscriptionUsage.parse(response.subscriptionUserInfo),
+            suggestedName: VelaSubscriptionSuggestedName.fromContentDisposition(
+                response.contentDisposition),
           );
         }
         if (seen.length > 6) throw const FormatException('订阅跳转次数过多');
