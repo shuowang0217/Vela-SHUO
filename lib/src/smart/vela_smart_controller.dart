@@ -473,7 +473,7 @@ class VelaSmartController extends ChangeNotifier {
   }
 
   /// Separate download-only action. Never triggers URLTest or changes existing
-  /// latency readings; up to two downloads in flight to avoid saturating VPN.
+  /// latency readings; one download at a time to respect native IPC limits.
   Future<void> testAllDownloads() async {
     if (!canTestAll || _downloadProbe == null) return;
     _downloads.clear();
@@ -488,7 +488,7 @@ class VelaSmartController extends ChangeNotifier {
     _total = totalNodes;
     _successful = 0;
     _failed = 0;
-    _status = '独立下载测速：最多同时测试2条线路；不会重测延迟…';
+    _status = '独立下载测速：逐节点测试；不会重测延迟…';
     _emit();
     var next = 0;
     Future<void> worker() async {
@@ -509,8 +509,7 @@ class VelaSmartController extends ChangeNotifier {
       }
     }
     try {
-      await Future.wait(List.generate(totalNodes < 2 ? totalNodes : 2,
-          (_) => worker()));
+      await worker();
     } finally {
       if (!_disposed) {
         final cancelled = _cancelRequested || run != _generation;
