@@ -40,6 +40,6 @@ void main() {
     expect(signer, contains('Get-AuthenticodeSignature'));
     expect(signer, contains("signature.Status -ne 'Valid'"));
     expect(signer, contains('Authenticode signing not configured'));
-    expect(signer, contains('Remove-Item -LiteralPath $pfx -Force'));
+    expect(signer, contains('Remove-Item -LiteralPath \$pfx -Force'));
   });
 }
