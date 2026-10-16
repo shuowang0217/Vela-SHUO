@@ -508,46 +508,52 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     );
   }
 
-  /// One action measures both metrics for every imported node. The Smart
-  /// page's AI country filter does not affect the Proxy page benchmark.
-  Future<void> _runAllMeasurements() async {
+  Future<void> _runDownloadMeasurements() async {
     final smart = widget.smart;
     if (smart == null || !smart.canTestAll) return;
-    if (smart.count > 50) {
+    if (smart.count > 30) {
       final accepted = await showDialog<bool>(
         context: context,
         builder: (dialog) => AlertDialog(
-          title: const Text('确认全节点测速'),
-          content: Text('将为全部 ${smart.count} 个节点分别检测延迟和下载速度。'
-              '每节点通常下载约 1 MiB，部分失败线路可能尝试多个下载地址，'
-              '实际流量可能更高。继续吗？'),
+          title: const Text('确认全节点下载测速'),
+          content: Text('即将对 ${smart.count} 条线路逐个下载真实 HTTPS 样本。'
+              '每个节点约 1 MiB，失败时可能消耗更多流量；'
+              '延迟结果不会重测或清除。继续吗？'),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialog).pop(false),
+            TextButton(onPressed: () => Navigator.pop(dialog, false),
               child: const Text('取消')),
-            FilledButton(
-              onPressed: () => Navigator.of(dialog).pop(true),
-              child: const Text('开始测速')),
+            FilledButton(onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('开始下载测速')),
           ],
         ),
       );
       if (!mounted || accepted != true || !smart.canTestAll) return;
     }
-    await smart.testAllNodes(includeAllCountries: true);
+    await smart.testAllDownloads();
   }
 
   Widget _testBar(BuildContext context, bool narrow) {
     final smart = widget.smart;
     final t = VelaThemeRuntime.active;
     final running = smart?.scanning == true;
+    final isDownload = smart?.scanKind == 'download';
     final progress = smart == null || smart.total == 0
         ? 0.0 : (smart.scanned / math.max(1, smart.total)).clamp(0.0, 1.0);
-    final action = FilledButton.icon(
-      key: const ValueKey('stellar_full_benchmark'),
-      onPressed: running ? smart!.cancelScan
-          : smart?.canTestAll == true ? _runAllMeasurements : null,
-      icon: Icon(running ? Icons.stop_rounded : Icons.speed_rounded, size: 18),
-      label: Text(running ? '停止测速' : '全节点测速 · 延迟 + 下载'),
+    final latencyButton = FilledButton.icon(
+      key: const ValueKey('stellar_latency_benchmark'),
+      onPressed: running ? (isDownload ? null : smart!.cancelScan)
+          : smart?.canTestAll == true ? smart!.testAllLatencies : null,
+      icon: Icon(running && !isDownload ? Icons.stop_rounded
+          : Icons.network_check_rounded, size: 17),
+      label: Text(running && !isDownload ? '停止测速' : '延迟测速'),
+    );
+    final downloadButton = OutlinedButton.icon(
+      key: const ValueKey('stellar_download_benchmark'),
+      onPressed: running ? (isDownload ? smart!.cancelScan : null)
+          : smart?.canTestAll == true ? _runDownloadMeasurements : null,
+      icon: Icon(running && isDownload ? Icons.stop_rounded
+          : Icons.download_rounded, size: 17),
+      label: Text(running && isDownload ? '停止下载' : '下载测速'),
     );
     return StellarPanel(child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -558,34 +564,30 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('航线全节点测速',
+              Text('航线节点测速',
                   style: TextStyle(color: t.text, fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
               StellarLabel(smart == null ? '当前平台尚未接入批量测速'
-                  : running ? '正在为所有节点测试延迟和下载速度…'
-                  : smart.status?.isNotEmpty == true
-                      ? smart.status!
-                      : '同时测量每条线路的延迟与真实下载速度'),
+                  : running ? (smart.status ?? '正在测试…')
+                  : smart.status?.isNotEmpty == true ? smart.status!
+                  : '先快速测延迟；需要真实吞吐量时单独测下载'),
             ],
           )),
-          if (!narrow) ...[
-            const SizedBox(width: 12),
-            action,
-          ],
         ]),
-        if (narrow) ...[
-          const SizedBox(height: 12),
-          SizedBox(width: double.infinity, child: action),
-        ],
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: latencyButton),
+          const SizedBox(width: 10),
+          Expanded(child: downloadButton),
+        ]),
         if (running || (smart?.total ?? 0) > 0) ...[
           const SizedBox(height: 12),
           LinearProgressIndicator(value: progress, minHeight: 5,
-              borderRadius: BorderRadius.circular(6)),
+            borderRadius: BorderRadius.circular(6)),
           const SizedBox(height: 7),
           StellarLabel('已测 ${smart!.scanned}/${smart.total}'
-              ' · 延迟成功 ${smart.successful}'
-              ' · 下载成功 ${smart.downloadsSuccessful}'
-              '/${smart.downloadsTested}'),
+              ' · ${isDownload ? "下载" : "延迟"}成功 ${smart.successful}'
+              ' · 失败 ${smart.failed}'),
         ],
       ],
     ));
