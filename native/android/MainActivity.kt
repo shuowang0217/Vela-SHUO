@@ -25,34 +25,17 @@ class MainActivity : FlutterActivity() {
     private var pendingProfile: String? = null
     private val noticePermissionCode = 8242
 
-    // Ask once on first launch; a declined permission never blocks VPN.
-    // Without Android 13 notification permission, the OS may hide the card.
-    override fun onResume() {
-        super.onResume()
-        if (Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
-                PackageManager.PERMISSION_GRANTED) {
-            val prefs = getSharedPreferences("vela_notification", MODE_PRIVATE)
-            if (!prefs.getBoolean("permission_requested", false)) {
-                prefs.edit().putBoolean("permission_requested", true).apply()
-                requestPermissions(
-                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                    noticePermissionCode)
-            }
-        } else {
-            VelaVpnService.showIdleNotification(this)
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == noticePermissionCode &&
-            grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-            VelaVpnService.showIdleNotification(this)
-        }
+    // Android 13+: request notification permission only after Connect.
+    // A denied notification permission does not prevent VPN transport.
+    private fun requestVpnNotificationPermission() {
+        if (Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED) return
+        val prefs = getSharedPreferences("vela_notification", MODE_PRIVATE)
+        if (prefs.getBoolean("permission_requested", false)) return
+        prefs.edit().putBoolean("permission_requested", true).apply()
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            noticePermissionCode)
     }
 
     override fun configureFlutterEngine(engine: FlutterEngine) {
@@ -253,8 +236,8 @@ class MainActivity : FlutterActivity() {
             val intent = Intent(this, VelaVpnService::class.java)
                 .setAction(VelaVpnService.ACTION_START)
             ContextCompat.startForegroundService(this, intent)
-            // Notification permission was requested at Activity startup.
-            // VPN consent and forwarding must never depend on it.
+            requestVpnNotificationPermission()
+            // Notification permission must never block the VPN itself.
             callback.success(true)
         } catch (_: Exception) {
             VelaVpnState.report("error", "无法启动 VPN 后台服务")
