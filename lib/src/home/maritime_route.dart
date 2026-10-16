@@ -86,7 +86,7 @@ class VelaMaritimeRoute {
             tangentStart * (t3 - 2 * t2 + t) +
             c * (-2 * t3 + 3 * t2) +
             tangentEnd * (t3 - t2);
-        output.add(Offset(p.dx, p.dy.clamp(-85.0, 85.0)));
+        output.add(Offset(p.dx, p.dy.clamp(-85.0, 85.0).toDouble()));
       }
     }
     return output;
