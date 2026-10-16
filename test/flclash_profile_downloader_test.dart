@@ -59,6 +59,16 @@ void main() {
     expect(downloaded.suggestedName, '星河机场');
   });
 
+  test('manual airport name overrides provider filename; empty uses provider',
+      () {
+    expect(VelaSubscriptionSuggestedName.displayName(
+        ' 自定义机场 ', 'Provider Airport.yaml', 3), '自定义机场');
+    expect(VelaSubscriptionSuggestedName.displayName(
+        '   ', 'Provider Airport.yaml', 3), 'Provider Airport.yaml');
+    expect(VelaSubscriptionSuggestedName.displayName(
+        '', null, 3), '机场 3');
+  });
+
   test('airport filename parsing rejects invalid names without URL token fallback',
       () {
     expect(VelaSubscriptionSuggestedName.fromContentDisposition(
