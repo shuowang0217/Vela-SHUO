@@ -497,7 +497,7 @@ class VelaSmartController extends ChangeNotifier {
         final index = next++;
         VelaDownloadSample sample;
         try {
-          sample = await _downloadProbe!.measureDownload(nodes[index]);
+          sample = await _downloadProbe.measureDownload(nodes[index]);
         } catch (_) {
           sample = const VelaDownloadSample(ok: false, reason: 'transport_error');
         }
