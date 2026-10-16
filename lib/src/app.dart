@@ -29,6 +29,7 @@ import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
 import 'package:vela_shuo/src/home/vela_voyage_speed.dart';
+import 'package:vela_shuo/src/home/vela_voyage_connection_label.dart';
 import 'package:vela_shuo/src/brand/vela_sail_mark.dart';
 import 'package:vela_shuo/src/brand/vela_watercolor_chrome.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
@@ -591,8 +592,12 @@ class _DesktopHome extends StatelessWidget {
           demo.phase == VelaPhase.switching));
       final node = connection?.nodeName ??
           ('UI 演示 · ' + demo.selected.title);
-      final state = busy ? '正在建立航线' :
-          connected ? '已连接' : '未连接';
+      final state = VelaVoyageConnectionLabel.headline(
+        connected: connected, busy: busy,
+        airportName: subscription is VelaFlClashSubscriptionController
+            ? (subscription! as VelaFlClashSubscriptionController).profileName
+            : null,
+      );
       return Stack(children: [
         Positioned(
           left: narrow ? 20 : 32, top: narrow ? 16 : 25,
@@ -993,8 +998,12 @@ class _MobileHome extends StatelessWidget {
            demo.phase == VelaPhase.switching);
       final node = subscription?.selected?.name ??
           (vpn != null ? '尚未选择航线' : 'UI 演示 · ' + demo.selected.title);
-      final state = vpn?.phaseText ??
-          (busy ? '正在建立航线' : connected ? '已连接' : '未连接');
+      final state = VelaVoyageConnectionLabel.headline(
+        connected: connected, busy: busy,
+        airportName: subscription is VelaFlClashSubscriptionController
+            ? (subscription! as VelaFlClashSubscriptionController).profileName
+            : null,
+      );
       return Stack(children: [
         Positioned(
           top: 13, left: 16, right: 12,
