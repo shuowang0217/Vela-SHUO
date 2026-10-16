@@ -341,7 +341,7 @@ func init() {
                 rows := make([]velaLatencyBatchRow, len(params.Names))
                 jobs := make(chan int)
                 var workers sync.WaitGroup
-                const concurrency = 8
+                const concurrency = 16
                 for n := 0; n < concurrency; n++ {
                     workers.Add(1)
                     go func() {
@@ -356,37 +356,20 @@ func init() {
                                 rows[index] = result
                                 continue
                             }
+                            // Match FlClash quick URLTest: never do a third
+                            // sequential 6-second HTTP probe for each failed node.
+                            // The fallback URL is only tried after a timeout;
+                            // slow/offline nodes should not block a huge list.
                             for _, url := range urls {
+                                timeout := 2800
+                                if url != urls[0] { timeout = 1800 }
                                 delay := handleTestDelay(&TestDelayParams{
-                                    ProxyName: name, TestUrl: url, Timeout: 6000,
+                                    ProxyName: name, TestUrl: url, Timeout: timeout,
                                 })
                                 if delay != nil && delay.Value > 0 {
                                     result.Value = int64(delay.Value)
                                     result.Reason = ""
                                     break
-                                }
-                            }
-                            if result.Value < 0 {
-                                // Same FlClash Go probeDialer, with no extra
-                                // proxy configuration and NO guessed latency.
-                                probeURL := "https://cp.cloudflare.com/generate_204"
-                                if params.TestURL != "" { probeURL = params.TestURL }
-                                probe := handleProbe(&ProbeParams{
-                                    Url: probeURL,
-                                    ProxyName: name, Timeout: 6000,
-                                    MaxBody: 0,
-                                    Headers: map[string]string{},
-                                })
-                                if probe == nil {
-                                    result.Reason = "busy"
-                                } else if probe.Error != "" {
-                                    result.Reason = probe.Error
-                                } else if probe.StatusCode == 204 && probe.Delay >= 0 {
-                                    result.Value = probe.Delay
-                                    if result.Value == 0 { result.Value = 1 }
-                                    result.Reason = ""
-                                } else {
-                                    result.Reason = "bad_status"
                                 }
                             }
                             rows[index] = result
