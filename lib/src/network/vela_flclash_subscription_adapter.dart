@@ -278,8 +278,8 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   }
 
   Future<bool> _saveNewImported({
-    required String raw, String? name, Map<String, int>? usage,
-    String? sourceUrl, bool activate = true,
+    required String raw, String? name, String? suggestedName,
+    Map<String, int>? usage, String? sourceUrl, bool activate = true,
   }) async {
     if (_closed) return false;
     await _pendingWrites;
@@ -289,9 +289,13 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       return false;
     }
     final clean = (name ?? '').trim();
-    final title = clean.isNotEmpty
-        ? (clean.length > 64 ? clean.substring(0, 64) : clean)
-        : '机场 ${_profiles.length + 1}';
+    // Match FlClash: manual name wins. With an empty field, use the filename
+    // provided by the final subscription response's Content-Disposition.
+    // If the airport provides no name, keep the existing numbered fallback.
+    final automatic = (suggestedName ?? '').trim();
+    final chosen = clean.isNotEmpty ? clean
+        : automatic.isNotEmpty ? automatic : '机场 ${_profiles.length + 1}';
+    final title = chosen.length > 64 ? chosen.substring(0, 64) : chosen;
     final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
     final profile = VelaStoredProfile(
       id: id, name: title, raw: raw, sourceUrl: sourceUrl,
@@ -342,7 +346,8 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
         // Persist the exact fetched Mihomo configuration; its validity will
         // be checked by the same native loader when this airport is selected.
         return await _saveNewImported(raw: fetched.content,
-            name: name, usage: _quotaMap(fetched.usage),
+            name: name, suggestedName: fetched.suggestedName,
+            usage: _quotaMap(fetched.usage),
             sourceUrl: url.trim(), activate: false);
       } catch (_) {
         _lastError = '订阅获取失败，原机场和代理连接保持不变';
@@ -361,7 +366,9 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     _favoriteNames.clear();
     _stored = false;
     final stored = await _saveNewImported(
-        raw: _raw!, name: name, sourceUrl: url.trim(),
+        raw: _raw!, name: name,
+        suggestedName: backend.lastImportedSuggestedName,
+        sourceUrl: url.trim(),
         usage: _quotaMap(backend.subscriptionUsage));
     return stored;
   }
