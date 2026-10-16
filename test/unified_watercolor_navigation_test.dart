@@ -31,6 +31,14 @@ void main() {
       expect(find.byType(VelaWorldAtlas), findsOneWidget);
       expect(find.byKey(const ValueKey('nav_0')), findsOneWidget);
       expect(find.byType(VelaVoyageGlyph), findsNWidgets(4));
+      // Tapping the currently selected module a second time returns Home.
+      await tester.tap(find.byKey(ValueKey('nav_$target')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('immersive_connection')), findsOneWidget);
+      expect(find.byKey(const ValueKey('nav_0')), findsNothing);
+      // Reopen it to exercise switching to the next different module.
+      await tester.tap(find.byKey(ValueKey('nav_$target')));
+      await tester.pumpAndSettle();
     }
     await tester.tap(find.byKey(const ValueKey('nav_0')));
     await tester.pumpAndSettle();
