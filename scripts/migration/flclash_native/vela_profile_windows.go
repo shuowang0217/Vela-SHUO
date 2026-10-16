@@ -361,7 +361,7 @@ func init() {
                             // The fallback URL is only tried after a timeout;
                             // slow/offline nodes should not block a huge list.
                             for _, url := range urls {
-                                timeout := 2800
+                                timeout := int64(2800)
                                 if url != urls[0] { timeout = 1800 }
                                 delay := handleTestDelay(&TestDelayParams{
                                     ProxyName: name, TestUrl: url, Timeout: timeout,
