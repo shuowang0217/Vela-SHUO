@@ -192,7 +192,7 @@ class FlClashProfileDownloader implements VelaSubscriptionFetcher {
           subscriptionUserInfo:
               response.headers.value('subscription-userinfo'),
           contentDisposition:
-              response.headers.value(HttpHeaders.contentDispositionHeader));
+              response.headers.value('content-disposition'));
     } finally {
       dio.close(force: true);
     }
