@@ -26,6 +26,11 @@ Vela 保留已验证的原创 UI，网络、规则、分组、DNS 和代理协�
 需要从旧版重新导入机场配置；验证新版本正常后再卸载旧版。
 请勿提前卸载旧版，以免丢失已加密保存的订阅。
 
+**签名复用：** 1.5.0 直接使用 FlClash-Custom 仓库已有的加密签名证书。
+在 Vela-SHUO 的 GitHub Actions Repository secrets 中配置同名
+`SHUO_SIGNING_PASSWORD`（值必须与旧仓库完全一致），即可恢复同一证书。
+签名密码只在 GitHub Actions 运行环境读取，不会写入仓库或安装包。
+
 **发布要求：** 只有配置长期保管的 Android 正式签名密钥并通过
 Flutter 测试、Windows/Android 构建及 SHA-256 和证书校验后，
 CI 才允许发布 `v1.5.0`。未配置密钥时，不会伪装生成可升级的正式 APK。
