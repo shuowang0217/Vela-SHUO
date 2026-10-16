@@ -288,14 +288,9 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       _emit();
       return false;
     }
-    final clean = (name ?? '').trim();
-    // Match FlClash: manual name wins. With an empty field, use the filename
-    // provided by the final subscription response's Content-Disposition.
-    // If the airport provides no name, keep the existing numbered fallback.
-    final automatic = (suggestedName ?? '').trim();
-    final chosen = clean.isNotEmpty ? clean
-        : automatic.isNotEmpty ? automatic : '机场 ${_profiles.length + 1}';
-    final title = chosen.length > 64 ? chosen.substring(0, 64) : chosen;
+    // Manual name > final HTTP Content-Disposition name > numbered fallback.
+    final title = VelaSubscriptionSuggestedName.displayName(
+        name, suggestedName, _profiles.length + 1);
     final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
     final profile = VelaStoredProfile(
       id: id, name: title, raw: raw, sourceUrl: sourceUrl,
