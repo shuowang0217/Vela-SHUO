@@ -1,6 +1,6 @@
 # Vela
 
-**正式版本目标：1.5.0** · Windows x64 / Android ARM64
+**正式版本：1.6.0** · Windows x64 / Android ARM64
 
 Vela 保留已验证的原创 UI，网络、规则、分组、DNS 和代理协议交由原生
 [FlClash / Mihomo](https://github.com/shuowang0217/FlClash-Custom) 核心负责。
@@ -10,11 +10,11 @@ Vela 保留已验证的原创 UI，网络、规则、分组、DNS 和代理协�
 
 官方稳定版下载入口：[GitHub Releases](https://github.com/shuowang0217/Vela-SHUO/releases/latest)。
 
-- Android：`Vela-v1.5.0-Android-arm64.apk`，安装后应用名称为 **Vela**。
+- Android：`Vela-v1.6.0-Android-arm64.apk`，安装后应用名称为 **Vela**。
   1.5.0 起使用长期固定的应用 ID `com.shuowang.vela`、正式签名证书和
   递增的 Android versionCode；后续安装相同签名的新 APK 可覆盖升级，
   保留当前机场与偏好数据。
-- Windows：`Vela-v1.5.0-Windows-x64.zip`，完整解压后运行
+- Windows：`Vela-v1.6.0-Windows-x64.zip`，完整解压后运行
   `Vela.exe`。使用「安全退出」关闭旧版，再更新程序文件。
   原 `Vela-SHUO` 目录中的用户数据路径保留，便于升级兼容。
 - Vela 设置页提供「检查更新」：查看正式 GitHub Release，并由用户确认
@@ -33,8 +33,8 @@ Vela 保留已验证的原创 UI，网络、规则、分组、DNS 和代理协�
 
 **发布要求：** 只有配置长期保管的 Android 正式签名密钥并通过
 Flutter 测试、Windows/Android 构建及 SHA-256 和证书校验后，
-CI 才允许发布 `v1.5.0`。未配置密钥时，不会伪装生成可升级的正式 APK。
-参见 [1.5.0 发布说明与签名配置](docs/RELEASE_v1.5.0.md)。
+CI 才允许发布 `v1.6.0`。未配置密钥时，不会伪装生成可升级的正式 APK。
+参见 [1.6.0 正式发布说明](docs/RELEASE_v1.6.0.md) 和 [固定签名配置](docs/RELEASE_v1.5.0.md)。
 
 ## 功能
 
