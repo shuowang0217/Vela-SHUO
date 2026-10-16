@@ -38,6 +38,40 @@ void main() {
     expect(downloaded.usage?.fraction, closeTo(.06, .00001));
   });
 
+  test('FlClash airport name comes from final response Content-Disposition',
+      () async {
+    final fetcher = FlClashProfileDownloader(
+      mode: VelaSubscriptionDownloadMode.direct,
+      requestStep: (uri, _) async {
+        if (uri.path == '/redirect') {
+          return FlClashProfileResponse(302, Uint8List(0),
+            redirect: '/final',
+            contentDisposition: 'attachment; filename="Old Airport.yaml"');
+        }
+        return FlClashProfileResponse(200,
+            Uint8List.fromList(utf8.encode('proxies: []')),
+            contentDisposition:
+                "attachment; filename*=UTF-8''%E6%98%9F%E6%B2%B3%E6%9C%BA%E5%9C%BA");
+      },
+    );
+    final downloaded = await fetcher.downloadWithMetadata(
+        'https://example.com/redirect?token=private');
+    expect(downloaded.suggestedName, '星河机场');
+  });
+
+  test('airport filename parsing rejects invalid names without URL token fallback',
+      () {
+    expect(VelaSubscriptionSuggestedName.fromContentDisposition(
+      'attachment; filename="Wave Airport.yaml"'), 'Wave Airport.yaml');
+    expect(VelaSubscriptionSuggestedName.fromContentDisposition(null), isNull);
+    expect(VelaSubscriptionSuggestedName.fromContentDisposition(
+      'attachment; filename="../../secret.yaml"'), isNull);
+    expect(VelaSubscriptionSuggestedName.fromContentDisposition(
+      'attachment; filename=""'), isNull);
+    expect(VelaSubscriptionSuggestedName.fromContentDisposition(
+      'attachment'), isNull);
+  });
+
   test('quota parser rejects absent and corrupted server metadata', () {
     expect(FlClashSubscriptionUsage.parse(null), isNull);
     expect(FlClashSubscriptionUsage.parse('download=2; total=200'), isNull);
