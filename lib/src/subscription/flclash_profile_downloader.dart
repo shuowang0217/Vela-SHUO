@@ -64,6 +64,16 @@ class FlClashProfileDownload {
 class VelaSubscriptionSuggestedName {
   const VelaSubscriptionSuggestedName._();
 
+  /// The user-specified name always overrides the provider-supplied name.
+  /// Empty/missing header metadata preserves the numbered local fallback.
+  static String displayName(String? entered, String? provider, int ordinal) {
+    final manual = (entered ?? '').trim();
+    final supplied = (provider ?? '').trim();
+    final name = manual.isNotEmpty ? manual
+        : supplied.isNotEmpty ? supplied : '机场 $ordinal';
+    return name.length > 64 ? name.substring(0, 64) : name;
+  }
+
   static String? fromContentDisposition(String? header) {
     if (header == null || header.isEmpty || header.length > 2048) return null;
     try {
