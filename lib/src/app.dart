@@ -14,6 +14,7 @@ import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/core/vela_window_exit_guard.dart';
 import 'package:vela_shuo/src/core/vela_windows_tray.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
+import 'package:vela_shuo/src/core/vela_session_time.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
 import 'package:vela_shuo/src/network/vela_routing_mode.dart';
@@ -601,8 +602,6 @@ class _DesktopHome extends StatelessWidget {
               Text('VELA', style: TextStyle(color: _foreground,
                 fontWeight: FontWeight.w800, fontSize: narrow ? 25 : 30,
                 letterSpacing: 2.8)),
-              Text('— SHUO —', style: TextStyle(
-                color: _blue, fontSize: 10, letterSpacing: 1.8)),
               Text(velaBrandTagline, style: TextStyle(
                 color: _muted, fontSize: 9, letterSpacing: .9)),
             ]),
@@ -633,6 +632,10 @@ class _DesktopHome extends StatelessWidget {
                       Text(state, overflow: TextOverflow.ellipsis,
                         style: TextStyle(color: _foreground,
                           fontSize: 13, fontWeight: FontWeight.w700)),
+                      if (connected) Text(
+                        VelaSessionTime.format(connection?.connectedDuration),
+                        key: const ValueKey('desktop_connection_uptime'),
+                        style: TextStyle(color: _blue, fontSize: 10)),
                       Text(node, maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: TextStyle(color: _muted, fontSize: 10)),
                     ],
@@ -1002,8 +1005,6 @@ class _MobileHome extends StatelessWidget {
                 Text('VELA', style: TextStyle(color: _foreground,
                     fontSize: 26, fontWeight: FontWeight.w800,
                     letterSpacing: 2.5)),
-                Text('— SHUO —', style: TextStyle(color: _blue,
-                    fontSize: 10, letterSpacing: 1.8)),
                 Text(velaBrandTagline, style: TextStyle(
                     color: _muted, fontSize: 9)),
               ],
@@ -1036,6 +1037,11 @@ class _MobileHome extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: _foreground,
                             fontSize: 14, fontWeight: FontWeight.w700)),
+                        if (connected) Text(
+                          VelaSessionTime.format(vpn?.connectedDuration ??
+                              connection?.connectedDuration),
+                          key: const ValueKey('mobile_connection_uptime'),
+                          style: TextStyle(color: _blue, fontSize: 11)),
                         Text(node, maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: _muted, fontSize: 11)),
@@ -1243,12 +1249,23 @@ class _SettingsPage extends StatelessWidget {
         ),
         Divider(height: 1, color: _line),
         ListTile(
+          key: const ValueKey('vela_about'),
           leading: Icon(Icons.info_outline, color: _blue),
-          title: Text(Platform.isAndroid ? 'Vela v1.5.0 · Android VPN'
-              : 'Vela v1.5.0 · Windows'),
-          subtitle: Text(Platform.isAndroid
-              ? '可授权 Android 系统 VPN；真实连接以服务状态为准'
-              : '仅代理接管的连接会使用系统代理；未启用 Windows TUN'),
+          title: const Text('关于 Vela'),
+          subtitle: Text('Vela v${VelaUpdateService.currentVersion} · '
+              '${Platform.isAndroid ? "Android" : "Windows"}'),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => showAboutDialog(
+            context: context,
+            applicationName: 'Vela',
+            applicationVersion: VelaUpdateService.currentVersion,
+            applicationLegalese: '© Vela',
+            children: [
+              Text(Platform.isAndroid
+                  ? 'FlClash / Mihomo 原生 VPN；支持正式签名覆盖升级。'
+                  : 'FlClash / Mihomo 系统代理；更新前请安全退出。'),
+            ],
+          ),
         ),
         Divider(height: 1, color: _line),
         ListTile(
