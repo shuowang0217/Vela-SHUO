@@ -26,19 +26,19 @@ android {
     }
 }
 '''
-# Never sign a public stable release with Flutter's runner-local debug key.
-# Fixed key material is injected from GitHub Actions secrets, never stored in git.
+# Reuse the pinned FlClash-Custom permanent signing certificate:
+# its ciphertext is public, only the password lives in Vela's Actions secret.
+# Never generate another key: the stable certificate enables future upgrades.
 source += '''
 android {
     signingConfigs {
         create("velaRelease") {
             storeFile = file("vela-release.jks")
-            storePassword = System.getenv("VELA_ANDROID_STORE_PASSWORD")
-                ?: error("Missing Vela stable Android store password")
-            keyAlias = System.getenv("VELA_ANDROID_KEY_ALIAS")
-                ?: error("Missing Vela stable Android signing alias")
-            keyPassword = System.getenv("VELA_ANDROID_KEY_PASSWORD")
-                ?: error("Missing Vela stable Android key password")
+            val permanentPassword = System.getenv("SHUO_SIGNING_PASSWORD")
+                ?: error("Missing SHUO permanent Android signing password")
+            storePassword = permanentPassword
+            keyAlias = "shuo-release"
+            keyPassword = permanentPassword
         }
     }
     buildTypes {
