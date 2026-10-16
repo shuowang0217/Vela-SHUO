@@ -53,39 +53,38 @@ class VelaMaritimeRoute {
   static double _shortestDelta(double a, double b) =>
       (b - a + 540) % 360 - 180;
 
-  /// Smooth sailing curves through real geographic waypoints.
-  /// A Catmull-Rom spline shares tangents at joins, unlike the former
-  /// straight segments that caused visible sharp corners at each waypoint.
-  /// Longitudes are unwrapped first to avoid the +/-180 degree discontinuity.
+  /// Rounded geographic sailing corridor. Chaikin corner cutting converges
+  /// to a continuous quadratic B-spline, avoiding the occasional cusp that a
+  /// Catmull-Rom spline can produce at unevenly spaced ocean waypoints.
   List<Offset> get samples {
     final raw = waypoints;
     if (raw.length < 2) return raw;
-    final knots = <Offset>[raw.first];
+    var points = <Offset>[raw.first];
+    // Unwrap the international date line before geometry operations.
     for (var i = 1; i < raw.length; i++) {
-      final previous = knots.last;
-      final delta = _shortestDelta(raw[i - 1].dx, raw[i].dx);
-      knots.add(Offset(previous.dx + delta, raw[i].dy));
+      points.add(Offset(points.last.dx +
+          _shortestDelta(raw[i - 1].dx, raw[i].dx), raw[i].dy));
     }
-    final output = <Offset>[knots.first];
-    for (var i = 0; i < knots.length - 1; i++) {
-      final a = i == 0 ? knots[i] : knots[i - 1];
-      final b = knots[i];
-      final c = knots[i + 1];
-      final d = i + 2 >= knots.length ? c : knots[i + 2];
-      final chord = (c - b).distance;
-      // Dense samples also keep each polyline sub-segment visually smooth.
-      final count = math.max(8, (chord / 0.65).ceil());
+    // Do not mutate the stored, real-world geographic guidance waypoints.
+    // Five iterations remove harsh joints but retain the sea lane's shape.
+    for (var pass = 0; pass < 5; pass++) {
+      final smooth = <Offset>[points.first];
+      for (var i = 0; i < points.length - 1; i++) {
+        final a = points[i];
+        final b = points[i + 1];
+        smooth.add(a * .75 + b * .25);
+        smooth.add(a * .25 + b * .75);
+      }
+      smooth.add(points.last);
+      points = smooth;
+    }
+    final output = <Offset>[points.first];
+    for (var i = 1; i < points.length; i++) {
+      final a = points[i - 1];
+      final b = points[i];
+      final count = math.max(1, ((b - a).distance / .65).ceil());
       for (var n = 1; n <= count; n++) {
-        final t = n / count;
-        final t2 = t * t;
-        final t3 = t2 * t;
-        // Cubic Hermite with shared Catmull-Rom tangents at each knot.
-        final tangentStart = (c - a) * .5;
-        final tangentEnd = (d - b) * .5;
-        final p = b * (2 * t3 - 3 * t2 + 1) +
-            tangentStart * (t3 - 2 * t2 + t) +
-            c * (-2 * t3 + 3 * t2) +
-            tangentEnd * (t3 - t2);
+        final p = Offset.lerp(a, b, n / count)!;
         output.add(Offset(p.dx, p.dy.clamp(-85.0, 85.0).toDouble()));
       }
     }
