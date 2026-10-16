@@ -53,22 +53,40 @@ class VelaMaritimeRoute {
   static double _shortestDelta(double a, double b) =>
       (b - a + 540) % 360 - 180;
 
+  /// Smooth sailing curves through real geographic waypoints.
+  /// A Catmull-Rom spline shares tangents at joins, unlike the former
+  /// straight segments that caused visible sharp corners at each waypoint.
+  /// Longitudes are unwrapped first to avoid the +/-180 degree discontinuity.
   List<Offset> get samples {
-    final points = waypoints;
-    final output = <Offset>[points.first];
-    for (var i = 1; i < points.length; i++) {
-      final a = points[i - 1];
-      final b = points[i];
-      final delta = _shortestDelta(a.dx, b.dx);
-      final distance = math.sqrt(delta * delta +
-          (b.dy - a.dy) * (b.dy - a.dy));
-      final count = math.max(3, (distance / 2.5).ceil());
+    final raw = waypoints;
+    if (raw.length < 2) return raw;
+    final knots = <Offset>[raw.first];
+    for (var i = 1; i < raw.length; i++) {
+      final previous = knots.last;
+      final delta = _shortestDelta(raw[i - 1].dx, raw[i].dx);
+      knots.add(Offset(previous.dx + delta, raw[i].dy));
+    }
+    final output = <Offset>[knots.first];
+    for (var i = 0; i < knots.length - 1; i++) {
+      final a = i == 0 ? knots[i] : knots[i - 1];
+      final b = knots[i];
+      final c = knots[i + 1];
+      final d = i + 2 >= knots.length ? c : knots[i + 2];
+      final chord = (c - b).distance;
+      // Dense samples also keep each polyline sub-segment visually smooth.
+      final count = math.max(8, (chord / 0.65).ceil());
       for (var n = 1; n <= count; n++) {
         final t = n / count;
-        // On a short leg, longitude and latitude can be smoothly interpolated
-        // without the exaggerated curve of a Bézier in screen coordinates.
-        output.add(Offset(a.dx + delta * t,
-            a.dy + (b.dy - a.dy) * t));
+        final t2 = t * t;
+        final t3 = t2 * t;
+        // Cubic Hermite with shared Catmull-Rom tangents at each knot.
+        final tangentStart = (c - a) * .5;
+        final tangentEnd = (d - b) * .5;
+        final p = b * (2 * t3 - 3 * t2 + 1) +
+            tangentStart * (t3 - 2 * t2 + t) +
+            c * (-2 * t3 + 3 * t2) +
+            tangentEnd * (t3 - t2);
+        output.add(Offset(p.dx, p.dy.clamp(-85.0, 85.0)));
       }
     }
     return output;
