@@ -16,8 +16,11 @@ void main() {
     expect(generator, contains('applicationId = "com.shuowang.vela"'));
     expect(generator, contains('android:label="Vela"'));
     expect(generator, contains('signingConfigs.getByName("velaRelease")'));
-    expect(workflow, contains('VELA_ANDROID_KEYSTORE_B64'));
-    expect(workflow, contains('VELA_ANDROID_CERT_SHA256'));
+    expect(workflow, contains('SHUO_SIGNING_PASSWORD'));
+    expect(workflow, contains('shuo_signing.py restore'));
+    expect(workflow, contains(
+        '3e8826e8aa48576ddfce7a9a2e78106a159c7be05dbb3b2f89eb60fb095ac9d9'));
+    expect(generator, contains('keyAlias = "shuo-release"'));
     expect(workflow, contains('Vela-v1.5.0-Android-arm64.apk'));
     expect(workflow, contains('Vela-v1.5.0-Windows-x64.zip'));
     expect(windows, contains('set(BINARY_NAME "Vela")'));
