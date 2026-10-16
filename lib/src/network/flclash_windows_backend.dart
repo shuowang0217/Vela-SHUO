@@ -62,6 +62,7 @@ class FlClashWindowsBackend {
   // Original FlClash Profile.update() reads subscription-userinfo from the
   // subscription HTTP response, not from Mihomo proxy-providers.
   FlClashSubscriptionUsage? subscriptionUsage;
+  String? lastImportedSuggestedName;
 
   /// The core is the source of truth; increment on every profile import.
   /// Each new profile must have the saved route mode reapplied to its rules.
@@ -453,6 +454,7 @@ class FlClashWindowsBackend {
     final loaded = await importText(downloaded.content);
     // Commit quota only AFTER Mihomo accepts the new profile.
     subscriptionUsage = downloaded.usage;
+    lastImportedSuggestedName = downloaded.suggestedName;
     return loaded;
   }
 
