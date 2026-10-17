@@ -2,7 +2,7 @@ name: Vela v1.8.1 Oil Preview Build
 
 on:
   push:
-    branches: [main, release/v1.7.0, feature/vela-animated-atlas-fast-download, feature/v1.8.1-oil-preview]
+    branches: [main, release/v1.7.0, feature/vela-animated-atlas-fast-download, feature/v1.8.0-oil-preview, feature/v1.8.1-oil-preview]
   workflow_dispatch:
 
 permissions:
