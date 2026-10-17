@@ -167,7 +167,26 @@ class VelaThemeRuntime {
   static VelaThemeTokens active =
       VelaPalette.byId(VelaPalette.defaultId).tokens(Brightness.dark);
 
+  /// In the v1.8 experimental skin all surfaces share the same oil-painted
+  /// canvas/ink palette; user palette preferences remain stored for rollback.
+  static const bool oilPreview =
+      bool.fromEnvironment('VELA_OIL_PREVIEW', defaultValue: true);
+
   static void select(VelaPalette palette, Brightness brightness) {
-    active = palette.tokens(brightness);
+    if (!oilPreview) {
+      active = palette.tokens(brightness);
+      return;
+    }
+    active = const VelaThemeTokens(
+      background: Color(0xFFE9DDC5),
+      surface: Color(0xFFFFF1D9),
+      raised: Color(0xFFFFF8E8),
+      line: Color(0xFFAD906D),
+      accent: Color(0xFF8B5929),
+      accentSoft: Color(0xFFD9B37A),
+      text: Color(0xFF243646),
+      muted: Color(0xFF5F6570),
+      dark: false,
+    );
   }
 }
