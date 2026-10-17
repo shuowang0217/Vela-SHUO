@@ -211,7 +211,7 @@ func velaCustomDownload(name, endpoint string) (bytes int64, micros int64, reaso
     measured := handleProbe(&ProbeParams{
         Url: endpoint,
         ProxyName: name,
-        Timeout: 4000, // At most two endpoints, 8s native ceiling.
+        Timeout: 10000, // At most 4 endpoints; fit inside Dart's 55s RPC timeout.
         MaxBody: velaDownloadLimit,
         Headers: map[string]string{
             "X-FlClash-Measure-Download": "1",
@@ -258,11 +258,13 @@ func init() {
                     response.success(map[string]any{"ok": false, "reason": "missing"})
                     return
                 }
-                // Keep comparable 1 MiB samples, but only one fallback CDN
-                // to prevent slow or offline nodes blocking the whole queue.
+                // Public endpoints are bounded to a single MiB. A node may
+                // block one CDN while allowing another, so try alternatives.
                 endpoints := []string{
                     "https://speed.cloudflare.com/__down?bytes=1048576",
                     "https://cachefly.cachefly.net/1mb.test",
+                    "https://proof.ovh.net/files/1Mb.dat",
+                    "https://speed.hetzner.de/1MB.bin",
                 }
                 if params.TestURL != "" {
                     if !velaLocalDownloadURL(params.TestURL) {
@@ -276,7 +278,6 @@ func init() {
                     received, elapsedUs, reason := velaCustomDownload(params.ProxyName, endpoint)
                     if reason != "" {
                         lastReason = reason
-                        if reason == "busy" { break }
                         continue
                     }
                     mbps := float64(received) * 8 * 1000000 / float64(elapsedUs) / 1000000

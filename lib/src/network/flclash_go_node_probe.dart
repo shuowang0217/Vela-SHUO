@@ -45,7 +45,7 @@ class FlClashGoNodeProbe
     try {
       final result = await backend.api.invoke('velaTestDownload',
           arguments: {'proxy-name': node.name},
-          timeout: const Duration(seconds: 15));
+          timeout: const Duration(seconds: 55));
       // The native endpoint reports a safe reason code for a failed probe.
       // Keep it for the node card instead of hiding every failure behind
       // "下载失败". This method is shared by single and all-node scans.
