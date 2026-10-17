@@ -33,6 +33,7 @@ jobs:
         run: |
           python3 -m pip install --disable-pip-version-check pillow
           python3 scripts/prepare_watercolor_atlas.py
+          python3 scripts/prepare_oil_atlas.py
       - run: flutter create --project-name vela_shuo --org com.shuowang --platforms windows .
       - name: Resolve Flutter dependencies
         run: |
@@ -145,6 +146,7 @@ jobs:
           python -m pip install --disable-pip-version-check pillow
           if ($LASTEXITCODE -ne 0) { throw "Icon renderer dependency failed" }
           python scripts/prepare_watercolor_atlas.py
+          python scripts/prepare_oil_atlas.py
           if ($LASTEXITCODE -ne 0) { throw "Watercolor atlas preparation failed" }
           python scripts/generate_vela_brand_icons.py --windows
           if ($LASTEXITCODE -ne 0) { throw "Branded Windows icons were not generated" }
@@ -287,6 +289,7 @@ jobs:
           flutter create --project-name vela_shuo --org com.shuowang --platforms android .
           python3 -m pip install --disable-pip-version-check pillow
           python3 scripts/prepare_watercolor_atlas.py
+          python3 scripts/prepare_oil_atlas.py
           python3 scripts/generate_vela_brand_icons.py --android
           python3 scripts/configure_android_vpn.py
           python3 scripts/migration/attach_flclash_android_core.py

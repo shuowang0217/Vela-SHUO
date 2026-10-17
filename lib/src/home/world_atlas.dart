@@ -259,9 +259,15 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
                 imageFilter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                 child: Stack(fit: StackFit.expand, children: [
                   _WorldTiles(camera: coverCamera,
-                    asset: 'assets/world/watercolor_day.webp', show: !dark),
+                    asset: const bool.fromEnvironment('VELA_OIL_PREVIEW',
+                      defaultValue: true)
+                        ? 'assets/oil/oil_atlas_day.webp'
+                        : 'assets/world/watercolor_day.webp', show: !dark),
                   _WorldTiles(camera: coverCamera,
-                    asset: 'assets/world/watercolor_night.webp', show: dark),
+                    asset: const bool.fromEnvironment('VELA_OIL_PREVIEW',
+                      defaultValue: true)
+                        ? 'assets/oil/oil_atlas_night.webp'
+                        : 'assets/world/watercolor_night.webp', show: dark),
                 ]),
               ),
             ShaderMask(
@@ -278,9 +284,15 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
               blendMode: BlendMode.dstIn,
               child: Stack(fit: StackFit.expand, children: [
                 _WorldTiles(camera: camera,
-                  asset: 'assets/world/watercolor_day.webp', show: !dark),
+                  asset: const bool.fromEnvironment('VELA_OIL_PREVIEW',
+                      defaultValue: true)
+                        ? 'assets/oil/oil_atlas_day.webp'
+                        : 'assets/world/watercolor_day.webp', show: !dark),
                 _WorldTiles(camera: camera,
-                  asset: 'assets/world/watercolor_night.webp', show: dark),
+                  asset: const bool.fromEnvironment('VELA_OIL_PREVIEW',
+                      defaultValue: true)
+                        ? 'assets/oil/oil_atlas_night.webp'
+                        : 'assets/world/watercolor_night.webp', show: dark),
               ]),
             ),
             IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(

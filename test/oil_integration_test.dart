@@ -9,6 +9,9 @@ void main() {
   test('oil route uses the same georeferenced tiles as the ship', () {
     final source = File('lib/src/home/world_atlas.dart').readAsStringSync();
     expect(source, contains('_WorldTiles(camera: camera,'));
+    expect(source, contains('oil_atlas_day.webp'));
+    expect(source, contains('oil_atlas_night.webp'));
+    expect(File('scripts/prepare_oil_atlas.py').existsSync(), isTrue);
     expect(source, contains('camera.projectAlongArtwork(from, geo)'));
     expect(source, contains('const VelaOilScene()'));
     expect(source, contains('const VelaOilImpasto()'));
