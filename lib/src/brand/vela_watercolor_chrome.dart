@@ -19,7 +19,9 @@ class VelaWatercolorSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = VelaThemeRuntime.active;
-    final wash = Color.lerp(t.surface, t.accentSoft, t.dark ? .10 : .075)!;
+    final oil = VelaThemeRuntime.oilPreview;
+    final wash = Color.lerp(t.surface, t.accentSoft,
+        oil ? .16 : (t.dark ? .10 : .075))!;
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
@@ -27,7 +29,11 @@ class VelaWatercolorSurface extends StatelessWidget {
           begin: Alignment.topLeft, end: Alignment.bottomRight,
           // Android floats on a genuine 50%-opaque watercolor wash;
           // Windows preserves its already approved desktop material.
-          colors: defaultTargetPlatform == TargetPlatform.android
+          colors: oil ? [
+                  t.raised.withValues(alpha:.96),
+                  wash.withValues(alpha:.97),
+                  t.surface.withValues(alpha:.98),
+                ] : defaultTargetPlatform == TargetPlatform.android
               ? [
                   t.surface.withValues(alpha: .50),
                   wash.withValues(alpha: .50),
@@ -42,13 +48,13 @@ class VelaWatercolorSurface extends StatelessWidget {
         ),
         border: Border.all(color: selected || hovered
             ? t.accent.withValues(alpha: .78)
-            : t.line.withValues(alpha: t.dark ? .86 : .78),
-          width: selected ? 1.5 : 1.05),
+            : t.line.withValues(alpha: oil ? .75 : (t.dark ? .86 : .78)),
+          width: selected ? 1.7 : (oil ? 1.3 : 1.05)),
         boxShadow: [BoxShadow(
-          color: const Color(0xFF18384B).withValues(
-            alpha: t.dark ? .20 : .095),
-          blurRadius: hovered ? 19 : 10,
-          offset: const Offset(0, 4),
+          color: (oil ? const Color(0xFF513B22) : const Color(0xFF18384B))
+              .withValues(alpha: oil ? .23 : (t.dark ? .20 : .095)),
+          blurRadius: hovered ? 20 : (oil ? 15 : 10),
+          offset: const Offset(0, 5),
         )],
       ),
       child: CustomPaint(
@@ -81,6 +87,25 @@ class _VelaInkStroke extends CustomPainter {
     c.drawLine(Offset(14, size.height - 4.3),
         Offset(math.min(size.width - 16, size.width * .4),
             size.height - 3.7), p);
+    if (VelaThemeRuntime.oilPreview) {
+      // Deterministic little impasto strokes across every card, dialog panel,
+      // bottom dock tile and settings/route selector that uses this material.
+      final bristle=Paint()..strokeCap=StrokeCap.round
+        ..style=PaintingStyle.stroke;
+      for (var y=10.0; y<size.height-7; y+=16) {
+        for (var x=12.0; x<size.width-10; x+=24) {
+          final k=(((x*37).toInt() ^ (y*23).toInt()) & 31)/31.0;
+          bristle.color=ink.withValues(alpha:.055+k*.04);
+          bristle.strokeWidth=1.2+k*1.6;
+          c.drawLine(Offset(x+k*5,y),
+            Offset(math.min(x+6+k*9,size.width-10),y-1+k*3),bristle);
+        }
+      }
+      final gild=Paint()..color=const Color(0xFFD4A25A).withValues(alpha:.32)
+        ..style=PaintingStyle.stroke..strokeWidth=1.1;
+      c.drawArc(Rect.fromLTWH(6,5,math.max(1,size.width-12),
+          math.max(1,size.height-10)),math.pi*.97,math.pi*.18,false,gild);
+    }
   }
   @override
   bool shouldRepaint(covariant _VelaInkStroke old) =>
