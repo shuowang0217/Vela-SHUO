@@ -46,15 +46,14 @@ void main() {
     }
   });
 
-  testWidgets('connected route glints toggle without timer leakage',
+  testWidgets('connected silk route toggles without timer leakage',
       (tester) async {
     const camera = VelaWorldCamera(
         size: Size(700, 440), longitude: 116, latitude: 40);
     Widget weather(bool connected, bool dark) => MaterialApp(home: Scaffold(
       body: SizedBox(width: 700, height: 440, child: VelaAtlasWeather(
         camera: camera, dark: dark, connected: connected,
-        routeFrom: const Offset(121.47, 31.23),
-        routeTo: const Offset(139.69, 35.68),
+        
       )),
     ));
     await tester.pumpWidget(weather(false, false));
