@@ -375,7 +375,9 @@ class VelaAtlasWeatherPainter extends CustomPainter {
     ]) {
       final center = camera.project(geo);
       if (center.dx < -130 || center.dx > size.width + 130 ||
-          center.dy < -45 || center.dy > size.height + 45) continue;
+          center.dy < -45 || center.dy > size.height + 45) {
+        continue;
+      }
       for (var k = 0; k < 3; k++) {
         final y = center.dy + k * 10.0;
         final x = center.dx + math.sin(theta + k * .9 + geo.dx * .04) * 5;
