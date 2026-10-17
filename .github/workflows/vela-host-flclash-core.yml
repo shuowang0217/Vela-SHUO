@@ -335,8 +335,11 @@ jobs:
           # Confirm the app identity and monotonically increasing versionCode.
           aapt="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
           test -x "$aapt"
-          "$aapt" dump badging dist/Vela-v1.8.0-Android-arm64.apk |
-            grep -q "^package: name='com.shuowang.vela' versionCode='34' versionName='1.8.0'"
+          package_badging="$("$aapt" dump badging dist/Vela-v1.8.0-Android-arm64.apk)"
+          # Print identity before verification; storing output avoids grep -q
+          # terminating the aapt producer under shell pipefail.
+          printf '%s\n' "$package_badging" | grep '^package:'
+          grep -q "^package: name='com.shuowang.vela' versionCode='34' versionName='1.8.0'" <<< "$package_badging"
           sha256sum dist/Vela-v1.8.0-Android-arm64.apk | sed 's#  dist/#  #' > dist/SHA256-Android.txt
       - uses: actions/upload-artifact@v4
         with:
