@@ -26,4 +26,41 @@ void main() {
     expect(find.byType(RepaintBoundary), findsWidgets);
     await tester.pumpAndSettle();
   });
+
+  test('five independent cycles return to phase zero without drift', () {
+    expect(VelaWeatherCadence.cloudSeconds, inInclusiveRange(60, 120));
+    expect(VelaWeatherCadence.oceanSeconds, inInclusiveRange(8, 15));
+    expect(VelaWeatherCadence.windSeconds, inInclusiveRange(20, 40));
+    expect(VelaWeatherCadence.routeSeconds, inInclusiveRange(3, 6));
+    expect(VelaWeatherCadence.nightSeconds, inInclusiveRange(10, 20));
+    for (final period in [
+      VelaWeatherCadence.cloudSeconds, VelaWeatherCadence.oceanSeconds,
+      VelaWeatherCadence.windSeconds, VelaWeatherCadence.routeSeconds,
+      VelaWeatherCadence.nightSeconds,
+    ]) {
+      expect(VelaWeatherCadence.timelineSeconds % period, 0);
+      final normalized = period / VelaWeatherCadence.timelineSeconds;
+      expect(VelaWeatherCadence.progress(normalized, period), closeTo(0, 1e-10));
+      expect(VelaWeatherCadence.progress(normalized / 2, period),
+          closeTo(.5, 1e-10));
+    }
+  });
+
+  testWidgets('connected route glints toggle without timer leakage',
+      (tester) async {
+    const camera = VelaWorldCamera(
+        size: Size(700, 440), longitude: 116, latitude: 40);
+    Widget weather(bool connected, bool dark) => MaterialApp(home: Scaffold(
+      body: SizedBox(width: 700, height: 440, child: VelaAtlasWeather(
+        camera: camera, dark: dark, connected: connected,
+        routeFrom: const Offset(121.47, 31.23),
+        routeTo: const Offset(139.69, 35.68),
+      )),
+    ));
+    await tester.pumpWidget(weather(false, false));
+    await tester.pumpWidget(weather(true, true));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(weather(false, true));
+    await tester.pumpAndSettle();
+  });
 }
