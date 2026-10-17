@@ -167,26 +167,50 @@ class VelaThemeRuntime {
   static VelaThemeTokens active =
       VelaPalette.byId(VelaPalette.defaultId).tokens(Brightness.dark);
 
-  /// In the v1.8 experimental skin all surfaces share the same oil-painted
-  /// canvas/ink palette; user palette preferences remain stored for rollback.
+  /// Oil is a material, not a fixed colour scheme. Preserve all eight
+  /// saved user palettes and the light/dark setting while using canvas paint.
   static const bool oilPreview =
       bool.fromEnvironment('VELA_OIL_PREVIEW', defaultValue: true);
 
-  static void select(VelaPalette palette, Brightness brightness) {
-    if (!oilPreview) {
-      active = palette.tokens(brightness);
-      return;
+  static VelaThemeTokens oilTokens(VelaPalette palette, Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    final pigment = palette.swatches[palette.accentIndex];
+    final light = palette.swatches.reduce((a, b) =>
+        a.computeLuminance() > b.computeLuminance() ? a : b);
+    final accent = dark
+        ? Color.lerp(pigment, Colors.white,
+            pigment.computeLuminance() < .32 ? .52 : .16)!
+        : Color.lerp(pigment, Colors.black,
+            pigment.computeLuminance() > .30 ? .48 : .09)!;
+    if (dark) {
+      return VelaThemeTokens(
+        background: Color.lerp(const Color(0xFF27221E), pigment, .16)!,
+        surface: Color.lerp(const Color(0xFF403327), pigment, .14)!,
+        raised: Color.lerp(const Color(0xFF57412C), pigment, .16)!,
+        line: Color.lerp(const Color(0xFFA38560), pigment, .28)!,
+        accent: accent,
+        accentSoft: Color.lerp(accent, Colors.white, .34)!,
+        text: const Color(0xFFFFF0D9),
+        muted: const Color(0xFFD5C2A8),
+        dark: true,
+      );
     }
-    active = const VelaThemeTokens(
-      background: Color(0xFFE9DDC5),
-      surface: Color(0xFFFFF1D9),
-      raised: Color(0xFFFFF8E8),
-      line: Color(0xFFAD906D),
-      accent: Color(0xFF8B5929),
-      accentSoft: Color(0xFFD9B37A),
-      text: Color(0xFF243646),
-      muted: Color(0xFF5F6570),
+    return VelaThemeTokens(
+      background: Color.lerp(const Color(0xFFE7D1A9), pigment, .19)!,
+      surface: Color.lerp(const Color(0xFFF4E5C9), light, .28)!,
+      raised: Color.lerp(const Color(0xFFFFF0D5), light, .25)!,
+      line: Color.lerp(const Color(0xFF927353), accent, .32)!,
+      accent: accent,
+      accentSoft: Color.lerp(pigment, Colors.white, .45)!,
+      text: Color.lerp(const Color(0xFF2D302B), accent, .12)!,
+      muted: const Color(0xFF655D50),
       dark: false,
     );
+  }
+
+  static void select(VelaPalette palette, Brightness brightness) {
+    active = oilPreview
+        ? oilTokens(palette, brightness)
+        : palette.tokens(brightness);
   }
 }
