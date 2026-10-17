@@ -9,7 +9,7 @@ void main() {
       VelaShuoApp(settings: SettingsController()),
     );
     await tester.pump();
-    expect(find.text('Vela-SHUO'), findsOneWidget);
+    expect(find.text('VELA'), findsOneWidget);
     expect(find.textContaining('UI 演示'), findsWidgets);
     expect(find.byType(MaterialApp), findsOneWidget);
     // A simulated node must never be described as a real VPN connection.

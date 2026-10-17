@@ -1,34 +1,18 @@
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/vela_palettes.dart';
+import '../brand/vela_watercolor_chrome.dart';
 
 /// Shared visual language for the two approved stellar pages. Every color is
 /// derived from the existing eight Vela palettes, including light themes.
+/// Shared Earth is left unobstructed; each panel frosts only its own bounds.
 class StellarAtmosphere extends StatelessWidget {
   const StellarAtmosphere({super.key, required this.child});
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    final t = VelaThemeRuntime.active;
-    return Stack(children: [
-      Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            t.background,
-            Color.lerp(t.background, t.accent, t.dark ? .12 : .05)!,
-            t.background,
-          ],
-        ),
-      ))),
-      Positioned.fill(child: IgnorePointer(child: CustomPaint(
-        painter: _StellarFieldPainter(t.accent, t.dark),
-      ))),
-      child,
-    ]);
-  }
+  Widget build(BuildContext context) => child;
 }
 
 class StellarPanel extends StatelessWidget {
@@ -40,37 +24,15 @@ class StellarPanel extends StatelessWidget {
   final double radius;
 
   @override
-  Widget build(BuildContext context) {
-    final t = VelaThemeRuntime.active;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      padding: padding ?? const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.lerp(t.surface, t.accent, selected ? .17 : .035)!,
-            t.surface.withValues(alpha: t.dark ? .92 : .98),
-          ],
-        ),
-        border: Border.all(
-          color: selected ? t.accent.withValues(alpha: .86)
-              : t.line.withValues(alpha: .68),
-          width: selected ? 1.4 : 1,
-        ),
-        boxShadow: selected ? [
-          BoxShadow(
-            color: t.accent.withValues(alpha: t.dark ? .16 : .08),
-            blurRadius: 20,
-            spreadRadius: 1,
-          ),
-        ] : null,
-      ),
-      child: child,
-    );
-  }
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(radius),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+      child: VelaWatercolorSurface(
+        padding: padding ?? const EdgeInsets.all(15),
+        radius: radius, selected: selected, child: child),
+    ),
+  );
 }
 
 class StellarLabel extends StatelessWidget {
@@ -116,7 +78,8 @@ class StellarSectionHeading extends StatelessWidget {
     final t = VelaThemeRuntime.active;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(title, style: TextStyle(
-        color: t.text, fontSize: 27, fontWeight: FontWeight.w700,
+        color: t.text, fontSize: 24, fontWeight: FontWeight.w600,
+        fontFamily: 'Georgia',
         letterSpacing: 1,
       )),
       const SizedBox(height: 5),
@@ -125,79 +88,66 @@ class StellarSectionHeading extends StatelessWidget {
   }
 }
 
-class StellarPlanetGlyph extends StatelessWidget {
-  const StellarPlanetGlyph({super.key, this.size = 72});
+/// Engraved navigation compass replacing the ornamental planets.
+class StellarCompassGlyph extends StatelessWidget {
+  const StellarCompassGlyph({super.key, this.size = 72});
   final double size;
+
   @override
   Widget build(BuildContext context) {
     final t = VelaThemeRuntime.active;
-    return SizedBox(width: size, height: size,
-      child: CustomPaint(painter: _PlanetPainter(t.accent, t.dark)));
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _CompassPainter(t.accent, t.dark)),
+    );
   }
 }
 
-class _StellarFieldPainter extends CustomPainter {
-  _StellarFieldPainter(this.accent, this.dark);
+/// Engraved watercolor compass. Keep the map, not the metal, in focus.
+class _CompassPainter extends CustomPainter {
+  _CompassPainter(this.accent, this.dark);
   final Color accent;
   final bool dark;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final random = math.Random(12411);
-    for (var i = 0; i < 75; i++) {
-      final x = random.nextDouble() * size.width;
-      final y = random.nextDouble() * size.height;
-      final radius = i % 8 == 0 ? 1.5 : .65;
-      canvas.drawCircle(Offset(x, y), radius, Paint()
-        ..color = accent.withValues(alpha: dark ? .20 : .08));
-    }
-    final ray = Paint()
-      ..strokeWidth = .7
-      ..color = accent.withValues(alpha: dark ? .14 : .08);
-    for (var i = 0; i < 3; i++) {
-      final offset = size.width * (.2 + i * .3);
-      canvas.drawLine(
-          Offset(offset, 0), Offset(offset + size.width * .22, size.height), ray);
-    }
-  }
-  @override
-  bool shouldRepaint(covariant _StellarFieldPainter other) =>
-      other.accent != accent || other.dark != dark;
-}
-
-class _PlanetPainter extends CustomPainter {
-  _PlanetPainter(this.accent, this.dark);
-  final Color accent;
-  final bool dark;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width * .5, size.height * .5);
-    final radius = math.min(size.width, size.height) * .35;
-    canvas.drawCircle(c, radius * 1.35, Paint()
-      ..color = accent.withValues(alpha: .17)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * .42));
-    final rect = Rect.fromCircle(center: c, radius: radius);
-    canvas.drawCircle(c, radius, Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(-.48, -.54),
-        colors: [
-          Color.lerp(accent, Colors.white, .43)!,
-          accent,
-          Color.lerp(accent, Colors.black, .72)!,
-        ],
-      ).createShader(rect));
-    canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.rotate(-.3);
-    final orbit = Rect.fromCenter(center: Offset.zero,
-        width: radius * 2.85, height: radius * .62);
-    canvas.drawOval(orbit, Paint()
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = math.min(size.width, size.height) * .44;
+    final ink = dark ? const Color(0xFFE8D9B9)
+        : const Color(0xFF2A5663);
+    final outline = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = accent.withValues(alpha: .65));
-    canvas.restore();
+      ..strokeWidth = 1.15
+      ..color = ink.withValues(alpha: .85);
+    canvas.drawCircle(c, r, Paint()
+      ..color = accent.withValues(alpha: .12));
+    canvas.drawCircle(c, r, outline);
+    canvas.drawCircle(c, r * .8,
+      outline..strokeWidth = .65..color = ink.withValues(alpha: .48));
+    for (var i = 0; i < 16; i++) {
+      final a = i * math.pi / 8;
+      final vx = math.cos(a), vy = math.sin(a);
+      canvas.drawLine(Offset(c.dx + r * .80 * vx,
+          c.dy + r * .80 * vy),
+        Offset(c.dx + r * .92 * vx, c.dy + r * .92 * vy),
+        outline..strokeWidth = i % 2 == 0 ? 1.15 : .65);
+    }
+    final north = Path()
+      ..moveTo(c.dx, c.dy - r * .59)
+      ..lineTo(c.dx - r * .16, c.dy + r * .05)
+      ..lineTo(c.dx + r * .12, c.dy - r * .08)..close();
+    final south = Path()
+      ..moveTo(c.dx, c.dy + r * .59)
+      ..lineTo(c.dx + r * .16, c.dy - r * .05)
+      ..lineTo(c.dx - r * .12, c.dy + r * .08)..close();
+    canvas.drawPath(north, Paint()..color = ink);
+    canvas.drawPath(south, Paint()
+      ..color = accent.withValues(alpha: .55));
+    canvas.drawCircle(c, r * .05, Paint()..color = ink);
   }
+
   @override
-  bool shouldRepaint(covariant _PlanetPainter old) =>
+  bool shouldRepaint(covariant _CompassPainter old) =>
       accent != old.accent || dark != old.dark;
 }

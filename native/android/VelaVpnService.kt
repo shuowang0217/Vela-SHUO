@@ -5,11 +5,18 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
+import org.json.JSONObject
+import java.util.Locale
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 import io.github.oviron.libmihomo.Clash
 import io.github.oviron.libmihomo.TunInterface
 import java.io.File
@@ -25,11 +32,62 @@ class VelaVpnService : VpnService() {
     companion object {
         const val ACTION_START = "com.shuowang.vela.START_VPN"
         const val ACTION_STOP = "com.shuowang.vela.STOP_VPN"
-        private const val NOTIFICATION_ID = 2407
+        const val NOTIFICATION_ID = 2407
         private const val CHANNEL_ID = "vela_vpn_running"
+        private const val AIRPORT_PREFS = "vela_notification"
+        private const val AIRPORT_KEY = "airport_name"
+
+        // The Activity can publish an idle status immediately after launch.
+        // The active VpnService owns the same notification ID and live sampler.
+        fun airportName(context: Context): String =
+            context.getSharedPreferences(AIRPORT_PREFS, Context.MODE_PRIVATE)
+                .getString(AIRPORT_KEY, "Vela")?.trim()?.take(64)
+                ?.ifEmpty { "Vela" } ?: "Vela"
+
+        fun saveAirportName(context: Context, name: String) {
+            val display = name.trim().take(64).ifEmpty { "Vela" }
+            context.getSharedPreferences(AIRPORT_PREFS, Context.MODE_PRIVATE)
+                .edit().putString(AIRPORT_KEY, display).apply()
+
+        }
+
+        private fun notificationManager(context: Context): NotificationManager {
+            val manager = context.getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(NotificationChannel(
+                CHANNEL_ID, "Vela 航线状态", NotificationManager.IMPORTANCE_LOW))
+            return manager
+        }
+
+        fun statusNotification(context: Context, upload: String, download: String,
+                               connecting: Boolean = false,
+                               ongoing: Boolean = true): Notification {
+            notificationManager(context)
+            val open = PendingIntent.getActivity(
+                context, 0, Intent(context, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val rates = if (connecting) "风速 采集中 ↑    航速 采集中 ↓"
+                        else "风速 $upload ↑    航速 $download ↓"
+            val builder = Notification.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.vela_notification_sail)
+                .setContentTitle(airportName(context))
+                .setContentText(rates)
+                .setContentIntent(open)
+                .setCategory(Notification.CATEGORY_SERVICE)
+                .setOnlyAlertOnce(true)
+                .setOngoing(ongoing)
+            if (ongoing && Build.VERSION.SDK_INT >= 31) {
+                builder.setForegroundServiceBehavior(
+                    Notification.FOREGROUND_SERVICE_IMMEDIATE)
+            }
+            return builder.build()
+        }
+
+
     }
 
     private val generation = AtomicInteger(0)
+    @Volatile private var speedSampler: ScheduledExecutorService? = null
     private var vpnDevice: ParcelFileDescriptor? = null
     @Volatile private var nativeStarted = false
     @Volatile private var failed = false
@@ -46,34 +104,114 @@ class VelaVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(
-            CHANNEL_ID, "Vela-SHUO VPN", NotificationManager.IMPORTANCE_LOW))
+        // Create the status channel before startForeground and speed updates.
+        statusNotification(this, "0 B/s", "0 B/s")
     }
 
+    private fun buildNotification(upload: String, download: String,
+                                  connecting: Boolean = false): Notification =
+        statusNotification(this, upload, download, connecting = connecting)
+
     private fun showForeground() {
-        val open = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val stop = PendingIntent.getService(this, 1,
-            Intent(this, VelaVpnService::class.java).setAction(ACTION_STOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val notification = Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("Vela-SHUO · Mihomo VPN")
-            .setContentText("VPN 正在运行 · 点此返回应用")
-            .setContentIntent(open)
-            .addAction(Notification.Action.Builder(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                "断开 VPN", stop).build())
-            .setOngoing(true)
-            .build()
+        val notification = buildNotification("采集中", "采集中", connecting = true)
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(NOTIFICATION_ID, notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+    }
+
+    private fun formatSpeed(bytesPerSecond: Double): String {
+        val rate = bytesPerSecond.coerceAtLeast(0.0)
+        return when {
+            rate < 1024.0 -> "${rate.toLong()} B/s"
+            rate < 1048576.0 -> String.format(Locale.US,
+                "%.1f KB/s", rate / 1024.0)
+            rate < 1073741824.0 -> String.format(Locale.US,
+                "%.2f MB/s", rate / 1048576.0)
+            else -> String.format(Locale.US,
+                "%.2f GB/s", rate / 1073741824.0)
+        }
+    }
+
+    /** Read cumulative JNI counters outside scheduled Java SAM code. */
+    private fun nativeTrafficTotals(): Pair<Long, Long>? {
+        val values = JSONObject(Clash.getTotalTraffic())
+        val up = values.optLong("up", -1L)
+        val down = values.optLong("down", -1L)
+        return if (up >= 0L && down >= 0L) Pair(up, down) else null
+    }
+
+    /**
+     * Runs inside VpnService, independently of Flutter Activity. The native
+     * Mihomo up/down values are cumulative bytes, NOT instantaneous speeds.
+     * Calculate monotonic deltas and elapsed seconds; reject counter resets.
+     */
+    private fun startSpeedSampler(ticket: Int) {
+        stopSpeedSampler()
+        val executor = Executors.newSingleThreadScheduledExecutor { task ->
+            Thread(task, "vela-vpn-notification-speed").apply { isDaemon = true }
+        }
+        speedSampler = executor
+        var lastUp: Long? = null
+        var lastDown: Long? = null
+        var lastAt = 0L
+        executor.scheduleWithFixedDelay({
+            if (ticket != generation.get() || !nativeStarted) {
+                return@scheduleWithFixedDelay
+            }
+            var uploadText = "采集中"
+            var downloadText = "采集中"
+            try {
+                val totals = nativeTrafficTotals()
+                val now = SystemClock.elapsedRealtime()
+                if (totals != null) {
+                    val (up, down) = totals
+                    val previousUp = lastUp
+                    val previousDown = lastDown
+                    val elapsed = now - lastAt
+                    if (previousUp != null && previousDown != null &&
+                        up >= previousUp && down >= previousDown && elapsed > 0L) {
+                        val uploadRate = (up - previousUp).toDouble() * 1000.0 / elapsed
+                        val downloadRate = (down - previousDown).toDouble() * 1000.0 / elapsed
+                        uploadText = formatSpeed(uploadRate)
+                        downloadText = formatSpeed(downloadRate)
+                    }
+                    lastUp = up
+                    lastDown = down
+                    lastAt = now
+                } else {
+                    uploadText = "暂无数据"
+                    downloadText = "暂无数据"
+                    lastUp = null
+                    lastDown = null
+                    lastAt = 0L
+                }
+            } catch (_: Throwable) {
+                // A transient native counter failure must never stop the VPN.
+                uploadText = "暂无数据"
+                downloadText = "暂无数据"
+                lastUp = null
+                lastDown = null
+                lastAt = 0L
+            }
+            if (ticket == generation.get() && nativeStarted) {
+                try {
+                    getSystemService(NotificationManager::class.java)
+                        .notify(NOTIFICATION_ID,
+                            buildNotification(uploadText, downloadText))
+                } catch (_: Exception) {
+                    // Permission may be denied or notifications disabled;
+                    // network forwarding remains unaffected.
+                }
+            }
+        }, 0L, 2L, TimeUnit.SECONDS)
+    }
+
+    private fun stopSpeedSampler() {
+        speedSampler?.shutdownNow()
+        speedSampler = null
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -110,7 +248,7 @@ class VelaVpnService : VpnService() {
         val configFile = File(dir, "config.yaml")
         if (!configFile.isFile || configFile.length() <= 0L ||
             configFile.length() > 1500000L) {
-            fail("未找到有效的 Mihomo 配置")
+            fail("未找到有效的航线配置")
             return
         }
         VelaVpnState.report("connecting")
@@ -127,18 +265,17 @@ class VelaVpnService : VpnService() {
                 Clash.quickSetup(initJson, "{}") { message ->
                     if (ticket != generation.get()) return@quickSetup
                     if (!message.isNullOrEmpty()) {
-                        fail("Mihomo 配置验证失败")
+                        fail("航线配置验证失败")
                         return@quickSetup
                     }
                     try {
                         val tun = Builder()
-                            .setSession("Vela-SHUO Mihomo")
-                            .setMtu(1400)
+                            .setSession("Vela")
+                            .setMtu(9000)
                             .addAddress("172.19.0.1", 30)
-                            .addAddress("fd80:19::1", 126)
                             .addRoute("0.0.0.0", 0)
-                            .addRoute("::", 0)
-                            .addDnsServer("198.18.0.2")
+                            .addDnsServer("172.19.0.2")
+                            .setBlocking(false)
                             .establish()
                             ?: throw IllegalStateException("VpnService establish returned null")
                         if (ticket != generation.get()) {
@@ -154,15 +291,22 @@ class VelaVpnService : VpnService() {
                         val goFd = ParcelFileDescriptor.dup(tun.fileDescriptor)
                             .detachFd()
                         Clash.startTUN(goFd, tunCallback, "vela-tun",
-                            "mixed", "172.19.0.1/30,fd80:19::1/126",
-                            "198.18.0.2", 1400)
+                            "mixed", "172.19.0.1/30",
+                            "172.19.0.2", 9000)
                         nativeStarted = true
+                        // FlClash treats the established native TUN as the
+                        // connection state. A reachability probe is NOT a
+                        // reason to tear down an otherwise valid tunnel:
+                        // Google/Cloudflare probes can be filtered even when
+                        // the requested sites work through the selected node.
+                        VelaVpnState.report("connected")
+                        startSpeedSampler(ticket)
                         Thread({
                             if (ticket != generation.get()) return@Thread
-                            if (verifyThroughVpn() && ticket == generation.get()) {
-                                VelaVpnState.report("connected")
-                            } else if (ticket == generation.get()) {
-                                fail("VPN 线路 HTTPS 验证失败，已安全断开")
+                            if (!verifyThroughVpn() && ticket == generation.get()
+                                && nativeStarted) {
+                                VelaVpnState.report("connected",
+                                    "VPN 隧道已连接，外网探测暂未通过；可在应用内重新检测")
                             }
                         }, "vela-vpn-probe").start()
                     } catch (_: Exception) {
@@ -170,7 +314,7 @@ class VelaVpnService : VpnService() {
                     }
                 }
             } catch (_: Throwable) {
-                if (ticket == generation.get()) fail("Mihomo 原生内核加载失败")
+                if (ticket == generation.get()) fail("航线服务启动失败")
             }
         }, "vela-mihomo-start").start()
     }
@@ -211,6 +355,7 @@ class VelaVpnService : VpnService() {
 
     private fun shutdown() {
         generation.incrementAndGet() // invalidate all pending callbacks
+        stopSpeedSampler()
         try {
             if (Clash.isLoaded()) Clash.stopTun()
         } catch (_: Throwable) {
@@ -224,6 +369,9 @@ class VelaVpnService : VpnService() {
         File(cacheDir, "vela-vpn/config.yaml").delete()
         if (!failed) VelaVpnState.report("disconnected")
         stopForeground(STOP_FOREGROUND_REMOVE)
+        // On disconnect remove the notification completely.
+        getSystemService(NotificationManager::class.java)
+            .cancel(NOTIFICATION_ID)
     }
 
     override fun onRevoke() {

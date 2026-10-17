@@ -184,6 +184,7 @@ proxy-groups:
     type: select
     proxies:
       - Example SS
+      - Local Socks Test
 rules:
   - MATCH,VELA_SELECT
 """
@@ -193,8 +194,26 @@ rules:
         assert "Local Socks Test" in res["proxies"]
         assert "Example SS" in res["proxies"], "Node missing from actual Mihomo"
         assert "GLOBAL" in res["groups"], "Built-in GLOBAL mode is missing"
+        assert res["match-group"] == "VELA_SELECT", (
+            "Expose the native MATCH strategy without rewriting routes")
         config = call("getConfig", os.path.join(home, "config.yaml"))
-        assert config["mode"] == "global", "Vela selection must control traffic route"
+        assert config["mode"] == "rule", "FlClash default RULE must not be replaced"
+        # FlClash RPC uses the Mihomo RawConfig *JSON* tag "rule", while
+        # the on-disk YAML config must use the distinct tag "rules".
+        # Assert both separately to avoid mistaking an RPC key for the
+        # native engine's parsed routing table.
+        assert config["rule"] == ["MATCH,VELA_SELECT"], (
+            "FlClash native getConfig did not load the rule table")
+        with open(os.path.join(home, "config.yaml"),
+                  encoding="utf-8") as profile_stream:
+            generated_yaml = profile_stream.read()
+        assert "\nrules:\n" in "\n" + generated_yaml, (
+            "Mihomo config.yaml is missing the plural YAML rules key")
+        assert "MATCH,VELA_SELECT" in generated_yaml, (
+            "Mihomo config.yaml dropped the subscription MATCH rule")
+        # Mode changes are FlClash's native updateConfig RPC, not rewrites
+        # of subscription YAML. Test the exact GLOBAL selection behavior.
+        assert call("updateConfig", {"mode": "global"}) == ""
         actual = call("getProxies")
         assert "Example SS" in actual["proxies"], "FlClash core not populated"
         assert call("changeProxy", {
@@ -203,6 +222,14 @@ rules:
         actual = call("getProxies")
         assert actual["proxies"]["GLOBAL"]["now"] == "Example SS", (
             "Mihomo did not route GLOBAL mode through the selected node")
+        assert call("changeProxy", {
+            "group-name": "VELA_SELECT", "proxy-name": "Local Socks Test"
+        })["message"] == ""
+        assert call("updateConfig", {"mode": "rule"}) == ""
+        actual = call("getProxies")
+        assert actual["proxies"]["GLOBAL"]["now"] == "Example SS"
+        assert actual["proxies"]["VELA_SELECT"]["now"] == "Local Socks Test", (
+            "RULE policy group must be independent of GLOBAL")
 
         # Actual RPC latency verification with a deterministic local 204
         # endpoint. No public network / credential is needed for this test.
@@ -253,17 +280,43 @@ rules:
             assert result["delay"] > 0
             assert not result.get("error")
 
+            # Unlike an explicit per-node latency test, an empty proxy-name
+            # goes through Mihomo's real RULE matcher and selected proxy-group.
+            # This catches the old Vela bug where only GLOBAL used the node.
+            routed = call("probe", {
+                "url": url_204, "proxy-name": "",
+                "timeout": 8000, "max-body": 0, "headers": {},
+            }, timeout=30)
+            assert routed["status-code"] == 204, (
+                "Native RULE-mode request failed through selected SOCKS5 exit")
+            assert "Local Socks Test" in routed.get("chains", []), (
+                "RULE matched an unexpected outbound: %r" %
+                routed.get("chains"))
+            assert routed.get("rule", "").upper() == "MATCH", (
+                "RULE matching did not use the subscription's MATCH rule")
+
             # This is the SAME one-RPC batch used by the Vela proxy page.
             # Check two legitimate measurements and one missing node without
             # requiring a public proxy or leaking real subscription tokens.
-            batch = call("velaTestLatencies", {
-                "names": ["DIRECT", "Local Socks Test", "NOT_CONFIGURED"],
-                "test-url": url_204,
-            }, timeout=45)
-            assert isinstance(batch, list) and len(batch) == 3
-            assert [row["name"] for row in batch] == [
-                "DIRECT", "Local Socks Test", "NOT_CONFIGURED",
-            ]
+            # A new Windows CI runner can transiently fail its first
+            # simultaneous loopback URLTest during warm-up. Retry only the
+            # batch once; BOTH real DIRECT and SOCKS routes must still pass.
+            # Do not retry production downloads or weaken their assertions.
+            for attempt in range(2):
+                batch = call("velaTestLatencies", {
+                    "names": ["DIRECT", "Local Socks Test", "NOT_CONFIGURED"],
+                    "test-url": url_204,
+                }, timeout=45)
+                assert isinstance(batch, list) and len(batch) == 3
+                assert [row["name"] for row in batch] == [
+                    "DIRECT", "Local Socks Test", "NOT_CONFIGURED",
+                ]
+                if batch[0]["value"] > 0 and batch[1]["value"] > 0:
+                    break
+                if attempt == 0:
+                    print("Retrying transient Windows loopback latency batch once",
+                          file=sys.stderr)
+                    time.sleep(0.6)
             assert batch[0]["value"] > 0, "FlClash DIRECT latency failed"
             assert batch[1]["value"] > 0, (
                 "Real Mihomo SOCKS5 proxy outbound latency failed")

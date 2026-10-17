@@ -20,7 +20,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('VELA'), findsWidgets);
-    expect(find.text('— SHUO —'), findsWidgets);
+    expect(find.text('— SHUO —'), findsNothing);
     expect(find.text(velaBrandTagline), findsOneWidget);
     expect(find.text('INTELLIGENT CONNECTIVITY'), findsNothing);
     expect(find.text('更 自 由 的 连 接 世 界'), findsNothing);
@@ -41,7 +41,8 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Vela-SHUO'), findsOneWidget);
+    expect(find.text('VELA'), findsOneWidget);
+    expect(find.text('— SHUO —'), findsNothing);
     expect(find.text(velaBrandTagline), findsOneWidget);
     expect(find.text('INTELLIGENT CONNECTIVITY'), findsNothing);
     expect(find.textContaining('UI 演示'), findsWidgets);

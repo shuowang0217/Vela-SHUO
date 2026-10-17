@@ -1,8 +1,8 @@
-name: Vela v1.0.0 - Windows and Android (FlClash core)
+name: Vela v1.7.0 Stable Release
 
 on:
   push:
-    branches: [main, release/v1.0.0]
+    branches: [main, release/v1.7.0, feature/vela-animated-atlas-fast-download]
   workflow_dispatch:
 
 permissions:
@@ -29,10 +29,35 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: master
           cache: true
+      - name: Polish day and night watercolor atlas with geographic city lights
+        run: |
+          python3 -m pip install --disable-pip-version-check pillow
+          python3 scripts/prepare_watercolor_atlas.py
       - run: flutter create --project-name vela_shuo --org com.shuowang --platforms windows .
-      - run: flutter pub get
-      - run: flutter analyze
-      - run: flutter test --reporter expanded
+      - name: Resolve Flutter dependencies
+        run: |
+          set -o pipefail
+          flutter pub get 2>&1 | tee pub-get-output.txt
+      - name: Android signing fingerprint parser regression tests
+        run: python3 -m unittest discover -s scripts -p 'test_android_signing.py'
+      - name: Flutter static analysis
+        run: |
+          set -o pipefail
+          flutter analyze 2>&1 | tee analyze-output.txt
+      - name: Flutter unit and UI tests
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded 2>&1 | tee test-output.txt
+      - name: Attach diagnostic output when validation fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: earth-glass-plus-diagnostics
+          retention-days: 7
+          path: |
+            pub-get-output.txt
+            analyze-output.txt
+            test-output.txt
       - name: Prove this is the Vela host, never the FlClash UI overlay
         shell: bash
         run: |
@@ -117,6 +142,14 @@ jobs:
         run: |
           flutter create --project-name vela_shuo --org com.shuowang --platforms windows .
           if ($LASTEXITCODE -ne 0) { throw "Flutter scaffold failed" }
+          python -m pip install --disable-pip-version-check pillow
+          if ($LASTEXITCODE -ne 0) { throw "Icon renderer dependency failed" }
+          python scripts/prepare_watercolor_atlas.py
+          if ($LASTEXITCODE -ne 0) { throw "Watercolor atlas preparation failed" }
+          python scripts/generate_vela_brand_icons.py --windows
+          if ($LASTEXITCODE -ne 0) { throw "Branded Windows icons were not generated" }
+          python scripts/configure_windows_product.py
+          if ($LASTEXITCODE -ne 0) { throw "Windows Vela product rename failed" }
           flutter pub get
           if ($LASTEXITCODE -ne 0) { throw "Flutter dependencies failed" }
           flutter build windows --release
@@ -128,12 +161,15 @@ jobs:
           }
       - name: Bundle engine into Vela native core location
         shell: pwsh
+        env:
+          VELA_WINDOWS_CODESIGN_PFX_B64: ${{ secrets.VELA_WINDOWS_CODESIGN_PFX_B64 }}
+          VELA_WINDOWS_CODESIGN_PASSWORD: ${{ secrets.VELA_WINDOWS_CODESIGN_PASSWORD }}
         run: |
           $release = Get-ChildItem 'vela/build/windows' -Directory -Recurse |
             Where-Object { $_.Name -eq 'Release' -and
-              (Test-Path (Join-Path $_.FullName 'vela_shuo.exe')) } |
+              (Test-Path (Join-Path $_.FullName 'Vela.exe')) } |
             Select-Object -First 1
-          if (-not $release) { throw 'Original Vela Windows executable missing' }
+          if (-not $release) { throw 'Vela.exe Windows executable missing' }
           $coreDir = Join-Path $release.FullName 'core'
           New-Item -Path $coreDir -ItemType Directory -Force | Out-Null
           Copy-Item "$env:RUNNER_TEMP/mihomo.exe" (Join-Path $coreDir 'mihomo.exe')
@@ -147,17 +183,20 @@ jobs:
           }
           Copy-Item 'flclash/core/Clash.Meta/LICENSE' (Join-Path $coreDir 'LICENSE-mihomo.txt')
           Copy-Item 'flclash/LICENSE' (Join-Path $coreDir 'LICENSE-FlClash-GPL-3.0.txt')
-          Rename-Item (Join-Path $release.FullName 'vela_shuo.exe') 'Vela-SHUO.exe'
-          $target = 'vela/Vela-SHUO-Windows-x64-FlClash-Core.zip'
+          # Only a publisher-verified cert removes "Unknown publisher".
+          # If secrets are absent we ship an explicitly unsigned test build.
+          & 'vela/scripts/sign_vela_windows.ps1' -ReleaseDirectory $release.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Trusted Windows signing failed' }
+          $target = 'vela/Vela-v1.7.0-Windows-x64.zip'
           Compress-Archive -Path (Join-Path $release.FullName '*') -DestinationPath $target
           $sha = (Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$sha  Vela-SHUO-Windows-x64-FlClash-Core.zip" |
+          "$sha  Vela-v1.7.0-Windows-x64.zip" |
             Set-Content 'vela/SHA256-Windows.txt'
       - uses: actions/upload-artifact@v4
         with:
-          name: Vela-SHUO-Windows-Original-UI-FlClash-Core
+          name: Vela-v1.7.0-Windows-x64
           path: |
-            vela/Vela-SHUO-Windows-x64-FlClash-Core.zip
+            vela/Vela-v1.7.0-Windows-x64.zip
             vela/SHA256-Windows.txt
           if-no-files-found: error
           retention-days: 14
@@ -227,12 +266,28 @@ jobs:
           cp ../android/core/src/main/jniLibs/arm64-v8a/libclash.h ../android/core/src/main/cpp/includes/arm64-v8a/libclash.h
           test -s ../android/core/src/main/jniLibs/arm64-v8a/libclash.so
           test -s ../android/core/src/main/cpp/includes/arm64-v8a/libclash.h
+      - name: Enforce existing FlClash-Custom permanent Android signing
+        shell: bash
+        env:
+          SHUO_SIGNING_PASSWORD: ${{ secrets.SHUO_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SHUO_SIGNING_PASSWORD" ]; then
+            echo "::error::Copy SHUO_SIGNING_PASSWORD into Vela-SHUO Actions Repository Secrets"
+            exit 1
+          fi
+          test -s flclash/android/signing/shuo-release.jks.enc
+          test -s flclash/scripts/shuo_signing.py
+          echo "Pinned encrypted SHUO key available; will verify certificate after signing"
       - name: Generate original Vela Android app and replace only native bridge
         working-directory: vela
         shell: bash
         run: |
           set -euo pipefail
           flutter create --project-name vela_shuo --org com.shuowang --platforms android .
+          python3 -m pip install --disable-pip-version-check pillow
+          python3 scripts/prepare_watercolor_atlas.py
+          python3 scripts/generate_vela_brand_icons.py --android
           python3 scripts/configure_android_vpn.py
           python3 scripts/migration/attach_flclash_android_core.py
           mkdir -p assets/flclash
@@ -243,24 +298,101 @@ jobs:
           grep -q 'home: _Shell(settings: settings' lib/src/app.dart
           grep -q 'import com.follow.clash.core.Core' android/app/src/main/kotlin/com/shuowang/vela_shuo/VelaVpnService.kt
           flutter pub get
-      - name: Build original Vela Flutter app with FlClash Go VPN backend
+      - name: Build permanently signed Vela 1.7.0 with FlClash Go VPN
         working-directory: vela
         shell: bash
+        env:
+          SHUO_SIGNING_PASSWORD: ${{ secrets.SHUO_SIGNING_PASSWORD }}
         run: |
           set -euo pipefail
+          umask 077
+          trap 'rm -f android/app/vela-release.jks' EXIT
+          python3 -m pip install --disable-pip-version-check 'cryptography>=43,<48'
+          python3 ../flclash/scripts/shuo_signing.py restore \
+            --encrypted ../flclash/android/signing/shuo-release.jks.enc \
+            --output android/app/vela-release.jks
+          test -s android/app/vela-release.jks
           flutter build apk --release --target-platform android-arm64
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk dist/Vela-SHUO-Original-UI-FlClash-Go-VPN-arm64.apk
-          unzip -l dist/Vela-SHUO-Original-UI-FlClash-Go-VPN-arm64.apk | grep 'lib/arm64-v8a/libcore.so'
-          unzip -l dist/Vela-SHUO-Original-UI-FlClash-Go-VPN-arm64.apk | grep 'lib/arm64-v8a/libclash.so'
-          if unzip -l dist/Vela-SHUO-Original-UI-FlClash-Go-VPN-arm64.apk | grep -q libmihomo-jni.so; then
+          cp build/app/outputs/flutter-apk/app-release.apk dist/Vela-v1.7.0-Android-arm64.apk
+          unzip -l dist/Vela-v1.7.0-Android-arm64.apk | grep 'lib/arm64-v8a/libcore.so'
+          unzip -l dist/Vela-v1.7.0-Android-arm64.apk | grep 'lib/arm64-v8a/libclash.so'
+          if unzip -l dist/Vela-v1.7.0-Android-arm64.apk | grep -q libmihomo-jni.so; then
             echo 'Unexpected legacy native core included' >&2
             exit 1
           fi
-          sha256sum dist/Vela-SHUO-Original-UI-FlClash-Go-VPN-arm64.apk > dist/SHA256-Android.txt
+          signer="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$signer"
+          # Flutter may leave debug signing on its generated Android runner.
+          # Always replace it with our previously established stable certificate.
+          # The Python helper verifies the APK cryptographically and checks the
+          # signer SHA-256 before the package can reach any release artifact.
+          python3 scripts/finalize_android_signing.py \
+            --apk dist/Vela-v1.7.0-Android-arm64.apk \
+            --keystore android/app/vela-release.jks \
+            --apksigner "$signer"
+          rm -f android/app/vela-release.jks
+          # Confirm the app identity and monotonically increasing versionCode.
+          aapt="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -x "$aapt"
+          "$aapt" dump badging dist/Vela-v1.7.0-Android-arm64.apk |
+            grep -q "^package: name='com.shuowang.vela' versionCode='33' versionName='1.7.0'"
+          sha256sum dist/Vela-v1.7.0-Android-arm64.apk | sed 's#  dist/#  #' > dist/SHA256-Android.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Vela-SHUO-Android-Original-UI-FlClash-Go-Core
+          name: Vela-v1.7.0-Android-arm64
           path: vela/dist/*
           if-no-files-found: error
           retention-days: 14
+
+
+  publish:
+    name: Publish verified Vela v1.7.0 stable release
+    if: github.ref == 'refs/heads/release/v1.7.0'
+    needs: [vela-ui, windows, android]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Vela-v1.7.0-Windows-x64
+          path: release/windows
+      - uses: actions/download-artifact@v4
+        with:
+          name: Vela-v1.7.0-Android-arm64
+          path: release/android
+      - name: Verify version, SHA-256 checksums and installers
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -qx 'version: 1.7.0+33' pubspec.yaml
+          (cd release/windows && sha256sum -c SHA256-Windows.txt)
+          # Compatible with the pre-release build layout as well.
+          sed -i 's#  dist/#  #' release/android/SHA256-Android.txt
+          (cd release/android && sha256sum -c SHA256-Android.txt)
+          unzip -t release/windows/Vela-v1.7.0-Windows-x64.zip >/dev/null
+          unzip -l release/windows/Vela-v1.7.0-Windows-x64.zip | grep -q 'Vela.exe'
+          unzip -t release/android/Vela-v1.7.0-Android-arm64.apk >/dev/null
+          unzip -l release/android/Vela-v1.7.0-Android-arm64.apk | grep -q 'lib/arm64-v8a/libclash.so'
+      - name: Publish GitHub Release v1.7.0 with verified Windows and Android assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v1.7.0 >/dev/null 2>&1; then
+            echo "Release v1.7.0 already exists; refuse to replace frozen artifacts" >&2
+            exit 1
+          fi
+          gh release create v1.7.0 \
+            release/windows/Vela-v1.7.0-Windows-x64.zip \
+            release/android/Vela-v1.7.0-Android-arm64.apk \
+            release/windows/SHA256-Windows.txt \
+            release/android/SHA256-Android.txt \
+            --target "$GITHUB_SHA" \
+            --title "Vela 1.7.0" \
+            --notes-file docs/RELEASE_v1.7.0.md \
+            --latest

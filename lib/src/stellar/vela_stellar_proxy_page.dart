@@ -1,11 +1,12 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../brand/vela_glass_toast.dart';
 
 import '../android/vela_android_vpn.dart';
 import '../core/vela_connection_coordinator.dart';
 import '../home/demo_connection.dart';
-import '../home/globe.dart';
 import '../network/vela_flclash_subscription_adapter.dart';
+import '../network/vela_routing_mode.dart';
 import '../smart/vela_smart_controller.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../subscription/vela_subscription_parser.dart';
@@ -19,13 +20,14 @@ import 'stellar_design.dart';
 class VelaStellarProxyPage extends StatefulWidget {
   const VelaStellarProxyPage({super.key, required this.demo,
     this.subscription, this.connection, this.androidVpn, this.smart,
-    this.traffic, required this.openConfig});
+    this.traffic, this.routing, required this.openConfig});
   final VelaDemoController demo;
   final VelaSubscriptionController? subscription;
   final VelaConnectionCoordinator? connection;
   final VelaAndroidVpnController? androidVpn;
   final VelaSmartController? smart;
   final VelaTrafficMonitor? traffic;
+  final VelaRoutingModeController? routing;
   final VoidCallback openConfig;
 
   @override
@@ -35,7 +37,7 @@ class VelaStellarProxyPage extends StatefulWidget {
 class _StellarProxyState extends State<VelaStellarProxyPage> {
   String _query = '';
   String _region = '全部';
-  String _group = '全部节点';
+  String? _group;
   bool _favoritesOnly = false;
 
   static const _regions = ['全部', '日本', '香港', '新加坡', '美国', '台湾', '韩国', '欧洲', '其他'];
@@ -78,9 +80,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
       widget.smart?.manualSelection();
     } else {
       final message = vpn?.error ?? conn?.error ??
-          sub.error ?? 'FlClash 未确认节点选择';
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)));
+          sub.error ?? '航线服务未确认节点选择';
+      VelaGlassToast.show(context, message);
     }
   }
 
@@ -93,6 +94,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
       if (widget.androidVpn != null) widget.androidVpn!,
       if (widget.smart != null) widget.smart!,
       if (widget.traffic != null) widget.traffic!,
+      if (widget.routing != null) widget.routing!,
     ];
     return AnimatedBuilder(
       animation: Listenable.merge(listeners),
@@ -106,15 +108,22 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
               widget.androidVpn?.connected == true;
           final flclash = sub is VelaFlClashSubscriptionController
               ? sub : null;
-          final nativeGroups = flclash?.backend.groups ?? const <String>[];
-          final groupNames = ['全部节点',
-            ...nativeGroups.where((name) => name != 'GLOBAL'
-                && (flclash?.backend.groupMembers[name]?.isNotEmpty ?? false))
-                .take(7),
-          ];
-          final group = groupNames.contains(_group) ? _group : '全部节点';
-          final membership = group == '全部节点'
-              ? null : flclash?.backend.groupMembers[group]?.toSet();
+          // FlClash RULE hides GLOBAL/hidden, GLOBAL shows native groups,
+          // DIRECT displays none. Never inject synthetic group tabs.
+          final groupNames = flclash?.backend.visibleGroups ?? const <String>[];
+          final group = groupNames.contains(_group)
+              ? _group : groupNames.firstOrNull;
+          final membership = group == null
+              ? const <String>{}
+              : flclash?.backend.groupMembers[group]?.toSet() ??
+                  const <String>{};
+          final nestedGroups = flclash == null || group == null
+              ? const <String>[]
+              : [
+                  for (final member in flclash.backend.groupMembers[group] ??
+                      const <String>[])
+                    if (flclash.backend.groups.contains(member)) member,
+                ];
           final order = widget.smart?.sortedIndices;
           final indices = sub?.visibleNodeIndices(
               query: _query, favoritesOnly: _favoritesOnly,
@@ -123,8 +132,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
             for (final index in indices)
               if ((_region == '全部' ||
                    _nodeRegion(nodes[index].name) == _region) &&
-                  (membership == null ||
-                   membership.contains(nodes[index].name)))
+                  (flclash == null ||
+                   (group != null && membership.contains(nodes[index].name))))
                 index,
           ];
           final busy = sub?.loading == true ||
@@ -132,16 +141,17 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
               widget.androidVpn?.busy == true;
           return SingleChildScrollView(
             child: Center(child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1210),
+              constraints: const BoxConstraints(maxWidth: 885),
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                    narrow ? 16 : 26, 24, narrow ? 16 : 26, 26),
+                    narrow ? 16 : 25, narrow ? 78 : 77,
+                    narrow ? 16 : 25, narrow ? 110 : 105),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
                       Expanded(child: StellarSectionHeading('全球加速',
-                        online ? '连接更大的世界 · FlClash 实时代理已接通'
-                            : '连接更大的世界 · 由 FlClash 驱动你的航线')),
+                        online ? '连接更大的世界 · 航线已接通'
+                            : '连接更大的世界 · 选择适合你的航线')),
                       if (!narrow) StellarLabel(
                         online ? '●  已连接' : '○  待命',
                         accent: online, size: 13),
@@ -150,12 +160,20 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                     _hero(context, online, nodes.length, narrow),
                     const SizedBox(height: 16),
                     if (nodes.isNotEmpty) ...[
-                      _groupNavigation(context, groupNames, group, narrow),
+                      if (groupNames.isNotEmpty)
+                        _groupNavigation(context, groupNames, group, narrow)
+                      else if (flclash != null)
+                        StellarPanel(child: StellarLabel(
+                          '直连模式：FlClash 不显示代理策略组，流量走 DIRECT')),
                       const SizedBox(height: 16),
+                      if (nestedGroups.isNotEmpty) ...[
+                        _nestedGroupChoices(context, nestedGroups, group),
+                        const SizedBox(height: 12),
+                      ],
                       _activeRoute(context, online),
                       const SizedBox(height: 16),
                       Row(children: [
-                        Expanded(child: Text('节点星图',
+                        Expanded(child: Text('航线节点',
                             style: TextStyle(color: t.text,
                                 fontWeight: FontWeight.bold, fontSize: 18))),
                         StellarLabel('共 ${nodes.length} 条线路 · 筛选结果 ${filtered.length}'),
@@ -207,8 +225,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                               style: TextStyle(color: t.muted))),
                         ))
                       else LayoutBuilder(builder: (context, grid) {
-                        final count = grid.maxWidth > 850 ? 3
-                            : grid.maxWidth > 470 ? 2 : 1;
+                        // Two compact columns on phones, three on large desktops.
+                        final count = grid.maxWidth > 850 ? 3 : 2;
                         final gap = 11.0;
                         final cellWidth = (grid.maxWidth -
                             gap * (count - 1)) / count;
@@ -216,7 +234,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                           children: [
                             for (final index in filtered)
                               SizedBox(width: cellWidth,
-                                child: _nodeCard(context, index, busy)),
+                                child: _nodeCard(context, index, busy,
+                                    compact: cellWidth < 230)),
                           ],
                         );
                       }),
@@ -238,37 +257,28 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     final selected = widget.subscription?.selected;
     final latency = selected == null ? null
         : widget.smart?.resultAt(widget.subscription!.selectedIndex!)?.lastMs;
-    final height = narrow ? 245.0 : 285.0;
+    final height = narrow ? 198.0 : 192.0;
     return StellarPanel(
       padding: EdgeInsets.zero,
       radius: 23,
       child: SizedBox(height: height, child: ClipRRect(
         borderRadius: BorderRadius.circular(23),
         child: Stack(children: [
-          Positioned(
-            right: narrow ? -86 : 0,
-            top: narrow ? -48 : -105,
-            width: narrow ? 300 : 460,
-            height: narrow ? 300 : 460,
-            child: IgnorePointer(child: Opacity(
-              opacity: t.dark ? .87 : .55,
-              child: VelaGlobe(demo: widget.demo),
-            )),
-          ),
           Positioned.fill(child: DecoratedBox(
             decoration: BoxDecoration(gradient: LinearGradient(
-              colors: [t.surface, t.surface.withValues(alpha: .94),
-                t.surface.withValues(alpha: .02)],
+              colors: [t.surface.withValues(alpha: .25),
+                t.surface.withValues(alpha: .10),
+                t.surface.withValues(alpha: .015)],
               stops: const [0, .40, 1],
             )),
           )),
-          Positioned(left: 20, top: 19, right: narrow ? 64 : 275,
+          Positioned(left: 20, top: 16, right: 20,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  StellarPlanetGlyph(size: 43),
+                  StellarCompassGlyph(size: 43),
                   const SizedBox(width: 10),
-                  Expanded(child: Text(online ? '地球已接通' : '等待启航',
+                  Expanded(child: Text('当前航线 · ${widget.subscription is VelaFlClashSubscriptionController ? ((widget.subscription! as VelaFlClashSubscriptionController).profileName ?? '未命名机场') : '未命名机场'}',
                     style: TextStyle(color: t.text, fontSize: narrow ? 18 : 22,
                       fontWeight: FontWeight.bold))),
                 ]),
@@ -277,15 +287,13 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                   maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: t.accent, fontSize: 15)),
                 const SizedBox(height: 12),
-                StellarLabel('真实节点  $count    ·    FlClash / Mihomo'),
+                StellarLabel('真实节点  $count    ·    航线服务'),
                 const SizedBox(height: 6),
                 StellarLabel(latency == null
                     ? '最近延迟  尚未测速'
                     : '最近延迟  $latency ms'),
                 const SizedBox(height: 13),
-                if (!narrow)
-                  Text('一帆越洋，尽览四方。',
-                      style: TextStyle(color: t.muted, letterSpacing: 2)),
+
               ],
             ),
           ),
@@ -296,7 +304,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                 color: online ? Colors.greenAccent : t.muted)),
               const SizedBox(width: 8),
               Expanded(child: Text(
-                online ? '当前网络正在通过 FlClash 连接'
+                online ? '当前网络正沿选定航线连接'
                     : '请选择节点，并在首页启动真实连接',
                 style: TextStyle(color: t.text, fontSize: 12))),
               if (online && widget.traffic != null)
@@ -309,8 +317,51 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     );
   }
 
+  void _selectGroup(String label) {
+    final sub = widget.subscription;
+    if (sub is VelaFlClashSubscriptionController &&
+        !sub.selectRoutingGroup(label)) {
+      VelaGlassToast.show(context, 'FlClash 核心未找到当前策略组');
+      return;
+    }
+    // Group navigation never changes Mihomo route mode or selected outbound.
+    setState(() => _group = label);
+  }
+
+  Future<void> _chooseNestedGroup(String name) async {
+    final sub = widget.subscription;
+    if (sub is! VelaFlClashSubscriptionController) return;
+    final ok = await sub.selectGroupMember(name);
+    if (!mounted) return;
+    if (!ok) {
+      VelaGlassToast.show(context, sub.error ?? '下级策略组未被核心确认');
+    }
+  }
+
+  Widget _nestedGroupChoices(BuildContext context,
+      List<String> entries, String? group) {
+    final backend = (widget.subscription as VelaFlClashSubscriptionController)
+        .backend;
+    return StellarPanel(child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        StellarLabel('当前策略组可选的下级策略组'),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 7, children: [
+          for (final item in entries)
+            ChoiceChip(
+              key: ValueKey('stellar_nested_group_$item'),
+              label: Text(item),
+              selected: backend.groupNow[group] == item,
+              onSelected: backend.groupIsSelector(group ?? '')
+                  ? (_) => _chooseNestedGroup(item) : null,
+            ),
+        ]),
+      ],
+    ));
+  }
+
   Widget _groupNavigation(BuildContext context,
-      List<String> groups, String selected, bool narrow) {
+      List<String> groups, String? selected, bool narrow) {
     final t = VelaThemeRuntime.active;
     return StellarPanel(padding: const EdgeInsets.all(11), child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,10 +369,11 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
         Row(children: [
           Icon(Icons.hub_outlined, color: t.accent, size: 19),
           const SizedBox(width: 8),
-          Text('代理星系', style: TextStyle(color: t.text,
+          Text('航线分组', style: TextStyle(color: t.text,
               fontWeight: FontWeight.w600)),
           const Spacer(),
-          StellarLabel('按 FlClash 原生代理组浏览'),
+          StellarLabel(
+              '当前出口组：${widget.subscription is VelaFlClashSubscriptionController ? (widget.subscription! as VelaFlClashSubscriptionController).backend.activeGroup ?? "未选中" : "未选中"}'),
         ]),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 7, children: [
@@ -330,11 +382,11 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
               key: ValueKey('stellar_group_$group'),
               label: Text(group),
               selected: selected == group,
-              onSelected: (_) => setState(() => _group = group),
+              onSelected: (_) => _selectGroup(group),
             ),
         ]),
         const SizedBox(height: 5),
-        StellarLabel('分组仅筛选列表；实际连接由 FlClash GLOBAL 节点选择控制。',
+        StellarLabel('分组与规则来自 FlClash 核心；切换标签不会改变线路。',
           size: 11),
       ],
     ));
@@ -347,7 +399,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     final delay = sub?.selectedIndex == null ? null
         : widget.smart?.resultAt(sub!.selectedIndex!)?.lastMs;
     return StellarPanel(child: Row(children: [
-      StellarPlanetGlyph(size: 48),
+      StellarCompassGlyph(size: 48),
       const SizedBox(width: 12),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -374,7 +426,8 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     ]));
   }
 
-  Widget _nodeCard(BuildContext context, int index, bool busy) {
+  Widget _nodeCard(BuildContext context, int index, bool busy,
+      {bool compact = false}) {
     final sub = widget.subscription!;
     final t = VelaThemeRuntime.active;
     final node = sub.nodes[index];
@@ -384,80 +437,68 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     final delay = health?.lastMs;
     final latencyError = sub is VelaFlClashSubscriptionController
         ? sub.backend.delayFailureFor(node.name) : null;
-    final region = _nodeRegion(node.name);
+    final delayText = health?.samples == null ? '延迟 —'
+        : health!.reachable ? '延迟 $delay ms' : '延迟超时';
+    final downloadText = download == null ? '下载 —'
+        : download.ok && download.megabytesPerSecond != null
+            ? '下载 ${download.megabytesPerSecond!.toStringAsFixed(2)} MB/s'
+            : download.failureLabel;
+    final latencyColor = health?.samples == null ? t.muted
+        : health!.reachable
+            ? ((delay ?? 0) < 250
+                ? const Color(0xFF38C9A4) : const Color(0xFFE6A54C))
+            : const Color(0xFFD47575);
+    final downloadColor = download == null ? t.muted : download.ok
+        ? const Color(0xFF38C9A4) : const Color(0xFFD47575);
     return StellarPanel(
       padding: EdgeInsets.zero, selected: picked, radius: 15,
       child: Material(color: Colors.transparent, child: InkWell(
         key: ValueKey('stellar_node_$index'),
         borderRadius: BorderRadius.circular(15),
         onTap: busy ? null : () => _choose(index),
-        child: Padding(padding: const EdgeInsets.all(13),
+        child: Padding(
+          padding: EdgeInsets.all(compact ? 8 : 13),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                Text(_flag(region), style: const TextStyle(fontSize: 19)),
-                const SizedBox(width: 7),
-                Expanded(child: Text(node.name,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: t.text,
+                Text(_flag(_nodeRegion(node.name)),
+                    style: TextStyle(fontSize: compact ? 15 : 19)),
+                SizedBox(width: compact ? 3 : 7),
+                Expanded(child: Text(node.name, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: t.text, fontSize: compact ? 12 : 14,
                     fontWeight: picked ? FontWeight.bold : FontWeight.w500))),
-                SizedBox(width: 33, height: 33, child: IconButton(
-                  padding: EdgeInsets.zero,
-                  tooltip: sub.isFavorite(index) ? '取消收藏' : '收藏节点',
-                  onPressed: () => sub.toggleFavorite(index),
-                  icon: Icon(sub.isFavorite(index)
-                      ? Icons.star_rounded : Icons.star_border_rounded,
-                      size: 19, color: sub.isFavorite(index)
-                          ? t.accent : t.muted),
-                )),
+                SizedBox(width: compact ? 26 : 33,
+                  height: compact ? 28 : 33,
+                  child: IconButton(padding: EdgeInsets.zero,
+                    tooltip: sub.isFavorite(index) ? '取消收藏' : '收藏节点',
+                    onPressed: () => sub.toggleFavorite(index),
+                    icon: Icon(sub.isFavorite(index)
+                        ? Icons.star_rounded : Icons.star_border_rounded,
+                        size: compact ? 17 : 19,
+                        color: sub.isFavorite(index) ? t.accent : t.muted))),
               ]),
-              const SizedBox(height: 12),
+              SizedBox(height: compact ? 5 : 12),
               Row(children: [
-                Expanded(child: Row(children: [
-                  Flexible(child: StellarLabel(node.protocol.toUpperCase())),
-                  if (picked) ...[
-                    const SizedBox(width: 7),
-                    Icon(Icons.check_circle, color: t.accent, size: 16),
-                  ],
-                ])),
-                const SizedBox(width: 8),
-                Column(crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Tooltip(
-                      message: health?.samples == null
-                          ? '尚未进行延迟测速'
-                          : health!.reachable
-                              ? 'FlClash 原生延迟测试'
-                              : (latencyError ?? '节点延迟测试失败'),
-                      child: Text(
-                        health?.samples == null ? '延迟 —'
-                            : health!.reachable ? '延迟 $delay ms'
-                            : '延迟超时',
-                        style: TextStyle(fontSize: 12,
-                          color: health?.samples == null ? t.muted
-                              : health!.reachable
-                                  ? (delay! < 250
-                                      ? const Color(0xFF38C9A4)
-                                      : const Color(0xFFE6A54C))
-                                  : const Color(0xFFD47575)),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      download == null ? '下载 —'
-                          : download.ok &&
-                                  download.megabytesPerSecond != null
-                              ? '下载 ${download.megabytesPerSecond!.toStringAsFixed(2)} MB/s'
-                              : download.failureLabel,
-                      style: TextStyle(fontSize: 12,
-                        color: download == null ? t.muted
-                            : download.ok
-                                ? const Color(0xFF38C9A4)
-                                : const Color(0xFFD47575)),
-                    ),
-                  ],
-                ),
+                Expanded(child: Text(node.protocol.toUpperCase(),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: t.muted, fontSize: 11))),
+                if (picked) Icon(Icons.check_circle, color: t.accent,
+                    size: compact ? 14 : 16),
               ]),
+              SizedBox(height: compact ? 5 : 7),
+              Tooltip(message: health?.samples == null ? '尚未进行延迟测速'
+                  : health!.reachable ? '真实节点延迟测试'
+                  : (latencyError ?? '节点延迟测试失败'),
+                child: Text(delayText, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: compact ? 11 : 12,
+                    color: latencyColor))),
+              const SizedBox(height: 3),
+              Text(downloadText, maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: compact ? 11 : 12,
+                  color: downloadColor)),
             ],
           ),
         ),
@@ -465,46 +506,52 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     );
   }
 
-  /// One action measures both metrics for every imported node. The Smart
-  /// page's AI country filter does not affect the Proxy page benchmark.
-  Future<void> _runAllMeasurements() async {
+  Future<void> _runDownloadMeasurements() async {
     final smart = widget.smart;
     if (smart == null || !smart.canTestAll) return;
-    if (smart.count > 50) {
+    if (smart.count > 30) {
       final accepted = await showDialog<bool>(
         context: context,
         builder: (dialog) => AlertDialog(
-          title: const Text('确认全节点测速'),
-          content: Text('将为全部 ${smart.count} 个节点分别检测延迟和下载速度。'
-              '每节点通常下载约 1 MiB，部分失败线路可能尝试多个下载地址，'
-              '实际流量可能更高。继续吗？'),
+          title: const Text('确认全节点下载测速'),
+          content: Text('即将对 ${smart.count} 条线路逐个下载真实 HTTPS 样本。'
+              '每个节点约 1 MiB，失败时可能消耗更多流量；'
+              '延迟结果不会重测或清除。继续吗？'),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialog).pop(false),
+            TextButton(onPressed: () => Navigator.pop(dialog, false),
               child: const Text('取消')),
-            FilledButton(
-              onPressed: () => Navigator.of(dialog).pop(true),
-              child: const Text('开始测速')),
+            FilledButton(onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('开始下载测速')),
           ],
         ),
       );
       if (!mounted || accepted != true || !smart.canTestAll) return;
     }
-    await smart.testAllNodes(includeAllCountries: true);
+    await smart.testAllDownloads();
   }
 
   Widget _testBar(BuildContext context, bool narrow) {
     final smart = widget.smart;
     final t = VelaThemeRuntime.active;
     final running = smart?.scanning == true;
+    final isDownload = smart?.scanKind == 'download';
     final progress = smart == null || smart.total == 0
         ? 0.0 : (smart.scanned / math.max(1, smart.total)).clamp(0.0, 1.0);
-    final action = FilledButton.icon(
-      key: const ValueKey('stellar_full_benchmark'),
-      onPressed: running ? smart!.cancelScan
-          : smart?.canTestAll == true ? _runAllMeasurements : null,
-      icon: Icon(running ? Icons.stop_rounded : Icons.speed_rounded, size: 18),
-      label: Text(running ? '停止测速' : '全节点测速 · 延迟 + 下载'),
+    final latencyButton = FilledButton.icon(
+      key: const ValueKey('stellar_latency_benchmark'),
+      onPressed: running ? (isDownload ? null : smart!.cancelScan)
+          : smart?.canTestAll == true ? smart!.testAllLatencies : null,
+      icon: Icon(running && !isDownload ? Icons.stop_rounded
+          : Icons.network_check_rounded, size: 17),
+      label: Text(running && !isDownload ? '停止测速' : '延迟测速'),
+    );
+    final downloadButton = OutlinedButton.icon(
+      key: const ValueKey('stellar_download_benchmark'),
+      onPressed: running ? (isDownload ? smart!.cancelScan : null)
+          : smart?.canTestAll == true ? _runDownloadMeasurements : null,
+      icon: Icon(running && isDownload ? Icons.stop_rounded
+          : Icons.download_rounded, size: 17),
+      label: Text(running && isDownload ? '停止下载' : '下载测速'),
     );
     return StellarPanel(child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -515,34 +562,30 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('星图全节点测速',
+              Text('航线节点测速',
                   style: TextStyle(color: t.text, fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
               StellarLabel(smart == null ? '当前平台尚未接入批量测速'
-                  : running ? '正在为所有节点测试延迟和下载速度…'
-                  : smart.status?.isNotEmpty == true
-                      ? smart.status!
-                      : '同时测量每条线路的延迟与真实下载速度'),
+                  : running ? (smart.status ?? '正在测试…')
+                  : smart.status?.isNotEmpty == true ? smart.status!
+                  : '先快速测延迟；需要真实吞吐量时单独测下载'),
             ],
           )),
-          if (!narrow) ...[
-            const SizedBox(width: 12),
-            action,
-          ],
         ]),
-        if (narrow) ...[
-          const SizedBox(height: 12),
-          SizedBox(width: double.infinity, child: action),
-        ],
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: latencyButton),
+          const SizedBox(width: 10),
+          Expanded(child: downloadButton),
+        ]),
         if (running || (smart?.total ?? 0) > 0) ...[
           const SizedBox(height: 12),
           LinearProgressIndicator(value: progress, minHeight: 5,
-              borderRadius: BorderRadius.circular(6)),
+            borderRadius: BorderRadius.circular(6)),
           const SizedBox(height: 7),
           StellarLabel('已测 ${smart!.scanned}/${smart.total}'
-              ' · 延迟成功 ${smart.successful}'
-              ' · 下载成功 ${smart.downloadsSuccessful}'
-              '/${smart.downloadsTested}'),
+              ' · ${isDownload ? "下载" : "延迟"}成功 ${smart.successful}'
+              ' · 失败 ${smart.failed}'),
         ],
       ],
     ));
@@ -552,12 +595,12 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     final t = VelaThemeRuntime.active;
     return StellarPanel(child: Column(children: [
       const SizedBox(height: 16),
-      StellarPlanetGlyph(size: 74),
+      StellarCompassGlyph(size: 74),
       const SizedBox(height: 12),
-      Text('星图尚未载入', style: TextStyle(color: t.text,
+      Text('航线尚未载入', style: TextStyle(color: t.text,
         fontSize: 19, fontWeight: FontWeight.bold)),
       const SizedBox(height: 6),
-      StellarLabel('导入 FlClash 订阅后，真实节点将在这里点亮'),
+      StellarLabel('导入机场订阅后，真实航线节点将在这里显示'),
       const SizedBox(height: 14),
       StellarAction(
         key: const ValueKey('stellar_open_config'),

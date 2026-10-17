@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../subscription/vela_subscription_controller.dart';
+import '../network/vela_flclash_subscription_adapter.dart';
 import 'vela_core_controller.dart';
 import 'vela_system_proxy.dart';
 
@@ -23,6 +24,9 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   final VelaSubscriptionController subscription;
   final VelaSystemProxyManager proxy;
   VelaRealPhase _phase = VelaRealPhase.idle;
+  Stopwatch? _connectedWatch;
+  Timer? _durationTicker;
+  Duration? get connectedDuration => connected ? _connectedWatch?.elapsed : null;
   String? _error;
   bool _closed = false;
   bool _handlingExit = false;
@@ -48,8 +52,13 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   bool get busy => _operation;
   bool get switchingNode => _switchingNode;
   bool get connected => _phase == VelaRealPhase.connected && proxy.active &&
-      core.isListening && core.remoteVerified;
-  bool get hasSelection => subscription.selected != null;
+      core.isListening && (!core.requiresRemoteProbeBeforeTakeover ||
+          core.remoteVerified);
+  // FlClash permits a real policy group as the selected outbound; it
+  // need not be a concrete proxy node (e.g. 自动选择/故障转移).
+  bool get hasSelection => subscription.selected != null ||
+      (subscription is VelaFlClashSubscriptionController &&
+       (subscription as VelaFlClashSubscriptionController).backend.imported);
   bool get available => core.supported && core.hasCore && hasSelection &&
       !core.directTestProfile;
   String get nodeName => subscription.selected?.name ?? '请先选择真实节点';
@@ -63,6 +72,20 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   };
 
   void _emit(VelaRealPhase next, [String? error]) {
+    if (_phase != next) {
+      if (next == VelaRealPhase.connected) {
+        _connectedWatch = Stopwatch()..start();
+        _durationTicker?.cancel();
+        _durationTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (!_closed && connected) notifyListeners();
+        });
+      } else {
+        _durationTicker?.cancel();
+        _durationTicker = null;
+        _connectedWatch?.stop();
+        _connectedWatch = null;
+      }
+    }
     _phase = next;
     _error = error;
     if (!_closed) notifyListeners();
@@ -93,7 +116,11 @@ class VelaConnectionCoordinator extends ChangeNotifier {
         _emit(VelaRealPhase.error, core.error ?? '内核启动失败');
         return false;
       }
-      if (!await core.verifyRemote()) {
+      // Only legacy embedded cores need a blocking external probe.
+      // The FlClash/Mihomo engine (and FlClash itself) permits a running
+      // local listener to be used even when public 204 sites are blocked.
+      if (core.requiresRemoteProbeBeforeTakeover &&
+          !await core.verifyRemote()) {
         await core.stop();
         _emit(VelaRealPhase.error, 'HTTPS 代理线路检测未通过，未修改 Windows 系统代理');
         return false;
@@ -143,7 +170,7 @@ class VelaConnectionCoordinator extends ChangeNotifier {
 
   /// In-place live route selection: never restart the listening process or
   /// modify WinINet when the new node can be verified. The old route remains
-  /// selected in the UI until Mihomo confirms both the API state and HTTPS.
+  /// selected in the UI until Mihomo confirms its actual selector state.
   Future<bool> switchNode(int index) async {
     if (_closed || _exitRequested || _operation || !connected ||
         subscription.selectedIndex == null) {
@@ -154,7 +181,7 @@ class VelaConnectionCoordinator extends ChangeNotifier {
     final oldName = subscription.configuredNameFor(previous);
     final newName = subscription.configuredNameFor(index);
     if (oldName == null || newName == null) {
-      _emit(VelaRealPhase.connected, '节点不在当前 Mihomo 配置中，请先断开后重新导入');
+      _emit(VelaRealPhase.connected, '节点不在当前航线配置中，请先断开后重新导入');
       return false;
     }
     _beginOperation();
@@ -202,7 +229,9 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   void _onCore() {
     if (_closed || _exitRequested || _handlingExit || _operation) return;
     if (_phase == VelaRealPhase.connected && !core.probing &&
-        (!core.isListening || !core.remoteVerified)) {
+        (!core.isListening ||
+            (core.requiresRemoteProbeBeforeTakeover &&
+                !core.remoteVerified))) {
       _handlingExit = true;
       unawaited(_handleExit());
     }
@@ -256,6 +285,8 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   @override
   void dispose() {
     _closed = true;
+    _durationTicker?.cancel();
+    _durationTicker = null;
     core.removeListener(_onCore);
     super.dispose();
   }

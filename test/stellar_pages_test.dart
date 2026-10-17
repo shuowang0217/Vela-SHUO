@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
+import 'package:vela_shuo/src/stellar/stellar_design.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_config_page.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_proxy_page.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
@@ -21,7 +22,8 @@ void main() {
       )),
     ));
     expect(find.text('全球加速'), findsOneWidget);
-    expect(find.text('星图尚未载入'), findsOneWidget);
+    expect(find.text('航线尚未载入'), findsOneWidget);
+    expect(find.byType(StellarCompassGlyph), findsWidgets);
     expect(find.byKey(const ValueKey('stellar_open_config')), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 100));
   });
@@ -42,6 +44,7 @@ void main() {
     ));
     expect(find.text('配置管理'), findsOneWidget);
     expect(find.text('尚未添加航线配置'), findsOneWidget);
+    expect(find.byType(StellarCompassGlyph), findsWidgets);
     expect(find.byKey(const ValueKey('stellar_add_profile')), findsOneWidget);
   });
 

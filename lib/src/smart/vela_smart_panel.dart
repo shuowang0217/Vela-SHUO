@@ -1,8 +1,10 @@
 // ignore_for_file: prefer_interpolation_to_compose_strings
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../subscription/vela_subscription_controller.dart';
 import '../theme/vela_palettes.dart';
+import '../brand/vela_watercolor_chrome.dart';
 import 'vela_smart_controller.dart';
 import 'vela_smart_country.dart';
 
@@ -66,19 +68,19 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
           : last.month.toString() + '/' + last.day.toString() + ' ' +
             last.hour.toString().padLeft(2, '0') + ':' +
             last.minute.toString().padLeft(2, '0');
-      return Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: theme.surface,
-          border: Border.all(color: theme.line),
-          borderRadius: BorderRadius.circular(18),
-        ),
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+          child: VelaWatercolorSurface(
+        radius: 18,
+        padding: const EdgeInsets.all(17),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('SHUO Smart · FlClash 定制优选',
+            Text('航海罗盘 · 智能优选',
                 style: TextStyle(color: theme.text,
-                    fontWeight: FontWeight.w600, fontSize: 17)),
+                    fontWeight: FontWeight.w600, fontFamily: 'Georgia', fontSize: 17)),
             const SizedBox(height: 8),
             Text('当前节点：' + (s.selected?.name ?? '未选择') +
                 '  ·  下载速度：' +
@@ -246,7 +248,7 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
                 style: TextStyle(color: theme.muted, fontSize: 11)),
           ],
         ),
-      );
+      )));
     },
   );
 

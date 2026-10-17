@@ -7,7 +7,7 @@ import 'vela_system_proxy.dart';
 
 /// Windows window lifecycle guard.
 ///
-/// Clicking the title-bar X minimizes Vela to the taskbar. It must NOT
+/// Clicking the title-bar X hides Vela into the notification area. It must NOT
 /// terminate a running Go core or restore the system proxy. Only an explicit
 /// "Exit application" action invokes closeSafely(), which restores the
 /// previous WinINet state before the window may be destroyed.
@@ -32,6 +32,8 @@ class VelaWindowExitGuard extends WindowListener {
   final Future<void> Function() _allowCloseWindow;
   final Future<void> Function() _destroyWindow;
   Future<bool> Function()? shutdownConnection;
+  Future<void> Function()? flushSavedProfiles;
+  Future<bool> Function()? hideToTray;
   bool _closing = false;
   bool _minimizing = false;
 
@@ -41,10 +43,15 @@ class VelaWindowExitGuard extends WindowListener {
   }
 
   /// Does not touch the connection, proxy journal, or core process.
+  /// X hides to notification area; only the - button minimizes to taskbar.
   Future<bool> minimizeOnClose() async {
     if (_closing || _minimizing) return false;
     _minimizing = true;
     try {
+      final hidden = await hideToTray?.call();
+      if (hidden == true) return true;
+      // If Explorer or the tray plugin is unavailable, keep Vela reachable
+      // on the taskbar instead of hiding it without a restore control.
       await _minimizeWindow();
       return true;
     } catch (_) {
@@ -74,6 +81,8 @@ class VelaWindowExitGuard extends WindowListener {
         // Keep the UI + local endpoint running if recovery fails.
         return false;
       }
+      final save = flushSavedProfiles;
+      if (save != null) await save();
       await _allowCloseWindow();
       await _destroyWindow();
       return true;

@@ -1,7 +1,9 @@
 import 'package:file_selector/file_selector.dart';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../theme/vela_palettes.dart';
+import '../brand/vela_watercolor_chrome.dart';
 import 'vela_core_controller.dart';
 import 'vela_connection_coordinator.dart';
 
@@ -22,25 +24,25 @@ class VelaCoreSettingsCard extends StatelessWidget {
       final coordinatedBusy = connection?.busy == true;
       final canChange = !controller.busy && !controller.isListening &&
           !systemManaged && !coordinatedBusy;
-      return Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: theme.surface.withValues(alpha: .94),
-          border: Border.all(color: theme.line),
-          borderRadius: BorderRadius.circular(18),
-        ),
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+          child: VelaWatercolorSurface(
+        padding: const EdgeInsets.all(17),
+        radius: 18,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(Icons.settings_ethernet_rounded, color: theme.accent),
             const SizedBox(width: 10),
-            Expanded(child: Text('Mihomo 代理内核',
+            Expanded(child: Text('Vela 网络服务',
               style: TextStyle(color: theme.text, fontSize: 17,
                 fontWeight: FontWeight.w600))),
           ]),
           const SizedBox(height: 8),
           Text(
             controller.usingBundledCore
-              ? '已内置经 SHA-256 校验的官方 Mihomo。'
+              ? '已内置经 SHA-256 校验的网络服务。'
                 '本地直连测试配置会自动创建；无需自行下载内核。'
               : '未发现打包内核，可重新解压完整便携包，'
                 '或手动选择可信来源的 mihomo.exe。',
@@ -157,7 +159,7 @@ class VelaCoreSettingsCard extends StatelessWidget {
             style: TextStyle(fontSize: 11, height: 1.55, color: theme.muted),
           ),
         ]),
-      );
+      )));
     },
   );
 }

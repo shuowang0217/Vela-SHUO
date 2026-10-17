@@ -15,6 +15,8 @@ class VelaFlClashCoreController extends VelaCoreController {
   bool _probing = false;
   bool _remoteVerified = false;
   String? _error;
+  /// Ensures the saved route mode is applied before enabling the system proxy.
+  Future<bool> Function()? ensureRoutingMode;
 
   void _changed() => notifyListeners();
 
@@ -24,7 +26,7 @@ class VelaFlClashCoreController extends VelaCoreController {
       await backend.initialize();
       _error = null;
     } catch (_) {
-      _error = 'FlClash Go 核心启动失败，请检查 Windows 安装文件';
+      _error = '航线服务启动失败，请检查安装文件';
     }
     _changed();
   }
@@ -39,6 +41,8 @@ class VelaFlClashCoreController extends VelaCoreController {
   bool get isListening => backend.listenerStarted;
   @override
   bool get remoteVerified => _remoteVerified && backend.internetVerified;
+  @override
+  bool get requiresRemoteProbeBeforeTakeover => false;
   @override
   bool get probing => _probing;
   @override
@@ -56,10 +60,10 @@ class VelaFlClashCoreController extends VelaCoreController {
       backend.imported ? '127.0.0.1:20808' : '—';
   @override
   String get phaseLabel => _working
-      ? 'FlClash 内核正在处理…'
+      ? '航线服务正在处理…'
       : isListening
-          ? 'FlClash Go 网络服务已开启'
-          : hasCore ? 'FlClash Go 内核已就绪' : 'FlClash Go 内核不可用';
+          ? 'Vela 航线服务已开启'
+          : hasCore ? 'Vela 航线服务已就绪' : 'Vela 航线服务不可用';
 
   @override
   Future<bool> start() async {
@@ -67,11 +71,15 @@ class VelaFlClashCoreController extends VelaCoreController {
     _working = true;
     _changed();
     try {
+      if (ensureRoutingMode != null && !await ensureRoutingMode!()) {
+        _error = '无法应用已保存的航线模式，连接已取消';
+        return false;
+      }
       await backend.start();
       _error = null;
       return true;
     } catch (_) {
-      _error = 'FlClash 代理监听启动失败，请检查端口与配置';
+      _error = '代理监听启动失败，请检查端口与配置';
       return false;
     } finally {
       _working = false;
@@ -99,21 +107,21 @@ class VelaFlClashCoreController extends VelaCoreController {
     required String currentName,
     required String nextName,
   }) async {
-    if (_working || !isListening || !remoteVerified) {
+    if (_working || !isListening) {
       return VelaNodeSwitchResult.unverified;
     }
     if (currentName == nextName) return VelaNodeSwitchResult.success;
     _working = true;
     _changed();
     try {
-      if (await backend.selectNode(nextName) &&
-          await backend.verifyInternet()) {
-        _remoteVerified = true;
+      // FlClash treats the acknowledged core selector as authoritative.
+      // A blocked HTTPS test destination is not grounds to undo a change.
+      if (await backend.selectNode(nextName)) {
+        _remoteVerified = false;
         return VelaNodeSwitchResult.success;
       }
-      if (await backend.selectNode(currentName) &&
-          await backend.verifyInternet()) {
-        _remoteVerified = true;
+      if (await backend.selectNode(currentName)) {
+        _remoteVerified = false;
         return VelaNodeSwitchResult.restored;
       }
       _remoteVerified = false;
@@ -152,7 +160,7 @@ class VelaFlClashCoreController extends VelaCoreController {
       _changed();
       return true;
     } catch (_) {
-      _error = 'FlClash 内核不接受该配置文件';
+      _error = '航线服务不接受该配置文件';
       _changed();
       return false;
     }
@@ -166,7 +174,7 @@ class VelaFlClashCoreController extends VelaCoreController {
       _changed();
       return true;
     } catch (_) {
-      _error = 'FlClash 后台不接受该订阅';
+      _error = '航线服务不接受该订阅';
       _changed();
       return false;
     }

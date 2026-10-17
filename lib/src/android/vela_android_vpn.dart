@@ -20,6 +20,9 @@ class VelaAndroidVpnController extends ChangeNotifier {
 
   final MethodChannel _channel;
   VelaAndroidVpnPhase _phase = VelaAndroidVpnPhase.disconnected;
+  Stopwatch? _connectedWatch;
+  Timer? _durationTicker;
+  Duration? get connectedDuration => connected ? _connectedWatch?.elapsed : null;
   String? _error;
   bool _disposed = false;
 
@@ -32,13 +35,27 @@ class VelaAndroidVpnController extends ChangeNotifier {
   String get phaseText => switch (_phase) {
     VelaAndroidVpnPhase.disconnected => 'VPN 未连接',
     VelaAndroidVpnPhase.preparing => '正在请求 Android VPN 授权…',
-    VelaAndroidVpnPhase.connecting => '正在建立 Mihomo VPN…',
+    VelaAndroidVpnPhase.connecting => '正在建立 Vela VPN…',
     VelaAndroidVpnPhase.connected => 'Android VPN 已连接',
     VelaAndroidVpnPhase.error => 'VPN 连接失败',
   };
 
   void _setPhase(VelaAndroidVpnPhase next, [String? error]) {
     if (_disposed) return;
+    if (_phase != next) {
+      if (next == VelaAndroidVpnPhase.connected) {
+        _connectedWatch = Stopwatch()..start();
+        _durationTicker?.cancel();
+        _durationTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (!_disposed && connected) notifyListeners();
+        });
+      } else {
+        _durationTicker?.cancel();
+        _durationTicker = null;
+        _connectedWatch?.stop();
+        _connectedWatch = null;
+      }
+    }
     _phase = next;
     _error = error;
     notifyListeners();
@@ -91,8 +108,10 @@ class VelaAndroidVpnController extends ChangeNotifier {
   }
 
   Future<bool> start(VelaSubscriptionController subscription) async {
+    // FlClash can start VPN with native selectors and selectedMap even
+    // when the root selected outbound is URLTest/Fallback, not a leaf node.
     if (!Platform.isAndroid || _disposed || active ||
-        subscription.selected == null) {
+        subscription.androidVpnProfile == null) {
       return false;
     }
     final profile = subscription.androidVpnProfile;
@@ -133,8 +152,7 @@ class VelaAndroidVpnController extends ChangeNotifier {
   }
 
   /// Change a live VPN node through FlClash's actual Go selector RPC.
-  /// Validate the selected outbound with real HTTPS before committing UI
-  /// state; a failed route test rolls the Go selector back.
+  /// Confirm actual Mihomo selector state, not arbitrary HTTP reachability.
   Future<bool> switchNode(
       VelaSubscriptionController subscription, int index) async {
     if (!Platform.isAndroid || _disposed || !connected ||
@@ -152,12 +170,17 @@ class VelaAndroidVpnController extends ChangeNotifier {
         ? (subscription.backend.activeGroup ?? 'GLOBAL')
         : 'VELA_SELECT';
     try {
+      // FlClash changes the native Mihomo selector directly. A public
+      // reachability probe is diagnostic, not a node-selection veto.
       await api.changeProxy(group, nextName);
-      if (await testConnectivity()) {
+      final snapshot = await api.getProxies();
+      final proxies = snapshot['proxies'];
+      final state = proxies is Map ? proxies[group] : null;
+      if (state is Map && state['now'] == nextName) {
         return subscription.confirmVpnSelection(index);
       }
       await api.changeProxy(group, oldName);
-      _error = '新节点联网验证失败，已恢复原节点';
+      _error = 'FlClash 核心未确认新节点，已恢复原节点';
       notifyListeners();
     } catch (_) {
       try {
@@ -168,7 +191,7 @@ class VelaAndroidVpnController extends ChangeNotifier {
         notifyListeners();
         return false;
       }
-      _error = '切换失败，FlClash 已恢复先前节点';
+      _error = '切换失败，已恢复先前节点';
       notifyListeners();
     }
     return false;
@@ -189,6 +212,8 @@ class VelaAndroidVpnController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _durationTicker?.cancel();
+    _durationTicker = null;
     _channel.setMethodCallHandler(null);
     super.dispose();
   }

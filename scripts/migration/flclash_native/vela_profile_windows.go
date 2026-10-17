@@ -3,7 +3,6 @@
 package main
 
 import (
-    "encoding/json"
     "fmt"
     "net/url"
     "strconv"
@@ -13,6 +12,7 @@ import (
     "strings"
 
     "github.com/metacubex/mihomo/config"
+    yaml "github.com/metacubex/mihomo/common/yaml"
     "github.com/metacubex/mihomo/constant"
     T "github.com/metacubex/mihomo/tunnel"
 )
@@ -49,11 +49,26 @@ func init() {
                 // the local client into an externally reachable proxy server.
                 raw.Port, raw.SocksPort, raw.RedirPort, raw.TProxyPort = 0, 0, 0, 0
                 raw.MixedPort = 20808
-                // Vela's single-node Connect action corresponds to FlClash
-                // GLOBAL mode, NOT the imported subscription's RULE mode.
-                // Otherwise a selected proxy can be ignored by MATCH,DIRECT.
-                // FlClash/Mihomo itself still owns every routing decision.
-                raw.Mode = T.Global
+                // FlClash defaults to RULE; do not silently turn every
+                // imported profile into GLOBAL on every Android VPN restart.
+                // A user's actual mode is applied separately with updateConfig.
+                raw.Mode = T.Rule
+
+                // FlClash lib/common/task.dart (makeRealProfileTask):
+                // baseline DNS keys are patched ONLY if the source DNS
+                // section is not enabled. A configured airport DNS remains
+                // untouched unless the user explicitly enables DNS overrides.
+                if !raw.DNS.Enable {
+                    raw.DNS.Enable = true
+                    raw.DNS.EnhancedMode = constant.DNSFakeIP
+                    raw.DNS.NameServer = []string{
+                        "https://doh.pub/dns-query",
+                        "https://dns.alidns.com/dns-query",
+                    }
+                }
+                raw.IPv6 = false
+                raw.UnifiedDelay = true
+                raw.TCPConcurrent = true
                 raw.AllowLan = false
                 raw.BindAddress = "127.0.0.1"
                 raw.ExternalController = ""
@@ -72,7 +87,12 @@ func init() {
                 raw.TuicServer.Enable = false
                 raw.NTP.WriteToSystem = false
                 fmt.Fprintln(os.Stderr, "VELA_DIAG stage=serialize-enter")
-                serialized, err := json.Marshal(raw)
+                // CRITICAL: RawConfig.Rule has yaml:"rules" but
+                // json:"rule" (singular) in pinned Mihomo. Writing
+                // JSON as config.yaml silently DROPPED the rule table on
+                // reload: RULE fell back to DIRECT while GLOBAL worked.
+                // Preserve all Mihomo YAML field names exactly.
+                serialized, err := yaml.Marshal(raw)
                 if err != nil {
                     response.failure("invalid_profile", "Mihomo could not encode profile", nil)
                     return
@@ -132,10 +152,25 @@ func init() {
                     response.failure("no_proxies", "FlClash core returned no proxies", nil)
                     return
                 }
+                // UI hint only, not a routing override. FlClash's Mihomo
+                // engine still evaluates every actual rule and group.
+                matchGroup := ""
+                for i := len(raw.Rule)-1; i >= 0; i-- {
+                    fields := strings.SplitN(raw.Rule[i], ",", 3)
+                    if len(fields) >= 2 &&
+                        strings.EqualFold(strings.TrimSpace(fields[0]), "MATCH") {
+                        matchGroup = strings.TrimSpace(fields[1])
+                        break
+                    }
+                }
                 response.success(map[string]any{
+                    "match-group": matchGroup,
                     "groups": views.All,
                     "proxies": views.Proxies,
                     "raw-proxies": raw.Proxy,
+                    // Native group attributes such as hidden do not always
+                    // survive getProxies metadata; FlClash filters them.
+                    "raw-proxy-groups": raw.ProxyGroup,
                     "provider-count": len(raw.ProxyProvider),
                 })
             })
@@ -306,7 +341,7 @@ func init() {
                 rows := make([]velaLatencyBatchRow, len(params.Names))
                 jobs := make(chan int)
                 var workers sync.WaitGroup
-                const concurrency = 8
+                const concurrency = 16
                 for n := 0; n < concurrency; n++ {
                     workers.Add(1)
                     go func() {
@@ -321,37 +356,20 @@ func init() {
                                 rows[index] = result
                                 continue
                             }
+                            // Match FlClash quick URLTest: never do a third
+                            // sequential 6-second HTTP probe for each failed node.
+                            // The fallback URL is only tried after a timeout;
+                            // slow/offline nodes should not block a huge list.
                             for _, url := range urls {
+                                timeout := int64(2800)
+                                if url != urls[0] { timeout = 1800 }
                                 delay := handleTestDelay(&TestDelayParams{
-                                    ProxyName: name, TestUrl: url, Timeout: 6000,
+                                    ProxyName: name, TestUrl: url, Timeout: timeout,
                                 })
                                 if delay != nil && delay.Value > 0 {
                                     result.Value = int64(delay.Value)
                                     result.Reason = ""
                                     break
-                                }
-                            }
-                            if result.Value < 0 {
-                                // Same FlClash Go probeDialer, with no extra
-                                // proxy configuration and NO guessed latency.
-                                probeURL := "https://cp.cloudflare.com/generate_204"
-                                if params.TestURL != "" { probeURL = params.TestURL }
-                                probe := handleProbe(&ProbeParams{
-                                    Url: probeURL,
-                                    ProxyName: name, Timeout: 6000,
-                                    MaxBody: 0,
-                                    Headers: map[string]string{},
-                                })
-                                if probe == nil {
-                                    result.Reason = "busy"
-                                } else if probe.Error != "" {
-                                    result.Reason = probe.Error
-                                } else if probe.StatusCode == 204 && probe.Delay >= 0 {
-                                    result.Value = probe.Delay
-                                    if result.Value == 0 { result.Value = 1 }
-                                    result.Reason = ""
-                                } else {
-                                    result.Reason = "bad_status"
                                 }
                             }
                             rows[index] = result

@@ -169,6 +169,9 @@ class VelaCoreController extends ChangeNotifier {
   bool _remoteVerified = false;
   bool _probing = false;
   bool get remoteVerified => _remoteVerified;
+  /// Native FlClash opens the listener before checking public test URLs.
+  /// Legacy standalone cores keep the stricter preflight behavior.
+  bool get requiresRemoteProbeBeforeTakeover => true;
   bool get probing => _probing;
   final bool supported;
   final String? _bundledCorePath;

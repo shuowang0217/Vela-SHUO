@@ -1,6 +1,9 @@
 package com.shuowang.vela_shuo
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
@@ -20,6 +23,20 @@ class MainActivity : FlutterActivity() {
     private lateinit var bridge: MethodChannel
     private var pendingResult: MethodChannel.Result? = null
     private var pendingProfile: String? = null
+    private val noticePermissionCode = 8242
+
+    // Android 13+: request notification permission only after Connect.
+    // A denied notification permission does not prevent VPN transport.
+    private fun requestVpnNotificationPermission() {
+        if (Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED) return
+        val prefs = getSharedPreferences("vela_notification", MODE_PRIVATE)
+        if (prefs.getBoolean("permission_requested", false)) return
+        prefs.edit().putBoolean("permission_requested", true).apply()
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            noticePermissionCode)
+    }
 
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
@@ -62,6 +79,11 @@ class MainActivity : FlutterActivity() {
                             }
                         }
                     }, "flclash-geo-init").start()
+                }
+                "setNotificationAirport" -> {
+                    val name = call.argument<String>("name") ?: "Vela"
+                    VelaVpnService.saveAirportName(this, name)
+                    result.success(null)
                 }
                 "status" -> result.success(mapOf("state" to VelaVpnState.state,
                     "error" to VelaVpnState.error))
@@ -133,7 +155,7 @@ class MainActivity : FlutterActivity() {
                         }
                     } catch (_: Exception) {
                         result.error("flclash_core_error",
-                            "FlClash 后台调用失败", null)
+                            "Vela 航线服务调用失败", null)
                     }
                 }
                 "testConnection" -> {
@@ -214,6 +236,8 @@ class MainActivity : FlutterActivity() {
             val intent = Intent(this, VelaVpnService::class.java)
                 .setAction(VelaVpnService.ACTION_START)
             ContextCompat.startForegroundService(this, intent)
+            requestVpnNotificationPermission()
+            // Notification permission must never block the VPN itself.
             callback.success(true)
         } catch (_: Exception) {
             VelaVpnState.report("error", "无法启动 VPN 后台服务")

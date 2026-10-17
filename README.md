@@ -1,49 +1,51 @@
-# Vela-SHUO
+# Vela
 
-**当前正式版本：v1.0.0**
+**正式版本：1.7.0**（Android 构建号 33）· Windows x64 / Android ARM64
 
-Vela 是基于 Flutter 的 Windows / Android 代理客户端，保留 Vela 原创界面，
-底层使用 [FLCLASH-CUSTOM](https://github.com/shuowang0217/FlClash-Custom) 的原生 FlClash / Mihomo 网络核心。
+Vela 保留已验证的原创 UI，网络、规则、分组、DNS 和代理协议交由原生
+[FlClash / Mihomo](https://github.com/shuowang0217/FlClash-Custom) 核心负责。
+源码仓库暂仍使用 `Vela-SHUO` 作为内部历史标识，不影响产品名称。
 
-## v1.0.0：项目正式起点
+## 正式发布与更新
 
-2026-10-13 确定 `v1.0.0` 为项目首个正式稳定基线，不再以早期实验版、
-旧版 `main` 架构或临时构建作为后续开发基础。
+官方稳定版下载入口：[GitHub Releases](https://github.com/shuowang0217/Vela-SHUO/releases/latest)。
 
-- **已验证的功能基线提交**：`b60f3b7a349565d6b1ec83b4bd2464b6f23a2257`
-- **正式开发主线**：`main`
-- **v1.0.0 版本分支**：`release/v1.0.0`
-- **软件版本号**：`1.0.0+1`（见 `pubspec.yaml`）
-- **构建流程**：`.github/workflows/vela-host-flclash-core.yml`
+- Android：`Vela-v1.7.0-Android-arm64.apk`，安装后应用名称为 **Vela**。
+  1.5.0 起使用长期固定的应用 ID `com.shuowang.vela`、正式签名证书和
+  递增的 Android versionCode；本版使用 33，可覆盖已安装的 1.7.4 测试版（内部码 32）；后续安装同签名的新 APK 可覆盖升级，
+  保留当前机场与偏好数据。
+- Windows：`Vela-v1.7.0-Windows-x64.zip`，完整解压后运行
+  `Vela.exe`。使用「安全退出」关闭旧版，再更新程序文件。
+  原 `Vela-SHUO` 目录中的用户数据路径保留，便于升级兼容。
+- Vela 设置页提供「检查更新」：查看正式 GitHub Release，并由用户确认
+  下载相应平台包。不会在后台静默安装可执行文件。
 
-v1.0.0 功能范围：
+**从 1.4.7 Beta 升级的特别说明：** 旧 Android 安装包使用
+`com.shuowang.vela.vpn.beta` 及每次构建可能变化的 Debug 签名，
+不能保证覆盖升级。正式版 1.5.0 使用新的稳定应用 ID，第一次迁移
+需要从旧版重新导入机场配置；验证新版本正常后再卸载旧版。
+请勿提前卸载旧版，以免丢失已加密保存的订阅。
 
-- Windows x64 和 Android ARM64，采用 Vela 原版 UI。
-- 使用 FLCLASH-CUSTOM 的原生 FlClash Go / Mihomo 核心。
-- 导入订阅、节点搜索、收藏、节点选择和连接状态显示。
-- 全节点延迟测试及真实下载测速：批量延迟、逐个下载；节点卡片同时显示延迟与下载 MB/s。
-- 分别记录测速成功、失败及可安全展示的失败类别。
-- Windows 点击窗口关闭（×）默认最小化到任务栏，运行中的代理保持连接。
-  在「设置 → 安全退出」才断开代理并恢复 Windows 系统代理设置。
-- Android 使用原生 VPN / TUN，已接入延迟与下载测速功能。
+**签名复用：** 1.5.0 直接使用 FlClash-Custom 仓库已有的加密签名证书。
+在 Vela-SHUO 的 GitHub Actions Repository secrets 中配置同名
+`SHUO_SIGNING_PASSWORD`（值必须与旧仓库完全一致），即可恢复同一证书。
+签名密码只在 GitHub Actions 运行环境读取，不会写入仓库或安装包。
 
-## 下载与运行
+**发布要求：** 只有配置长期保管的 Android 正式签名密钥并通过
+Flutter 测试、Windows/Android 构建及 SHA-256 和证书校验后，
+CI 才允许发布 `v1.7.0`。未配置密钥时，不会伪装生成可升级的正式 APK。
+参见 [1.7.0 正式发布说明](docs/RELEASE_v1.7.0.md) 和 [固定签名配置](docs/RELEASE_v1.5.0.md)。
 
-前往仓库 [Actions](https://github.com/shuowang0217/Vela-SHUO/actions)
-选择 **Vela v1.0.0 - Windows and Android (FlClash core)** 构建，
-在 Artifacts 中下载：
+## 1.7.0 定版说明
 
-- Windows x64 便携包：完整解压，运行 `Vela-SHUO.exe`，不要单独移动 EXE。
-- Android ARM64：安装构建产物中的 APK。升级前请自行备份订阅和设置。
+本版整合并保留 v1.2.0、v1.3.0、v1.4.0、v1.5.0、v1.6.0 的历史定版，同时纳入验证通过的水彩云层、北京航线起点、英文手绘地图名称和顶部毛玻璃通知。下载测速采用此前稳定的原始实现。
 
-## 后续版本约定
+**由开发版转换正式版**：之前的测试包曾使用更高的显示版本号（如 1.7.4），因此应用内只比较语义版本号的更新检测可能不会提示 1.7.0；请手动从 GitHub Releases 安装。Android 内部构建号 33 不会低于既有 1.7.4 测试版的 32。
 
-从 v1.0.0 开始迭代，每次修改以此稳定版为基础，正常升级版本号
-（例如 v1.0.1、v1.1.0）。以前的实验分支和旧构建不作为正式发布版本。
-Git 历史可保留用于技术追溯，不代表这些旧版本受支持。
+## 功能
 
-## 注意
-
-CI 构建及自动化测试不能替代所有网络与设备环境下的实机验证。
-测速结果取决于代理线路与测试服务器可达性。
-使用第三方内核时应遵循相应开源许可。
+- 本地订阅保存、机场切换、节点与策略组选择、节点测速。
+- 规则、全局和直连模式均由 FlClash/Mihomo 原生核心处理。
+- Android 原生 VPN / TUN，常驻机场名称与双向实时速度通知。
+- Windows 便携运行、安全退出时还原系统代理。
+- 固定版本号、正式发行包和应用内新版本检查。
