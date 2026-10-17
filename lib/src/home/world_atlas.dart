@@ -1,11 +1,9 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../brand/vela_sail_mark.dart';
 import 'demo_connection.dart';
 import 'maritime_route.dart';
@@ -106,14 +104,14 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
   double _toLon = VelaWorldCamera.beijing.dx;
   double _fromLat = VelaWorldCamera.beijing.dy;
   double _toLat = VelaWorldCamera.beijing.dy;
-  Offset _routeFrom = VelaWorldCamera.beijing;
-  Offset _routeTo = VelaWorldCamera.beijing;
+  Offset _routeFrom = VelaMaritimeRoute.homePort;
+  Offset _routeTo = VelaMaritimeRoute.homePort;
   VelaDemoNode? _destination;
   VelaPhase? _lastPhase;
   String? _lastNode;
   bool _returning = false;
   bool _homebound = false;
-  String _originName = 'SHANGHAI';
+  String _originName = 'BEIJING';
 
   @override
   void initState() {
@@ -179,12 +177,12 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
       if (!sameNode) {
         // The route starts at the current boat position if retargeted.
         _routeFrom = _destination == null
-            ? VelaMaritimeRoute.shanghai : _currentBoatLocation;
+            ? VelaMaritimeRoute.homePort : _currentBoatLocation;
         final oldDestination = _destination;
         final lastCity = oldDestination == null
             ? null : Offset(oldDestination.longitude, oldDestination.latitude);
-        _originName = (_routeFrom - VelaMaritimeRoute.shanghai).distance < .75
-            ? 'SHANGHAI'
+        _originName = (_routeFrom - VelaMaritimeRoute.homePort).distance < .75
+            ? 'BEIJING'
             : lastCity != null && (_routeFrom - lastCity).distance < .75
                 ? VelaAtlasInk.englishLabel(oldDestination!.mapLabel)
                 : 'AT SEA';
@@ -292,8 +290,7 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
                         Color(0x40F5F1E8)],
               ),
             ))),
-            // Render in fixed layers: base atlas, shader atmosphere,
-            // soft route, finally the few labels relevant to this session.
+            // Hand-painted moving clouds above the map, below the clear route.
             VelaAtlasWeather(camera: camera, dark: dark,
               connected: widget.demo.phase == VelaPhase.connected),
             CustomPaint(painter: _WorldRoutePainter(
@@ -317,30 +314,30 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
 
 
 
+
 class VelaWeatherCadence {
   const VelaWeatherCadence._();
-  // The master timeline is divisible by every animation period.
-  static const int timelineSeconds = 480;
-  static const int cloudSeconds = 96;
-  static const int oceanSeconds = 12;
-  static const int windSeconds = 30;
+  static const int cloudSeconds = 80; // Full slow outward-and-back drift.
   static const int routeSeconds = 4;
-  static const int nightSeconds = 15;
-
-  static double progress(double timeline, int periodSeconds) {
-    final cycles = timeline * timelineSeconds / periodSeconds;
-    return cycles - cycles.floorToDouble();
-  }
 }
 
-/// A low-overhead GPU atmosphere. One procedural fragment shader produces
-/// soft cloud volumes, masked watercolor sea flow and sparse wind currents.
-/// The map and labels do NOT repaint when time advances.
+@immutable
+class VelaCloudSpec {
+  const VelaCloudSpec(this.anchor, this.size, this.alpha,
+      this.driftX, this.driftY, this.seed);
+  final Offset anchor; // Relative to viewport, keeps composition consistent.
+  final double size;
+  final double alpha;
+  final double driftX;
+  final double driftY;
+  final double seed;
+}
+
+/// Entirely Flutter Canvas — no GPU fragment program, image loading or
+/// network calls. Animated above the still watercolor texture.
 class VelaAtlasWeather extends StatefulWidget {
-  const VelaAtlasWeather({
-    super.key, required this.camera, required this.dark,
-    this.connected = false,
-  });
+  const VelaAtlasWeather({super.key, required this.camera,
+      required this.dark, this.connected = false});
   final VelaWorldCamera camera;
   final bool dark;
   final bool connected;
@@ -349,104 +346,17 @@ class VelaAtlasWeather extends StatefulWidget {
   State<VelaAtlasWeather> createState() => _VelaAtlasWeatherState();
 }
 
-class _VelaAtmosphereAssets {
-  const _VelaAtmosphereAssets(this.program, this.ocean);
-  final ui.FragmentProgram program;
-  final ui.Image ocean;
-}
-
-class _VelaWorldAtmosphereLoader {
-  static Future<_VelaAtmosphereAssets>? _cached;
-
-  static Future<_VelaAtmosphereAssets> load() =>
-      _cached ??= _create();
-
-  static Future<_VelaAtmosphereAssets> _create() async {
-    final program = await ui.FragmentProgram.fromAsset(
-        'shaders/vela_watercolor_atmosphere.frag');
-    final polygons = jsonDecode(
-        await rootBundle.loadString('assets/maps/world_110m.json')) as List;
-    // Geographic mask: white sea, black land. Draw once at startup on an
-    // equirectangular canvas, with international-date-line wrap copies.
-    const width = 1024;
-    const height = 512;
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    canvas.drawColor(Colors.white, BlendMode.src);
-    final ink = Paint()..color = Colors.black
-        ..isAntiAlias = true;
-    for (final raw in polygons) {
-      if (raw is! List || raw.length < 3) { continue; }
-      final path = Path();
-      double? previousLon;
-      double unwrapped = 0;
-      var first = true;
-      for (final pair in raw) {
-        if (pair is! List || pair.length < 2 ||
-            pair[0] is! num || pair[1] is! num) { continue; }
-        final lon = (pair[0] as num).toDouble();
-        final lat = (pair[1] as num).toDouble();
-        unwrapped = previousLon == null ? lon :
-          unwrapped + VelaWorldCamera.shortestDelta(previousLon, lon);
-        final dx = (unwrapped + 180) / 360 * width;
-        final dy = (90 - lat) / 180 * height;
-        if (first) {
-          path.moveTo(dx, dy);
-          first = false;
-        } else {
-          path.lineTo(dx, dy);
-        }
-        previousLon = lon;
-      }
-      if (first) continue;
-      path.close();
-      for (final shift in [-width.toDouble(), 0.0, width.toDouble()]) {
-        canvas.save();
-        canvas.translate(shift, 0);
-        canvas.drawPath(path, ink);
-        canvas.restore();
-      }
-    }
-    final picture = recorder.endRecording();
-    final mask = await picture.toImage(width, height);
-    picture.dispose();
-    return _VelaAtmosphereAssets(program, mask);
-  }
-}
-
 class _VelaAtlasWeatherState extends State<VelaAtlasWeather>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _motion;
-  _VelaAtmosphereAssets? _assets;
   bool _backgrounded = false;
-  bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _motion = AnimationController(vsync: this,
-        duration: const Duration(seconds: VelaWeatherCadence.timelineSeconds));
-    // During widget tests don't request a GPU program: tests still verify
-    // route/label state and ticker lifecycle without endless frames.
-    if (Platform.environment['FLUTTER_TEST'] != 'true') {
-      _loadShader();
-    }
-  }
-
-  Future<void> _loadShader() async {
-    try {
-      final result = await _VelaWorldAtmosphereLoader.load();
-      if (!mounted || _disposed) return;
-      setState(() => _assets = result);
-      // Shader loading is asynchronous: start the ticker immediately after
-      // the GPU resource arrives, even if no other widget state changes.
-      _syncMotion();
-    } catch (error) {
-      // Do not silently freeze weather when the Windows shader program or
-      // mask creation fails. The independent canvas atmosphere continues.
-      debugPrint('Vela atmosphere unavailable (${error.runtimeType}); using motion fallback.');
-    }
+      duration: const Duration(seconds: VelaWeatherCadence.cloudSeconds));
   }
 
   void _syncMotion() {
@@ -466,12 +376,6 @@ class _VelaAtlasWeatherState extends State<VelaAtlasWeather>
   }
 
   @override
-  void didUpdateWidget(covariant VelaAtlasWeather old) {
-    super.didUpdateWidget(old);
-    _syncMotion();
-  }
-
-  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _backgrounded = state != AppLifecycleState.resumed;
     _syncMotion();
@@ -479,7 +383,6 @@ class _VelaAtlasWeatherState extends State<VelaAtlasWeather>
 
   @override
   void dispose() {
-    _disposed = true;
     WidgetsBinding.instance.removeObserver(this);
     _motion.dispose();
     super.dispose();
@@ -487,154 +390,106 @@ class _VelaAtlasWeatherState extends State<VelaAtlasWeather>
 
   @override
   Widget build(BuildContext context) => IgnorePointer(
-    child: RepaintBoundary(
-      child: AnimatedBuilder(animation: _motion, builder: (context, _) =>
-        CustomPaint(
-          painter: VelaAtlasWeatherPainter(
-            camera: widget.camera, dark: widget.dark, phase: _motion.value,
-            program: _assets?.program, oceanMask: _assets?.ocean),
-          child: const SizedBox.expand(),
-        ),
+    child: RepaintBoundary(child: AnimatedBuilder(
+      animation: _motion,
+      builder: (context, _) => CustomPaint(
+        painter: VelaAtlasWeatherPainter(
+          camera: widget.camera, dark: widget.dark, phase: _motion.value),
+        child: const SizedBox.expand(),
       ),
-    ),
+    )),
   );
 }
 
-/// The cloud/ocean/wind pass is handled entirely in the GPU. Shader uniforms
-/// follow the SAME camera projection as the geographic map texture.
+/// Five asymmetric, watercolored cloud banks with deterministic per-cloud
+/// opacities, contours and varying left/right drift amplitudes.
 @immutable
 class VelaAtlasWeatherPainter extends CustomPainter {
   const VelaAtlasWeatherPainter({
     required this.camera, required this.dark, required this.phase,
-    this.program, this.oceanMask,
   });
   final VelaWorldCamera camera;
   final bool dark;
   final double phase;
-  final ui.FragmentProgram? program;
-  final ui.Image? oceanMask;
+
+  static const clouds = <VelaCloudSpec>[
+    VelaCloudSpec(Offset(.17, .24), 1.03, .34, 96, 14, .00),
+    VelaCloudSpec(Offset(.42, .14), .79, .24, 75, 11, .17),
+    VelaCloudSpec(Offset(.77, .36), 1.21, .33, 106, 18, .09),
+    VelaCloudSpec(Offset(.27, .65), .91, .29, 87, 14, .41),
+    VelaCloudSpec(Offset(.62, .73), 1.15, .27, 93, 19, .65),
+    VelaCloudSpec(Offset(.88, .80), .73, .23, 79, 11, .81),
+  ];
+
+  Offset cloudPosition(int index, Size size) {
+    final cloud = clouds[index];
+    final angle = (phase + cloud.seed) * math.pi * 2;
+    return Offset(
+      cloud.anchor.dx * size.width + math.sin(angle) * cloud.driftX,
+      cloud.anchor.dy * size.height + math.cos(angle) * cloud.driftY,
+    );
+  }
+
+  static Path _outline(int index) {
+    final variety = (index % 3 - 1) * 7.0;
+    return Path()
+      ..moveTo(-111, 15)
+      ..cubicTo(-125, -2, -106, -26, -79, -20)
+      ..cubicTo(-91, -42, -56, -57, -30, -43)
+      ..cubicTo(-11, -71, 29, -62, 43, -35 + variety)
+      ..cubicTo(66, -49, 98, -24, 89, -3)
+      ..cubicTo(123, 1, 124, 29, 94, 37)
+      ..cubicTo(65, 51, 45, 34, 26, 40)
+      ..cubicTo(4, 52, -15, 37, -34, 39)
+      ..cubicTo(-60, 51, -90, 40, -111, 15)
+      ..close();
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    if (program == null || oceanMask == null) {
-      _paintFallback(canvas, size);
-      return;
-    }
-    final shader = program!.fragmentShader()
-      ..setFloat(0, size.width)
-      ..setFloat(1, size.height)
-      ..setFloat(2, phase * VelaWeatherCadence.timelineSeconds)
-      ..setFloat(3, dark ? 1 : 0)
-      ..setFloat(4, camera.tileLeft - camera.artworkDx)
-      ..setFloat(5, camera.top - camera.artworkDy)
-      ..setFloat(6, camera.worldWidth)
-      ..setFloat(7, camera.worldHeight)
-      ..setFloat(8, 1.0) // Clearly visible, still restrained.
-      ..setImageSampler(0, oceanMask!);
-    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
-    // Add a restrained local moving wash even when the shader succeeds.
-    // This preserves perceptible motion across Skia/Impeller renderers.
-    _paintFallback(canvas, size);
-  }
-
-
-  /// GPU-shader-independent motion: if an OS/renderer cannot load the
-  /// atmosphere program, soft gradients STILL animate at the same cadence.
-  /// These are bounded translucent washes, never opaque clouds or ovals.
-  void _paintFallback(Canvas canvas, Size size) {
-    final cloud = VelaWeatherCadence.progress(
-        phase, VelaWeatherCadence.cloudSeconds) * math.pi * 2;
-    final ocean = VelaWeatherCadence.progress(
-        phase, VelaWeatherCadence.oceanSeconds) * math.pi * 2;
-    final wind = VelaWeatherCadence.progress(
-        phase, VelaWeatherCadence.windSeconds);
     canvas.save();
     canvas.clipRect(Offset.zero & size);
-    // Offshore watercolor pigment and glancing sunlight. The centers are
-    // geographic (not screen-wide white overlays).
-    for (final centerGeo in const [
-      Offset(155, 21), Offset(175, -23), Offset(-145, 12),
-      Offset(78, -23), Offset(-35, -18),
-    ]) {
-      final center = camera.projectArtwork(centerGeo);
-      if (center.dx < -190 || center.dx > size.width + 190 ||
-          center.dy < -190 || center.dy > size.height + 190) {
-        continue;
-      }
-      final sway = math.sin(ocean + centerGeo.dx * .07) * 18.0;
-      final ink = Paint()..shader = ui.Gradient.radial(
-        center + Offset(sway, math.cos(ocean) * 12),
-        math.min(190.0, size.width * .28),
-        [
-          (dark ? const Color(0xFF81ADC9) : const Color(0xFF3894AE))
-              .withValues(alpha: .085),
-          (dark ? const Color(0xFF81ADC9) : const Color(0xFF3894AE))
-              .withValues(alpha: .019),
-          Colors.transparent,
-        ], [0, .55, 1],
-      );
-      canvas.drawRect(Offset.zero & size, ink);
-    }
-
-    // Two overlapping, soft-edged banks instead of hard oval outlines.
-    // A complete orbit takes 96 seconds; several pixels of motion are
-    // visible over a few seconds even without the GPU program.
-    for (var i = 0; i < 2; i++) {
-      final theta = cloud + i * 1.85;
-      final center = Offset(
-        size.width * (.24 + i * .43) + math.sin(theta) * 85,
-        size.height * (.31 + i * .31) + math.cos(theta) * 21);
-      final tint = dark ? const Color(0xFFD3E2F0)
-          : const Color(0xFFEAF5EF);
-      final fog = Paint()..shader = ui.Gradient.radial(
-        center, math.min(size.width * .30, 280),
-        [tint.withValues(alpha: dark ? .076 : .065),
-         tint.withValues(alpha: .028), Colors.transparent],
-        [0, .32, 1],
-      );
-      canvas.drawRect(Offset.zero & size, fog);
-    }
-
-    // An occasional slim, alpha-tapered curved breeze. Two gradients on a
-    // path create subtle movement without straight line particles.
-    final envelope = math.pow(math.sin(math.pi * wind), 6).toDouble();
-    if (envelope > .015) {
-      final drift = (wind * 2 - 1) * 45;
-      for (final geo in const [Offset(155, 9), Offset(-138, -28)]) {
-        final p = camera.projectArtwork(geo) + Offset(drift, 0);
-        final span = math.min(size.width * .16, 120.0);
-        final windPath = Path()
-          ..moveTo(p.dx - span, p.dy + 5)
-          ..cubicTo(p.dx - span * .4, p.dy - 14,
-              p.dx + span * .4, p.dy + 11, p.dx + span, p.dy - 5);
-        final breeze = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.25
-          ..strokeCap = StrokeCap.round
-          ..shader = ui.Gradient.linear(
-            Offset(p.dx - span, p.dy),
-            Offset(p.dx + span, p.dy),
-            [
-              Colors.transparent,
-              (dark ? const Color(0xFFBDE7F8) :
-                  const Color(0xFF326F89))
-                  .withValues(alpha: .13 * envelope),
-              Colors.transparent,
-            ], [0, .5, 1],
-          );
-        canvas.drawPath(windPath, breeze);
-      }
-    }
-    if (dark) {
-      final phaseNight = VelaWeatherCadence.progress(
-          phase, VelaWeatherCadence.nightSeconds) * math.pi * 2;
-      final pulse = .025 + .024 * (.5 + .5 * math.sin(phaseNight));
-      final city = camera.projectArtwork(const Offset(139.7, 35.7));
-      canvas.drawCircle(city, 19,
-          Paint()..shader = ui.Gradient.radial(city, 19,
-            [const Color(0xFFFFD78B).withValues(alpha: pulse),
-             Colors.transparent]));
+    final viewportScale = (size.width / 1400).clamp(.55, 1.16).toDouble();
+    for (var i = 0; i < clouds.length; i++) {
+      final spec = clouds[i];
+      final center = cloudPosition(i, size);
+      final breath = .91 + .09 *
+          math.sin(phase * math.pi * 2 + i * 1.33);
+      final a = spec.alpha * breath;
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.scale(spec.size * viewportScale);
+      final path = _outline(i);
+      final shadow = Paint()
+        ..color = (dark ? const Color(0xFF456378)
+            : const Color(0xFF467C91)).withValues(alpha: a * .32)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
+      canvas.save();
+      canvas.translate(5, 8);
+      canvas.drawPath(path, shadow);
+      canvas.restore();
+      final wash = Paint()
+        ..shader = ui.Gradient.linear(
+          const Offset(-111, -45), const Offset(110, 49),
+          [
+            (dark ? const Color(0xFFACCADB) :
+                const Color(0xFFF7FAF0)).withValues(alpha: a * .74),
+            (dark ? const Color(0xFFE1EDF6) :
+                const Color(0xFFFFFFFF)).withValues(alpha: a),
+            (dark ? const Color(0xFF9FBFD0) :
+                const Color(0xFFACD2D9)).withValues(alpha: a * .46),
+          ], [0, .52, 1],
+        )
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+      canvas.drawPath(path, wash);
+      canvas.drawPath(path, Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..color = (dark ? const Color(0xFFE2F4FF) :
+            const Color(0xFF508397)).withValues(alpha: a * .29)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
+      canvas.restore();
     }
     canvas.restore();
   }
@@ -642,7 +497,6 @@ class VelaAtlasWeatherPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant VelaAtlasWeatherPainter old) =>
       old.phase != phase || old.dark != dark ||
-      old.program != program || old.oceanMask != oceanMask ||
       old.camera.size != camera.size ||
       old.camera.longitude != camera.longitude ||
       old.camera.latitude != camera.latitude ||
