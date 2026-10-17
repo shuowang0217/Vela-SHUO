@@ -20,10 +20,12 @@ class VelaOilCloudSpec {
 }
 
 class VelaOilScene extends StatefulWidget {
-  const VelaOilScene({super.key});
+  const VelaOilScene({super.key, this.debugAllowTestWind = false});
+  final bool debugAllowTestWind;
   static const referenceWidth = 1672.0;
   static const referenceHeight = 941.0;
-  static const animationSeconds = 132;
+  // Twenty-eight second loop is visibly moving even on a narrow phone.
+  static const animationSeconds = 28;
   // Historical preview asset kept for backward compatibility, NOT displayed.
   static const backgroundAsset = 'assets/oil/oil_map_clean.webp';
 
@@ -58,8 +60,9 @@ class _VelaOilSceneState extends State<VelaOilScene>
   }
   void _syncWind() {
     final reduced=MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final testing=WidgetsBinding.instance.runtimeType.toString()
-      .contains('TestWidgetsFlutterBinding');
+    final testing=!widget.debugAllowTestWind &&
+      WidgetsBinding.instance.runtimeType.toString()
+        .contains('TestWidgetsFlutterBinding');
     if (reduced || testing || _backgrounded) {
       _wind.stop();
     } else if (!_wind.isAnimating) {
@@ -118,7 +121,8 @@ class _VelaOilSceneState extends State<VelaOilScene>
                 : cloud.bounds.height*scale,
               child:Transform.translate(
                 offset:cloud.position(_wind.value)*
-                  (portrait ? math.min(c.maxWidth/900, .85) : scale),
+                  (portrait ? math.min(math.max(c.maxWidth / 520, .66), 1.2)
+                      : scale),
                 child:Opacity(opacity:cloud.opacity,
                   child:RepaintBoundary(child:Image.asset(
                     'assets/oil/clouds/${cloud.file}.png',
