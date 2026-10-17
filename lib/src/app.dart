@@ -79,7 +79,7 @@ class VelaShuoApp extends StatelessWidget {
       return MaterialApp(
         title: 'Vela',
         debugShowCheckedModeBanner: false,
-        themeMode: settings.themeMode,
+        themeMode: VelaThemeRuntime.oilPreview ? ThemeMode.light : settings.themeMode,
         theme: _theme(Brightness.light, palette),
         darkTheme: _theme(Brightness.dark, palette),
         home: _Shell(settings: settings, diagnostics: diagnostics,
@@ -91,16 +91,17 @@ class VelaShuoApp extends StatelessWidget {
 }
 
 ThemeData _theme(Brightness brightness, VelaPalette palette) {
-  final t = palette.tokens(brightness);
+  final t = VelaThemeRuntime.oilPreview ? VelaThemeRuntime.active : palette.tokens(brightness);
+  final actualBrightness = VelaThemeRuntime.oilPreview ? Brightness.light : brightness;
   final scheme = ColorScheme.fromSeed(
-    seedColor: t.accent, brightness: brightness,
+    seedColor: t.accent, brightness: actualBrightness,
     primary: t.accent, secondary: t.accentSoft, surface: t.background);
   final shape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(16),
     side: BorderSide(color: t.line.withValues(alpha: .6)));
   return ThemeData(
     useMaterial3: true,
-    brightness: brightness,
+    brightness: actualBrightness,
     colorScheme: scheme,
     scaffoldBackgroundColor: t.background,
     fontFamily: 'Georgia',
@@ -116,13 +117,13 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
       bodySmall: TextStyle(color: t.muted, fontSize: 12),
     ),
     iconTheme: IconThemeData(color: t.accent, size: 21),
-    cardTheme: CardThemeData(elevation: 0,
-      color: t.surface.withValues(alpha: .79), shape: shape),
+    cardTheme: CardThemeData(elevation: VelaThemeRuntime.oilPreview ? 3 : 0,
+      color: t.surface.withValues(alpha: .96), shape: shape),
     listTileTheme: ListTileThemeData(
       iconColor: t.accent, textColor: t.text,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13))),
     inputDecorationTheme: InputDecorationTheme(
-      filled: true, fillColor: t.surface.withValues(alpha: .84),
+      filled: true, fillColor: t.raised.withValues(alpha: .96),
       hintStyle: TextStyle(color: t.muted),
       prefixIconColor: t.accent,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(15),
@@ -152,7 +153,22 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
       labelStyle: TextStyle(color: t.text)),
     dialogTheme: DialogThemeData(
       backgroundColor: t.surface,
+      elevation: VelaThemeRuntime.oilPreview ? 12 : 0,
       shape: shape),
+    popupMenuTheme: PopupMenuThemeData(
+      color: t.surface,
+      elevation: VelaThemeRuntime.oilPreview ? 12 : 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17),
+        side: BorderSide(color: t.line.withValues(alpha: .75)))),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: t.surface,
+      modalBackgroundColor: t.surface,
+      shape: RoundedRectangleBorder(borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(23)), side: BorderSide(color: t.line))),
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: t.surface,
+      contentTextStyle: TextStyle(color: t.text),
+      behavior: SnackBarBehavior.floating),
     dividerTheme: DividerThemeData(
       color: t.line.withValues(alpha: .56), thickness: .75),
   );
@@ -622,14 +638,10 @@ class _DesktopHome extends StatelessWidget {
             borderRadius: BorderRadius.circular(28),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
+              child: VelaWatercolorSurface(
                 key: const ValueKey('immersive_connection'),
+                radius: 28,
                 padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
-                decoration: BoxDecoration(
-                  color: _panel.withValues(alpha: .69),
-                  border: Border.all(color: _line.withValues(alpha: .65)),
-                  borderRadius: BorderRadius.circular(28),
-                ),
                 child: Row(children: [
                   Icon(Icons.circle, size: 9,
                     color: busy ? _blue : connected ? _mint : _muted),
@@ -700,18 +712,13 @@ class _VoyageRatePanel extends StatelessWidget {
       borderRadius: BorderRadius.circular(19),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
+        child: SizedBox(
           key: const ValueKey('voyage_speed_panel'),
           width: 283, height: 79,
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-          decoration: BoxDecoration(
-            color: _panel.withValues(
-              alpha: defaultTargetPlatform == TargetPlatform.android
-                  ? .50 : .72),
-            borderRadius: BorderRadius.circular(19),
-            border: Border.all(color: _line.withValues(alpha: .65)),
-          ),
-          child: Row(children: [
+          child: VelaWatercolorSurface(
+            radius: 19,
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+            child: Row(children: [
             Expanded(child: _VoyageRate(label: '风速 · 上传',
               icon: Icons.north_east_rounded,
               number: upload.$1, unit: upload.$2)),
@@ -721,7 +728,8 @@ class _VoyageRatePanel extends StatelessWidget {
             Expanded(child: _VoyageRate(label: '航速 · 下载',
               icon: Icons.south_west_rounded,
               number: download.$1, unit: download.$2)),
-          ]),
+            ]),
+          ),
         ),
       ),
     );
