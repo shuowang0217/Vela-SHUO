@@ -5,6 +5,7 @@ import '../network/vela_flclash_subscription_adapter.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../theme/vela_palettes.dart';
 import '../brand/vela_sail_mark.dart';
+import '../brand/vela_watercolor_chrome.dart';
 
 /// Compact sail-inspired import dialog, modeled after the approved reference:
 /// optional name, one URL, and an import action. The dialog closes ONLY after
@@ -87,12 +88,15 @@ class _VelaStellarImportDialogState extends State<VelaStellarImportDialog> {
     return Dialog(
       key: const ValueKey('stellar_import_dialog'),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      backgroundColor: t.surface,
+      backgroundColor: VelaThemeRuntime.oilPreview
+          ? Colors.transparent : t.surface,
       shape: RoundedRectangleBorder(
         side: BorderSide(color: t.line, width: 1),
         borderRadius: BorderRadius.circular(23),
       ),
-      child: ConstrainedBox(
+      child: VelaWatercolorSurface(
+        radius: 23, padding: EdgeInsets.zero,
+        child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 410),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 20, 22, 16),
@@ -204,6 +208,7 @@ class _VelaStellarImportDialogState extends State<VelaStellarImportDialog> {
             ]),
           ),
         ),
+      ),
       ),
     );
   }
