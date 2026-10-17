@@ -348,14 +348,14 @@ class _VelaWorldAtmosphereLoader {
     final ink = Paint()..color = Colors.black
         ..isAntiAlias = true;
     for (final raw in polygons) {
-      if (raw is! List || raw.length < 3) continue;
+      if (raw is! List || raw.length < 3) { continue; }
       final path = Path();
       double? previousLon;
       double unwrapped = 0;
       var first = true;
       for (final pair in raw) {
         if (pair is! List || pair.length < 2 ||
-            pair[0] is! num || pair[1] is! num) continue;
+            pair[0] is! num || pair[1] is! num) { continue; }
         final lon = (pair[0] as num).toDouble();
         final lat = (pair[1] as num).toDouble();
         unwrapped = previousLon == null ? lon :
@@ -713,7 +713,6 @@ class _WorldRoutePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final home = camera.project(VelaMaritimeRoute.shanghai);
     if (!connected) {
       _marker(canvas, camera.project(VelaWorldCamera.beijing),
         'China', const Color(0xFFE3B777), showLabel: true);
