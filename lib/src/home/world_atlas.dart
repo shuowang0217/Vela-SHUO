@@ -403,6 +403,9 @@ class _VelaAtlasWeatherState extends State<VelaAtlasWeather>
 
 /// Five asymmetric, watercolored cloud banks with deterministic per-cloud
 /// opacities, contours and varying left/right drift amplitudes.
+/// Dense, irregular hand-painted clouds with visibly solid centers.
+/// Unique cloud profiles, broken exterior pigment and brush strokes create
+/// authentic watercolor atmosphere without repeated oval stamps.
 @immutable
 class VelaAtlasWeatherPainter extends CustomPainter {
   const VelaAtlasWeatherPainter({
@@ -412,128 +415,179 @@ class VelaAtlasWeatherPainter extends CustomPainter {
   final bool dark;
   final double phase;
 
+  // The primary body must be legible on both blue and cream map regions.
+  // Each cloud has a different width, altitude, opacity and drift phase.
   static const clouds = <VelaCloudSpec>[
-    VelaCloudSpec(Offset(.17, .24), 1.12, .70, 96, 14, .00),
-    VelaCloudSpec(Offset(.42, .14), .86, .62, 75, 11, .17),
-    VelaCloudSpec(Offset(.77, .36), 1.27, .84, 106, 18, .09),
-    VelaCloudSpec(Offset(.27, .65), .96, .67, 87, 14, .41),
-    VelaCloudSpec(Offset(.62, .73), 1.17, .75, 93, 19, .65),
-    VelaCloudSpec(Offset(.88, .80), .79, .66, 79, 11, .81),
+    VelaCloudSpec(Offset(.18, .27), 1.06, .96, 91, 14, .00),
+    VelaCloudSpec(Offset(.44, .16), .90, .91, 75, 12, .17),
+    VelaCloudSpec(Offset(.77, .36), 1.25, .98, 105, 19, .09),
+    VelaCloudSpec(Offset(.28, .66), 1.02, .94, 86, 14, .41),
+    VelaCloudSpec(Offset(.64, .72), 1.15, .97, 96, 17, .65),
+    VelaCloudSpec(Offset(.88, .79), .83, .92, 80, 11, .81),
   ];
 
+  static final List<Path> _bodies =
+      List.generate(clouds.length, (i) => _cloudBody(i));
+  static final List<Path> _fragments =
+      List.generate(clouds.length, (i) => _brokenPigment(i));
+  static final List<Path> _brushwork =
+      List.generate(clouds.length, (i) => _brushStrokes(i));
+
+  // Picture recording happens only once per theme. Animated frames simply
+  // translate cached pictures: no shape generation or blur setup per tick.
+  static final List<ui.Picture> _dayArtwork =
+      List.generate(clouds.length, (i) => _recordCloud(i, false));
+  static final List<ui.Picture> _nightArtwork =
+      List.generate(clouds.length, (i) => _recordCloud(i, true));
+
+  static List<Rect> get cloudOutlineBounds =>
+      _bodies.map((p) => p.getBounds()).toList(growable: false);
+
   Offset cloudPosition(int index, Size size) {
-    final cloud = clouds[index];
-    final angle = (phase + cloud.seed) * math.pi * 2;
+    final spec = clouds[index];
+    final t = (phase + spec.seed) * math.pi * 2;
     return Offset(
-      cloud.anchor.dx * size.width + math.sin(angle) * cloud.driftX,
-      cloud.anchor.dy * size.height + math.cos(angle) * cloud.driftY,
+      size.width * spec.anchor.dx + math.sin(t) * spec.driftX,
+      size.height * spec.anchor.dy + math.cos(t) * spec.driftY,
     );
   }
 
-  // Each silhouette is generated once and differs in its wind-torn peaks,
-  // undersides and wispy edges; no regular oval or reused cloud stamp.
-  static final List<Path> _outlines =
-      List.generate(clouds.length, (i) => _outline(i));
-  static final List<Path> _wisps =
-      List.generate(clouds.length, (i) => _wispLines(i));
-
-  static List<Rect> get cloudOutlineBounds =>
-      _outlines.map((p) => p.getBounds()).toList(growable: false);
-
-  static Path _outline(int index) {
-    final seed = index * 1.39;
-    const steps = 48;
-    final path = Path();
-    for (var j = 0; j <= steps; j++) {
-      final t = j / steps;
-      final x = (t * 2 - 1) * 151;
-      final envelope = math.pow(math.sin(math.pi * t), .64).toDouble();
-      final peaks = 1 + .26 * math.sin(t * 7.2 * math.pi + seed) +
-          .16 * math.cos(t * 12.7 * math.pi + seed * 1.6) +
-          .08 * math.sin(t * 23.7 * math.pi + seed * 2.1);
-      final y = 8 - envelope *
-          (31 * peaks + 10 * math.sin(t * 3.1 * math.pi + seed * .7));
-      if (j == 0) { path.moveTo(x, y); }
-      else { path.lineTo(x, y); }
+  /// Separate seeded cloud contours. Width, height and billowing peaks vary
+  /// greatly; thin banks, lumpy cumulus and broken trails look different.
+  static Path _cloudBody(int index) {
+    const widths = <double>[152, 178, 143, 132, 163, 188];
+    const tops = <double>[66, 35, 91, 58, 77, 40];
+    const bottoms = <double>[27, 21, 37, 32, 29, 20];
+    final rand = math.Random(1807 + index * 131);
+    const steps = 22;
+    final top = <Offset>[];
+    final bottom = <Offset>[];
+    for (var i = 0; i <= steps; i++) {
+      final t = i / steps;
+      final envelope = math.pow(math.sin(math.pi * t), .54).toDouble();
+      final lobe = .60 + .86 * rand.nextDouble();
+      final curl = math.sin(t * math.pi * (4.1 + index * .67) +
+          index * .81) * 10;
+      top.add(Offset((t * 2 - 1) * widths[index],
+          11 - envelope * (tops[index] * lobe + curl)));
+      final lowerRuffle = (rand.nextDouble() - .5) * 15;
+      bottom.add(Offset((t * 2 - 1) * widths[index],
+          11 + envelope * (bottoms[index] + lowerRuffle)));
     }
-    for (var j = steps; j >= 0; j--) {
-      final t = j / steps;
-      final x = (t * 2 - 1) * 151;
-      final envelope = math.pow(math.sin(math.pi * t), .7).toDouble();
-      final y = 8 + envelope * (18 +
-          8 * math.sin(t * 8.3 * math.pi + seed * 1.4) +
-          4 * math.cos(t * 17.3 * math.pi + seed));
-      path.lineTo(x, y);
+    final path = Path()..moveTo(top.first.dx, top.first.dy);
+    for (var i = 1; i < top.length - 1; i++) {
+      final next = top[i + 1];
+      path.quadraticBezierTo(top[i].dx, top[i].dy,
+          (top[i].dx + next.dx) / 2, (top[i].dy + next.dy) / 2);
+    }
+    path.lineTo(top.last.dx, top.last.dy);
+    for (var i = bottom.length - 1; i > 0; i--) {
+      final prior = bottom[i - 1];
+      path.quadraticBezierTo(bottom[i].dx, bottom[i].dy,
+          (bottom[i].dx + prior.dx) / 2,
+          (bottom[i].dy + prior.dy) / 2);
     }
     return path..close();
   }
 
-  static Path _wispLines(int index) {
-    final result = Path();
-    final seed = index * 1.43;
-    for (var i = 0; i < 8; i++) {
-      final x = -116.0 + i * 30 + 8 * math.sin(seed + i * .77);
-      final y = -14 + math.sin(i * 1.34 + seed) * 18;
-      final length = 13 + (i % 3) * 9.0;
-      result.moveTo(x, y);
-      result.cubicTo(x + length * .2, y - 7,
-          x + length * .8, y + 5, x + length, y - 2);
+  /// Detached streaks and pigment fragments are deliberately not circles.
+  static Path _brokenPigment(int index) {
+    final random = math.Random(517 + index * 233);
+    final path = Path();
+    for (var i = 0; i < 15; i++) {
+      final x = (random.nextDouble() * 2 - 1) * (103 + index * 6);
+      final y = (random.nextDouble() * 2 - 1) * (33 + index * 3);
+      final w = 9 + random.nextDouble() * 31;
+      final h = 4 + random.nextDouble() * 13;
+      final skew = (random.nextDouble() - .5) * 11;
+      path.moveTo(x - w / 2, y);
+      path.quadraticBezierTo(x - w * .3, y - h,
+          x + skew, y - h * .68);
+      path.quadraticBezierTo(x + w * .52, y - h * .36,
+          x + w / 2, y + h * .21);
+      path.quadraticBezierTo(x + w * .08, y + h,
+          x - w / 2, y);
+      path.close();
     }
-    return result;
+    return path;
+  }
+
+  static Path _brushStrokes(int index) {
+    final random = math.Random(113 + index * 199);
+    final path = Path();
+    for (var i = 0; i < 13; i++) {
+      final x = (random.nextDouble() * 2 - 1) * 116;
+      final y = (random.nextDouble() * 2 - 1) * 26 - 2;
+      final length = 12 + random.nextDouble() * 27;
+      path.moveTo(x, y);
+      path.cubicTo(x + length * .2, y - 7,
+          x + length * .7, y + 4, x + length, y - 3);
+    }
+    return path;
+  }
+
+  static ui.Picture _recordCloud(int index, bool dark) {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final body = _bodies[index];
+    final opacity = clouds[index].alpha;
+    final shadow = dark
+        ? const Color(0xFF253F58) : const Color(0xFF3C7185);
+
+    canvas.save();
+    canvas.translate(6, 10);
+    canvas.drawPath(body, Paint()
+      ..color = shadow.withValues(alpha: opacity * .66)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9));
+    canvas.restore();
+
+    // Uneven translucent fringe surrounds a brighter, nearly solid body.
+    canvas.drawPath(_fragments[index], Paint()
+      ..color = (dark ? const Color(0xFFB2CADB) :
+          const Color(0xFFBCD4D7)).withValues(alpha: opacity * .58)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
+
+    // No blur on the main fill: that previously washed away the day clouds.
+    canvas.drawPath(body, Paint()
+      ..shader = ui.Gradient.linear(
+        const Offset(-130, -78), const Offset(135, 68), [
+          (dark ? const Color(0xFF92B3CC) :
+              const Color(0xFFB9D6D9)).withValues(alpha: opacity * .93),
+          (dark ? const Color(0xFFE1EEF8) :
+              const Color(0xFFFFFCF1)).withValues(alpha: opacity),
+          (dark ? const Color(0xFFB1CADB) :
+              const Color(0xFFE8F2E9)).withValues(alpha: opacity * .96),
+        ], [0, .46, 1],
+      ));
+
+    canvas.drawPath(_brushwork[index], Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 5.7
+      ..color = (dark ? const Color(0xFFF1F7FF) :
+          const Color(0xFFFFFFFF)).withValues(alpha: opacity * .83)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.1));
+    canvas.drawPath(body, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.35
+      ..color = shadow.withValues(alpha: opacity * .15)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2));
+    return recorder.endRecording();
   }
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
+    final factor = (size.width / 1400).clamp(.56, 1.21).toDouble();
+    final artworks = dark ? _nightArtwork : _dayArtwork;
     canvas.save();
     canvas.clipRect(Offset.zero & size);
-    final viewportScale = (size.width / 1400).clamp(.55, 1.16).toDouble();
     for (var i = 0; i < clouds.length; i++) {
-      final spec = clouds[i];
       final center = cloudPosition(i, size);
-      final breath = .91 + .09 *
-          math.sin(phase * math.pi * 2 + i * 1.33);
-      final a = spec.alpha * breath;
       canvas.save();
       canvas.translate(center.dx, center.dy);
-      canvas.scale(spec.size * viewportScale);
-      final path = _outlines[i];
-      final shadow = Paint()
-        ..color = (dark ? const Color(0xFF34516E)
-            : const Color(0xFF2D6D8B)).withValues(alpha: a * .42)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 11);
-      canvas.save();
-      canvas.translate(5, 8);
-      canvas.drawPath(path, shadow);
-      canvas.restore();
-      final wash = Paint()
-        ..shader = ui.Gradient.linear(
-          const Offset(-125, -49), const Offset(124, 54),
-          [
-            (dark ? const Color(0xFF82AEC5) :
-                const Color(0xFF96BAC6)).withValues(alpha: a * .71),
-            (dark ? const Color(0xFFE4F0FA) :
-                const Color(0xFFFCFBF3)).withValues(alpha: a * .94),
-            (dark ? const Color(0xFF95B6CF) :
-                const Color(0xFFB5D6DC)).withValues(alpha: a * .66),
-          ], [0, .44, 1],
-        )
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.5);
-      canvas.drawPath(path, wash);
-      // Broken pigment strokes provide paper-like edges and light-catching
-      // highlights, rather than a rigid continuous outline.
-      canvas.drawPath(_wisps[i], Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 6
-        ..color = const Color(0xFFFFFFFF).withValues(alpha: a * .42)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
-      canvas.drawPath(path, Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
-        ..color = (dark ? const Color(0xFFB6D5E8) :
-            const Color(0xFF477F97)).withValues(alpha: a * .15)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
+      canvas.scale(clouds[i].size * factor);
+      canvas.drawPicture(artworks[i]);
       canvas.restore();
     }
     canvas.restore();
