@@ -131,10 +131,11 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
               widget.androidVpn?.busy == true;
           return SingleChildScrollView(
             child: Center(child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1210),
+              constraints: const BoxConstraints(maxWidth: 885),
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                    narrow ? 16 : 26, 24, narrow ? 16 : 26, 26),
+                    narrow ? 16 : 25, narrow ? 24 : 77,
+                    narrow ? 16 : 25, narrow ? 28 : 105),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
@@ -237,7 +238,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     final selected = widget.subscription?.selected;
     final latency = selected == null ? null
         : widget.smart?.resultAt(widget.subscription!.selectedIndex!)?.lastMs;
-    final height = narrow ? 245.0 : 285.0;
+    final height = narrow ? 198.0 : 192.0;
     return StellarPanel(
       padding: EdgeInsets.zero,
       radius: 23,
@@ -252,7 +253,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
               stops: const [0, .40, 1],
             )),
           )),
-          Positioned(left: 20, top: 19, right: narrow ? 64 : 275,
+          Positioned(left: 20, top: 16, right: 20,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
@@ -273,9 +274,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                     ? '最近延迟  尚未测速'
                     : '最近延迟  $latency ms'),
                 const SizedBox(height: 13),
-                if (!narrow)
-                  Text('一帆越洋，尽览四方。',
-                      style: TextStyle(color: t.muted, letterSpacing: 2)),
+
               ],
             ),
           ),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rasterize the Vela navy / steel / champagne sail identity into native icons.
+"""Rasterize Vela ink-and-watercolor sail identity into native icons.
 
 Requires Pillow, which is installed only in the release CI image; Flutter's
 runtime mark is independently painted with lib/src/brand/vela_sail_mark.dart.
@@ -47,9 +47,9 @@ def gradient(top, bottom):
 
 def paths(layer: Image.Image, inactive=False):
     draw = ImageDraw.Draw(layer)
-    gold = (231, 186, 114, 255) if not inactive else (140, 158, 176, 255)
-    silver = (216, 237, 250, 255) if not inactive else (186, 205, 223, 255)
-    dark = (15, 50, 87, 255) if not inactive else (105, 126, 148, 255)
+    gold = (213, 172, 116, 255) if not inactive else (140, 158, 176, 255)
+    silver = (247, 241, 220, 255) if not inactive else (186, 205, 223, 255)
+    dark = (40, 86, 98, 255) if not inactive else (105, 126, 148, 255)
 
     # Open champagne compass arc.
     draw.arc((q(22), q(17), q(147), q(143)), start=191, end=261,
@@ -61,7 +61,7 @@ def paths(layer: Image.Image, inactive=False):
              + cubic((87, 96), (85, 59), (83, 31), (83, 12)))
     sail_mask = Image.new("L", (SIZE, SIZE), 0)
     ImageDraw.Draw(sail_mask).polygon(right, fill=255)
-    steel_gradient = gradient((12, 38, 75), (235, 190, 124))
+    steel_gradient = gradient((40, 86, 98), (232, 201, 149))
     layer.paste(steel_gradient, (0, 0), sail_mask)
     if inactive:
         layer.paste(dark, (0, 0), sail_mask)
@@ -89,7 +89,7 @@ def paths(layer: Image.Image, inactive=False):
 
 
 def render(inactive=False):
-    bg = gradient((10, 41, 75), (5, 17, 34))
+    bg = gradient((233, 241, 225), (131, 187, 197))
     mask = Image.new("L", (SIZE, SIZE))
     ImageDraw.Draw(mask).rounded_rectangle(
         (0, 0, SIZE - 1, SIZE - 1), radius=q(36), fill=255)

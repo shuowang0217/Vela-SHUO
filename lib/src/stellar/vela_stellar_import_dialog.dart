@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../network/vela_flclash_subscription_adapter.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../theme/vela_palettes.dart';
+import '../brand/vela_sail_mark.dart';
 
 /// Compact sail-inspired import dialog, modeled after the approved reference:
 /// optional name, one URL, and an import action. The dialog closes ONLY after
@@ -100,7 +101,7 @@ class _VelaStellarImportDialogState extends State<VelaStellarImportDialog> {
             child: Column(mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.sailing_rounded, color: t.accent, size: 26),
+                const VelaSailMark(size: 29),
                 const SizedBox(width: 10),
                 Expanded(child: Text('从 URL 导入',
                   style: TextStyle(color: t.text, fontSize: 21,

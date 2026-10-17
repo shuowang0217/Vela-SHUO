@@ -30,10 +30,10 @@ class VelaSailPainter extends CustomPainter {
     canvas.translate((size.width - 160 * ratio) / 2,
         (size.height - 160 * ratio) / 2);
     canvas.scale(ratio);
-    const navy = Color(0xFF0B294B);
-    const steel = Color(0xFF7294AE);
-    const pearl = Color(0xFFE7F5FF);
-    const gold = Color(0xFFE7BA72);
+    const navy = Color(0xFF285662);
+    const steel = Color(0xFF77A6AC);
+    const pearl = Color(0xFFF7F1DC);
+    const gold = Color(0xFFD5AC74);
     final muted = !active || monochrome;
     final primary = muted ? const Color(0xFF7890A6) : navy;
     final glow = muted ? const Color(0xFFADBAC5) : gold;
@@ -72,7 +72,7 @@ class VelaSailPainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topLeft, end: Alignment.bottomRight,
         colors: muted ? [primary, glow] :
-          [navy, const Color(0xFF4E789C), pearl],
+          [navy, const Color(0xFF638C97), pearl],
       ).createShader(const Rect.fromLTWH(35, 16, 55, 95)));
 
     // White negative-space curvature is a stable silhouette, not a glow.
@@ -106,6 +106,15 @@ class VelaSailPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..style = PaintingStyle.stroke);
 
+    // Soft ink outlines unite the vector mark with the watercolor atlas.
+    final ink = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeJoin = StrokeJoin.round
+      ..color = muted ? primary : navy.withValues(alpha: .78);
+    canvas.drawPath(outer, ink);
+    canvas.drawPath(inner, ink);
+    canvas.drawPath(hull, ink);
     // Navigation star: deliberately simple for 16 px tray displays.
     final star = Path()
       ..moveTo(135, 32)

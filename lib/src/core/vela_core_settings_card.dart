@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../theme/vela_palettes.dart';
+import '../brand/vela_watercolor_chrome.dart';
 import 'vela_core_controller.dart';
 import 'vela_connection_coordinator.dart';
 
@@ -27,14 +28,9 @@ class VelaCoreSettingsCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-          child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: theme.surface.withValues(alpha:
-               .50),
-          border: Border.all(color: theme.text.withValues(alpha: theme.dark ? .30 : .24)),
-          borderRadius: BorderRadius.circular(18),
-        ),
+          child: VelaWatercolorSurface(
+        padding: const EdgeInsets.all(17),
+        radius: 18,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(Icons.settings_ethernet_rounded, color: theme.accent),
