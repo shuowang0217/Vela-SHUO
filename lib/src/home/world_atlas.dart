@@ -411,6 +411,9 @@ class _VelaAtlasWeatherState extends State<VelaAtlasWeather>
       final result = await _VelaWorldAtmosphereLoader.load();
       if (!mounted || _disposed) return;
       setState(() => _assets = result);
+      // Shader loading is asynchronous: start the ticker immediately after
+      // the GPU resource arrives, even if no other widget state changes.
+      _syncMotion();
     } catch (_) {
       // An unsupported renderer still keeps the original artwork, route and
       // network controls usable. The shader never becomes a VPN dependency.
