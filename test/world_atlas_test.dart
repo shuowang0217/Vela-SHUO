@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
 import 'package:vela_shuo/src/home/maritime_route.dart';
+import 'package:vela_shuo/src/home/maritime_route.dart';
 
 void main() {
   test('wide map keeps China on screen and shows nearby continents', () {
@@ -133,5 +134,14 @@ void main() {
     // Real geographic calculations remain unchanged.
     expect(camera.project(const Offset(139.7, 35.7)).dx,
         closeTo(800, .001));
+  });
+
+  test('Beijing home port uses actual Beijing coordinates', () {
+    expect(VelaMaritimeRoute.homePort, VelaWorldCamera.beijing);
+    const camera = VelaWorldCamera(
+        size: Size(1200, 720), longitude: 116.4, latitude: 39.9);
+    final point = camera.projectArtwork(VelaMaritimeRoute.homePort);
+    expect(point.dx, inInclusiveRange(450, 650));
+    expect(point.dy, greaterThan(0));
   });
 }
