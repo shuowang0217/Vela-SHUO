@@ -1,8 +1,8 @@
-name: Vela v1.6.0 Stable Release
+name: Vela v1.6.0 Animated Atlas + Fast Download Preview
 
 on:
   push:
-    branches: [release/v1.6.0]
+    branches: [release/v1.6.0, feature/vela-animated-atlas-fast-download]
   workflow_dispatch:
 
 permissions:

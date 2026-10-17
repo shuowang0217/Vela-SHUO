@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/foundation.dart';
@@ -261,6 +262,8 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
                         Color(0x40F5F1E8)],
               ),
             ))),
+            // Weather repaints separately; the world texture stays cached.
+            VelaAtlasWeather(camera: camera, dark: dark),
             CustomPaint(painter: _WorldRoutePainter(
               camera: camera, from: _routeFrom, to: _routeTo,
               label: _destination?.mapLabel ?? 'WORLD',
@@ -272,6 +275,161 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
       ));
     });
   }
+}
+
+
+/// Soft, independent weather effects over the geographical watercolor atlas.
+/// Never reads image assets or touches VPN/network state on an animation tick.
+class VelaAtlasWeather extends StatefulWidget {
+  const VelaAtlasWeather({super.key, required this.camera, required this.dark});
+  final VelaWorldCamera camera;
+  final bool dark;
+  @override
+  State<VelaAtlasWeather> createState() => _VelaAtlasWeatherState();
+}
+
+class _VelaAtlasWeatherState extends State<VelaAtlasWeather>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final AnimationController _motion;
+  bool _backgrounded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _motion = AnimationController(vsync: this,
+        duration: const Duration(seconds: 96));
+  }
+
+  void _syncMotion() {
+    // Continuous animations must not make existing pumpAndSettle tests hang.
+    final inTest = Platform.environment['FLUTTER_TEST'] == 'true';
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (inTest || reduced || _backgrounded) {
+      _motion.stop();
+    } else if (!_motion.isAnimating) {
+      _motion.repeat();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncMotion();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _backgrounded = state != AppLifecycleState.resumed;
+    _syncMotion();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _motion.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: RepaintBoundary(
+      child: AnimatedBuilder(animation: _motion, builder: (context, _) =>
+        CustomPaint(
+          painter: VelaAtlasWeatherPainter(
+            camera: widget.camera, dark: widget.dark, phase: _motion.value),
+          child: const SizedBox.expand(),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Periodic cloud, sea-ripple and wind movement, without moving the atlas
+/// image or shifting geographic route markers.
+@immutable
+class VelaAtlasWeatherPainter extends CustomPainter {
+  const VelaAtlasWeatherPainter({
+    required this.camera, required this.dark, required this.phase,
+  });
+  final VelaWorldCamera camera;
+  final bool dark;
+  final double phase;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final theta = phase * math.pi * 2;
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    final waveInk = Paint()
+      ..color = (dark ? const Color(0xFFB6DDF5) : const Color(0xFFF7FFFF))
+          .withValues(alpha: dark ? .105 : .20)
+      ..strokeWidth = 1.15
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    // Sea highlights are attached to actual ocean coordinates.
+    for (final geo in const [
+      Offset(-144, 18), Offset(-117, -18), Offset(-36, -27),
+      Offset(72, -15), Offset(155, 5), Offset(175, -38),
+    ]) {
+      final center = camera.project(geo);
+      if (center.dx < -130 || center.dx > size.width + 130 ||
+          center.dy < -45 || center.dy > size.height + 45) continue;
+      for (var k = 0; k < 3; k++) {
+        final y = center.dy + k * 10.0;
+        final x = center.dx + math.sin(theta + k * .9 + geo.dx * .04) * 5;
+        final path = Path()
+          ..moveTo(x - 43, y)
+          ..quadraticBezierTo(x - 20, y - 3.8, x, y)
+          ..quadraticBezierTo(x + 21, y + 3.8, x + 43, y);
+        canvas.drawPath(path, waveInk);
+      }
+    }
+
+    final cloudInk = Paint()
+      ..color = (dark ? const Color(0xFFBCD4E6) : const Color(0xFFFFFFFF))
+          .withValues(alpha: dark ? .065 : .095)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 11);
+    for (var i = 0; i < 5; i++) {
+      final x = (i + .45) / 5 * size.width +
+          math.sin(theta + i * .92) * size.width * .075;
+      final y = size.height * (.18 + (i % 3) * .29) +
+          math.cos(theta + i) * 9;
+      final width = math.min(108.0, size.width * .24);
+      canvas.drawOval(Rect.fromCenter(
+          center: Offset(x, y), width: width, height: 20), cloudInk);
+      canvas.drawOval(Rect.fromCenter(
+          center: Offset(x - width * .19, y - 6),
+          width: width * .54, height: 23), cloudInk);
+    }
+
+    final windInk = Paint()
+      ..color = (dark ? const Color(0xFFABC6DC) : const Color(0xFFECFFFF))
+          .withValues(alpha: dark ? .14 : .23)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < 5; i++) {
+      final x = size.width * ((i + .2) / 5) +
+          math.sin(theta + i * 1.4) * 26;
+      final y = size.height * (.12 + .18 * i) +
+          math.cos(theta + i) * 8;
+      final path = Path()
+        ..moveTo(x - 34, y)
+        ..quadraticBezierTo(x, y - 11, x + 36, y - 2);
+      canvas.drawPath(path, windInk);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant VelaAtlasWeatherPainter old) =>
+      old.phase != phase || old.dark != dark ||
+      old.camera.size != camera.size ||
+      old.camera.longitude != camera.longitude ||
+      old.camera.latitude != camera.latitude ||
+      old.camera.portraitWidthScale != camera.portraitWidthScale;
 }
 
 /// Exactly the same artwork and georeferenced coordinates in both themes.
