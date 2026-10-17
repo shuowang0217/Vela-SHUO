@@ -254,9 +254,10 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
             // Oil reference beta: disable with VELA_OIL_PREVIEW=false.
             if (compactAndroid)
               ImageFiltered(
-                // Full-bleed soft watercolor beneath a smaller atlas avoids
-                // exposed black strips at the north/south edges.
-                imageFilter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                // The oil preview stays sharp on portrait Android.
+                imageFilter: ImageFilter.blur(
+                  sigmaX: VelaThemeRuntime.oilPreview ? 0 : 16,
+                  sigmaY: VelaThemeRuntime.oilPreview ? 0 : 16),
                 child: Stack(fit: StackFit.expand, children: [
                   _WorldTiles(camera: coverCamera,
                     asset: const bool.fromEnvironment('VELA_OIL_PREVIEW',
@@ -271,7 +272,8 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
                 ]),
               ),
             ShaderMask(
-              shaderCallback: (rect) => (compactAndroid
+              shaderCallback: (rect) => (compactAndroid &&
+                  !VelaThemeRuntime.oilPreview
                 ? const LinearGradient(
                     begin: Alignment.topCenter, end: Alignment.bottomCenter,
                     colors: [Colors.transparent, Colors.white,
