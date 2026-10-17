@@ -72,4 +72,14 @@ void main() {
     expect(source, isNot(contains('vec2 cities[')));
     expect(source, isNot(contains('vec2[4](')));
   });
+  test('alpha compositing uses premultiplied color and a low visual cap', () {
+    final source = File('shaders/vela_watercolor_atmosphere.frag')
+        .readAsStringSync();
+    // Previously ink / opacity sent straight RGB to a premultiplied GPU
+    // renderer, giving the entire wallpaper a glaring white wash.
+    expect(source, contains('fragColor = vec4(ink * scale, opacity);'));
+    expect(source, contains('float opacity = min(total, 0.16);'));
+    expect(source, isNot(contains('ink / opacity')));
+    expect(source, contains('(.17 + .83 * sea)'));
+  });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
@@ -97,5 +98,21 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 2300));
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+  test('hand-lettered labels are uppercase English and avoid vessel', () {
+    expect(VelaAtlasInk.englishLabel('东京 Tokyo-01'), 'TOKYO');
+    expect(VelaAtlasInk.englishLabel('终点'), 'DESTINATION');
+    expect(VelaAtlasInk.englishLabel('上海'), 'DESTINATION');
+    expect(VelaAtlasInk.family(TargetPlatform.windows), 'Segoe Print');
+    expect(VelaAtlasInk.family(TargetPlatform.android), 'casual');
+    const canvas = Size(390, 840);
+    const marker = Offset(190, 310);
+    final top = VelaAtlasInk.position(canvas, marker,
+        const Size(94, 25), above: true);
+    expect(top.dy, lessThan(marker.dy - 30));
+    expect(top.dx, greaterThan(marker.dx + 10));
+    final left = VelaAtlasInk.position(canvas, marker,
+        const Size(94, 25), toLeft: true);
+    expect(left.dx, lessThan(marker.dx - 90));
   });
 }

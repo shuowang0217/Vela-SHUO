@@ -95,6 +95,7 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
   String? _lastNode;
   bool _returning = false;
   bool _homebound = false;
+  String _originName = 'SHANGHAI';
 
   @override
   void initState() {
@@ -161,6 +162,14 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
         // The route starts at the current boat position if retargeted.
         _routeFrom = _destination == null
             ? VelaMaritimeRoute.shanghai : _currentBoatLocation;
+        final oldDestination = _destination;
+        final lastCity = oldDestination == null
+            ? null : Offset(oldDestination.longitude, oldDestination.latitude);
+        _originName = (_routeFrom - VelaMaritimeRoute.shanghai).distance < .75
+            ? 'SHANGHAI'
+            : lastCity != null && (_routeFrom - lastCity).distance < .75
+                ? VelaAtlasInk.englishLabel(oldDestination!.mapLabel)
+                : 'AT SEA';
         _routeTo = Offset(node.longitude, node.latitude);
         _destination = node;
         _sail.forward(from: 0);
@@ -271,7 +280,8 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
               connected: widget.demo.phase == VelaPhase.connected),
             CustomPaint(painter: _WorldRoutePainter(
               camera: camera, from: _routeFrom, to: _routeTo,
-              label: _destination?.mapLabel ?? 'WORLD',
+              label: _destination?.mapLabel ?? 'DESTINATION',
+              originLabel: _originName,
               progress: Curves.easeInOutCubic.transform(_sail.value),
               active: active, connected: widget.demo.phase == VelaPhase.connected,
               homebound: _homebound, dark: dark,
@@ -696,15 +706,64 @@ class _WorldTiles extends StatelessWidget {
   );
 }
 
+/// English cartographic hand-lettering, with no bundled font download.
+/// Segoe Print is built into Windows; Android's casual typeface is the
+/// handwritten platform family. Never fall back to Chinese point labels.
+class VelaAtlasInk {
+  const VelaAtlasInk._();
+
+  static String englishLabel(String input) {
+    final label = input.toUpperCase()
+        .replaceAll(RegExp(r'[^A-Z ]'), '').trim();
+    return label.isEmpty ? 'DESTINATION' : label;
+  }
+
+  static String family(TargetPlatform platform) => switch (platform) {
+    TargetPlatform.windows => 'Segoe Print',
+    TargetPlatform.android => 'casual',
+    TargetPlatform.iOS => 'Noteworthy',
+    TargetPlatform.macOS => 'Chalkduster',
+    TargetPlatform.linux => 'URW Chancery L',
+    TargetPlatform.fuchsia => 'casual',
+  };
+
+  static TextStyle labelStyle({required bool dark, bool compact = false,
+      bool mainLabel = false}) => TextStyle(
+    fontFamily: family(defaultTargetPlatform),
+    fontFamilyFallback: const ['Segoe Print', 'casual', 'Chalkduster'],
+    fontSize: compact ? 16 : (mainLabel ? 23 : 20),
+    height: 1.0,
+    letterSpacing: .45,
+    fontWeight: FontWeight.w600,
+    color: dark ? const Color(0xFFFFF1D6) : const Color(0xFF243D49),
+    shadows: [
+      Shadow(color: dark ? const Color(0xDF081A2B)
+          : const Color(0xEEFFFFF8), blurRadius: 8),
+    ],
+  );
+
+  static Offset position(Size viewport, Offset marker, Size labelSize,
+      {bool above = false, bool toLeft = false}) {
+    final dx = toLeft ? marker.dx - labelSize.width - 19
+        : marker.dx + (above ? 25 : 17);
+    final dy = marker.dy - (above ? 57 : 33);
+    return Offset(
+      dx.clamp(3.0, math.max(3.0, viewport.width - labelSize.width - 4)),
+      dy.clamp(3.0, math.max(3.0, viewport.height - labelSize.height - 4)),
+    );
+  }
+}
+
 class _WorldRoutePainter extends CustomPainter {
   const _WorldRoutePainter({required this.camera, required this.from,
-    required this.to, required this.label, required this.progress,
-    required this.active, required this.connected,
+    required this.to, required this.label, required this.originLabel,
+    required this.progress, required this.active, required this.connected,
     required this.homebound, required this.dark});
   final VelaWorldCamera camera;
   final Offset from;
   final Offset to;
   final String label;
+  final String originLabel;
   final double progress;
   final bool active;
   final bool connected;
@@ -715,7 +774,7 @@ class _WorldRoutePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (!connected) {
       _marker(canvas, camera.project(VelaWorldCamera.beijing),
-        'China', const Color(0xFFE3B777), showLabel: true);
+        'CHINA', const Color(0xFFE3B777), showLabel: true);
     }
     if (!active || (from - to).distance < .01) return;
     final route = VelaMaritimeRoute(from: from, to: to);
@@ -732,10 +791,13 @@ class _WorldRoutePainter extends CustomPainter {
       ..style = PaintingStyle.stroke ..strokeWidth = 4.0
       ..strokeCap = StrokeCap.round ..color = const Color(0xFFE6BB76));
     if (connected) {
-      _marker(canvas, camera.project(from), '起点',
-        const Color(0xFFE3B777), showLabel: true);
-      _marker(canvas, camera.projectAlong(from, to), '终点 · $label',
-        const Color(0xFF84D0FF), showLabel: true);
+      final origin = camera.project(from);
+      final destination = camera.projectAlong(from, to);
+      _marker(canvas, origin, VelaAtlasInk.englishLabel(originLabel),
+        const Color(0xFFE3B777), showLabel: true,
+        toLeft: (destination - origin).distance < 170);
+      _marker(canvas, destination, VelaAtlasInk.englishLabel(label),
+        const Color(0xFF84D0FF), showLabel: true, above: true);
     }
     final boat = geoProject(route.pointAt(progress));
     canvas.drawCircle(boat, 25, Paint()
@@ -748,7 +810,7 @@ class _WorldRoutePainter extends CustomPainter {
   }
 
   void _marker(Canvas canvas, Offset position, String label, Color color,
-      {required bool showLabel}) {
+      {required bool showLabel, bool above = false, bool toLeft = false}) {
     if (position.dx < -180 || position.dx > camera.size.width + 180 ||
         position.dy < -60 || position.dy > camera.size.height + 60) {
       return;
@@ -760,20 +822,17 @@ class _WorldRoutePainter extends CustomPainter {
       return;
     }
     final painter = TextPainter(
-      text: TextSpan(text: label, style: TextStyle(
-        color: dark ? const Color(0xFFEAF6FF) : const Color(0xFF163451),
-        fontSize: 15, letterSpacing: 1.0, fontWeight: FontWeight.w800,
-        shadows: const [Shadow(blurRadius: 5, color: Color(0xEEFFFFFF)),],
-      )),
+      text: TextSpan(
+        text: VelaAtlasInk.englishLabel(label),
+        style: VelaAtlasInk.labelStyle(
+          dark: dark, compact: camera.size.width < 540,
+          mainLabel: label == 'CHINA'),
+      ),
       textDirection: TextDirection.ltr,
       maxLines: 1,
     )..layout();
-    painter.paint(canvas, Offset(
-      (position.dx + 13).clamp(0.0,
-        math.max(0.0, camera.size.width - painter.width)),
-      (position.dy - 16).clamp(0.0,
-        math.max(0.0, camera.size.height - painter.height)),
-    ));
+    painter.paint(canvas, VelaAtlasInk.position(camera.size, position,
+        painter.size, above: above, toLeft: toLeft));
   }
 
   @override
@@ -782,6 +841,7 @@ class _WorldRoutePainter extends CustomPainter {
       old.camera.latitude != camera.latitude ||
       old.camera.size != camera.size || old.from != from ||
       old.to != to || old.label != label ||
+      old.originLabel != originLabel ||
       old.progress != progress || old.active != active ||
       old.connected != connected ||
       old.homebound != homebound || old.dark != dark;

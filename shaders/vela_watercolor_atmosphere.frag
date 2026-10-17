@@ -61,8 +61,10 @@ void main() {
   cloud += 0.12 * fbm3(cloudP * 2.32 - vec2(t * .0031, 0.0));
   // Transparent edges and a bright scattering centre: never opaque fog.
   float fog = smoothstep(0.49, .79, cloud);
-  fog *= (.20 + .09 * noise2(cloudP * 1.4));
-  fog *= uIntensity;
+  // Do not cover the map with fog. Prefer the offshore sea, allowing only
+  // a whisper of translucent mist over land silhouettes.
+  fog *= (.055 + .028 * noise2(cloudP * 1.4));
+  fog *= (.17 + .83 * sea) * uIntensity;
 
   // 12s watercolor pigment circulation inside the ocean coastline mask.
   float oceanAngle = 6.2831853 * mod(t, 12.0) / 12.0;
@@ -74,7 +76,9 @@ void main() {
   float glimmer = max(0.0, sin(salt.x * 1.3 +
       salt.y * 1.95 + pigment * 7.0 + sin(oceanAngle) * 2.2));
   glimmer = pow(glimmer, 8.0) * feather;
-  float seaWash = sea * (.062 + feather * .112 + glimmer * .08)
+  // Keep the original blue watercolor palette visible. Water movement is
+  // pigment, not a white/light cyan replacement for the base texture.
+  float seaWash = sea * (.010 + feather * .039 + glimmer * .022)
       * uIntensity;
 
   // Wind field is a quiet, soft ribbon of atmospheric motion rather than
@@ -88,7 +92,7 @@ void main() {
       sin(flow.x * .9 + t * .026) * 1.75 + eddy * 3.1);
   float ribbon = pow(max(0.0, contour), 14.0);
   ribbon *= smoothstep(.42, .82, noise2(flow * .42 + 3.1));
-  float breeze = sea * ribbon * windGate * .30 * uIntensity;
+  float breeze = sea * ribbon * windGate * .075 * uIntensity;
 
   // Thin coastal warmth is restricted to night, 15s low-frequency pulse.
   float warm = 0.0;
@@ -100,16 +104,19 @@ void main() {
     warm += coastalLight(mapUV, vec2(.889, .302));
     warm += coastalLight(mapUV, vec2(.788, .492));
     warm += coastalLight(mapUV, vec2(.295, .274));
-    warm = min(warm, 1.0) * (.055 + .057 * pulse);
+    warm = min(warm, 1.0) * (.015 + .035 * pulse);
   }
 
   vec3 cloudTint = mix(vec3(.98, .99, 1.0), vec3(.68, .78, .88), uNight);
   vec3 seaTint = mix(vec3(.28, .67, .74), vec3(.39, .73, .87), uNight);
   vec3 windTint = mix(vec3(.88, .98, 1.0), vec3(.65, .88, 1.0), uNight);
-  float opacity = clamp(fog + seaWash + breeze + warm, 0.0, .43);
+  float total = fog + seaWash + breeze + warm;
+  float opacity = min(total, 0.16);
   vec3 ink = cloudTint * fog + seaTint * seaWash +
       windTint * breeze + vec3(1.0, .81, .52) * warm;
-  // Paint is non-premultiplied in shader output.
-  vec3 color = opacity > .0001 ? ink / opacity : vec3(0.0);
-  fragColor = vec4(color, opacity);
+  // Flutter's Skia and Impeller fragment shaders require PREMULTIPLIED
+  // color. Dividing RGB by alpha caused the prior build's whiteout.
+  // Scale RGB down with alpha if several effects coincide.
+  float scale = total > .0001 ? opacity / total : 0.0;
+  fragColor = vec4(ink * scale, opacity);
 }
