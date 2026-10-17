@@ -125,7 +125,7 @@ class _VelaStellarImportDialogState extends State<VelaStellarImportDialog> {
                 maxLength: 64,
                 decoration: InputDecoration(
                   labelText: '名称（可选）',
-                  hintText: '为这条航线取个名字',
+                  hintText: '留空使用机场自带名称',
                   prefixIcon: const Icon(Icons.edit_outlined, size: 19),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(13)),

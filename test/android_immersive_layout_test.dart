@@ -16,7 +16,7 @@ void main() {
     await tester.pump();
     expect(find.byType(VelaWorldAtlas), findsOneWidget);
     expect(find.text('VELA'), findsOneWidget);
-    expect(find.text('— SHUO —'), findsOneWidget);
+    expect(find.text('— SHUO —'), findsNothing);
     expect(find.text('风速 · 上传'), findsOneWidget);
     expect(find.text('航速 · 下载'), findsOneWidget);
     expect(find.byKey(const ValueKey('mobile_connect_button')), findsOneWidget);

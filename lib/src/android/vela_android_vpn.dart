@@ -20,6 +20,9 @@ class VelaAndroidVpnController extends ChangeNotifier {
 
   final MethodChannel _channel;
   VelaAndroidVpnPhase _phase = VelaAndroidVpnPhase.disconnected;
+  Stopwatch? _connectedWatch;
+  Timer? _durationTicker;
+  Duration? get connectedDuration => connected ? _connectedWatch?.elapsed : null;
   String? _error;
   bool _disposed = false;
 
@@ -39,6 +42,20 @@ class VelaAndroidVpnController extends ChangeNotifier {
 
   void _setPhase(VelaAndroidVpnPhase next, [String? error]) {
     if (_disposed) return;
+    if (_phase != next) {
+      if (next == VelaAndroidVpnPhase.connected) {
+        _connectedWatch = Stopwatch()..start();
+        _durationTicker?.cancel();
+        _durationTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (!_disposed && connected) notifyListeners();
+        });
+      } else {
+        _durationTicker?.cancel();
+        _durationTicker = null;
+        _connectedWatch?.stop();
+        _connectedWatch = null;
+      }
+    }
     _phase = next;
     _error = error;
     notifyListeners();
@@ -195,6 +212,8 @@ class VelaAndroidVpnController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _durationTicker?.cancel();
+    _durationTicker = null;
     _channel.setMethodCallHandler(null);
     super.dispose();
   }

@@ -292,6 +292,33 @@ void main() {
     }
   });
 
+  test('download-only sweep keeps latency readings and native IPC serial', () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 6);
+    final delays = _BatchProbe();
+    final speed = _SingleFlightDownloadProbe();
+    final smart = VelaSmartController(core: core, subscription: sub,
+      connection: link, probe: delays, downloadProbe: speed);
+    try {
+      await smart.testAllLatencies();
+      expect(delays.calls, 1);
+      final previous = smart.resultAt(0)?.lastMs;
+      await smart.testAllDownloads();
+      expect(smart.scanKind, 'download');
+      expect(delays.calls, 1); // no URLTest on download button
+      expect(smart.resultAt(0)?.lastMs, previous);
+      expect(speed.maxActive, 1);
+      expect(smart.downloadsTested, 6);
+      expect(smart.downloadsSuccessful, 6);
+      await smart.testAllLatencies();
+      expect(delays.calls, 2);
+      expect(smart.downloadsTested, 6); // no clearing download cache
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
   test('all-node native downloads use the working single-node path '
       'without overlapping RPCs', () async {
     final (folder, core, sub, proxy, link) = await setup(count: 6);

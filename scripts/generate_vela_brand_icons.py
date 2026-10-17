@@ -99,6 +99,13 @@ def render(inactive=False):
     # Internal spacing prevents tiny-system-icon cropping.
     art = art.resize((q(137), q(137)), Image.Resampling.LANCZOS)
     bg.alpha_composite(art, (q(11.5), q(11.5)))
+    if inactive:
+        # Off state must be genuinely achromatic. The old off icon still had
+        # blue-green gradient and was almost indistinguishable in the tray.
+        alpha = bg.getchannel("A")
+        gray = ImageOps.grayscale(bg.convert("RGB")).convert("RGBA")
+        gray.putalpha(alpha)
+        return gray
     return bg
 
 

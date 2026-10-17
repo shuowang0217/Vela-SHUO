@@ -24,6 +24,9 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   final VelaSubscriptionController subscription;
   final VelaSystemProxyManager proxy;
   VelaRealPhase _phase = VelaRealPhase.idle;
+  Stopwatch? _connectedWatch;
+  Timer? _durationTicker;
+  Duration? get connectedDuration => connected ? _connectedWatch?.elapsed : null;
   String? _error;
   bool _closed = false;
   bool _handlingExit = false;
@@ -69,6 +72,20 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   };
 
   void _emit(VelaRealPhase next, [String? error]) {
+    if (_phase != next) {
+      if (next == VelaRealPhase.connected) {
+        _connectedWatch = Stopwatch()..start();
+        _durationTicker?.cancel();
+        _durationTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (!_closed && connected) notifyListeners();
+        });
+      } else {
+        _durationTicker?.cancel();
+        _durationTicker = null;
+        _connectedWatch?.stop();
+        _connectedWatch = null;
+      }
+    }
     _phase = next;
     _error = error;
     if (!_closed) notifyListeners();
@@ -268,6 +285,8 @@ class VelaConnectionCoordinator extends ChangeNotifier {
   @override
   void dispose() {
     _closed = true;
+    _durationTicker?.cancel();
+    _durationTicker = null;
     core.removeListener(_onCore);
     super.dispose();
   }

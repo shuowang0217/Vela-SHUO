@@ -24,7 +24,7 @@ class VelaWindowsTrayController with TrayListener {
     if (!Platform.isWindows || _initialized) return;
     try {
       await trayManager.setIcon(_offIcon);
-      await trayManager.setToolTip('Vela v1.3.0 · 代理已关闭');
+      await trayManager.setToolTip('Vela');
       trayManager.addListener(this);
       _initialized = true;
       exitGuard.hideToTray = hideWindow;
@@ -71,9 +71,7 @@ class VelaWindowsTrayController with TrayListener {
       _lastConnected = active;
       await trayManager.setIcon(active ? _onIcon : _offIcon);
     }
-    await trayManager.setToolTip(active
-        ? 'Vela v1.3.0 · 系统代理已开启'
-        : 'Vela v1.3.0 · 系统代理已关闭');
+    await trayManager.setToolTip('Vela');
     await trayManager.setContextMenu(Menu(items: [
       MenuItem(key: 'open', label: '显示主窗口'),
       MenuItem.separator(),

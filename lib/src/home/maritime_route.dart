@@ -53,22 +53,39 @@ class VelaMaritimeRoute {
   static double _shortestDelta(double a, double b) =>
       (b - a + 540) % 360 - 180;
 
+  /// Rounded geographic sailing corridor. Chaikin corner cutting converges
+  /// to a continuous quadratic B-spline, avoiding the occasional cusp that a
+  /// Catmull-Rom spline can produce at unevenly spaced ocean waypoints.
   List<Offset> get samples {
-    final points = waypoints;
+    final raw = waypoints;
+    if (raw.length < 2) return raw;
+    var points = <Offset>[raw.first];
+    // Unwrap the international date line before geometry operations.
+    for (var i = 1; i < raw.length; i++) {
+      points.add(Offset(points.last.dx +
+          _shortestDelta(raw[i - 1].dx, raw[i].dx), raw[i].dy));
+    }
+    // Do not mutate the stored, real-world geographic guidance waypoints.
+    // Five iterations remove harsh joints but retain the sea lane's shape.
+    for (var pass = 0; pass < 5; pass++) {
+      final smooth = <Offset>[points.first];
+      for (var i = 0; i < points.length - 1; i++) {
+        final a = points[i];
+        final b = points[i + 1];
+        smooth.add(a * .75 + b * .25);
+        smooth.add(a * .25 + b * .75);
+      }
+      smooth.add(points.last);
+      points = smooth;
+    }
     final output = <Offset>[points.first];
     for (var i = 1; i < points.length; i++) {
       final a = points[i - 1];
       final b = points[i];
-      final delta = _shortestDelta(a.dx, b.dx);
-      final distance = math.sqrt(delta * delta +
-          (b.dy - a.dy) * (b.dy - a.dy));
-      final count = math.max(3, (distance / 2.5).ceil());
+      final count = math.max(1, ((b - a).distance / .65).ceil());
       for (var n = 1; n <= count; n++) {
-        final t = n / count;
-        // On a short leg, longitude and latitude can be smoothly interpolated
-        // without the exaggerated curve of a Bézier in screen coordinates.
-        output.add(Offset(a.dx + delta * t,
-            a.dy + (b.dy - a.dy) * t));
+        final p = Offset.lerp(a, b, n / count)!;
+        output.add(Offset(p.dx, p.dy.clamp(-85.0, 85.0).toDouble()));
       }
     }
     return output;

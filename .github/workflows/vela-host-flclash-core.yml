@@ -1,8 +1,8 @@
-name: Vela v1.5.0 Stable
+name: Vela v1.6.0 Stable Release
 
 on:
   push:
-    branches: [release/v1.5.0]
+    branches: [release/v1.6.0]
   workflow_dispatch:
 
 permissions:
@@ -161,6 +161,9 @@ jobs:
           }
       - name: Bundle engine into Vela native core location
         shell: pwsh
+        env:
+          VELA_WINDOWS_CODESIGN_PFX_B64: ${{ secrets.VELA_WINDOWS_CODESIGN_PFX_B64 }}
+          VELA_WINDOWS_CODESIGN_PASSWORD: ${{ secrets.VELA_WINDOWS_CODESIGN_PASSWORD }}
         run: |
           $release = Get-ChildItem 'vela/build/windows' -Directory -Recurse |
             Where-Object { $_.Name -eq 'Release' -and
@@ -180,16 +183,20 @@ jobs:
           }
           Copy-Item 'flclash/core/Clash.Meta/LICENSE' (Join-Path $coreDir 'LICENSE-mihomo.txt')
           Copy-Item 'flclash/LICENSE' (Join-Path $coreDir 'LICENSE-FlClash-GPL-3.0.txt')
-          $target = 'vela/Vela-v1.5.0-Windows-x64.zip'
+          # Only a publisher-verified cert removes "Unknown publisher".
+          # If secrets are absent we ship an explicitly unsigned test build.
+          & 'vela/scripts/sign_vela_windows.ps1' -ReleaseDirectory $release.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Trusted Windows signing failed' }
+          $target = 'vela/Vela-v1.6.0-Windows-x64.zip'
           Compress-Archive -Path (Join-Path $release.FullName '*') -DestinationPath $target
           $sha = (Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$sha  Vela-v1.5.0-Windows-x64.zip" |
+          "$sha  Vela-v1.6.0-Windows-x64.zip" |
             Set-Content 'vela/SHA256-Windows.txt'
       - uses: actions/upload-artifact@v4
         with:
-          name: Vela-v1.5.0-Windows-x64
+          name: Vela-v1.6.0-Windows-x64
           path: |
-            vela/Vela-v1.5.0-Windows-x64.zip
+            vela/Vela-v1.6.0-Windows-x64.zip
             vela/SHA256-Windows.txt
           if-no-files-found: error
           retention-days: 14
@@ -291,7 +298,7 @@ jobs:
           grep -q 'home: _Shell(settings: settings' lib/src/app.dart
           grep -q 'import com.follow.clash.core.Core' android/app/src/main/kotlin/com/shuowang/vela_shuo/VelaVpnService.kt
           flutter pub get
-      - name: Build permanently signed Vela 1.5.0 with FlClash Go VPN
+      - name: Build permanently signed Vela 1.6.0 with FlClash Go VPN
         working-directory: vela
         shell: bash
         env:
@@ -307,10 +314,10 @@ jobs:
           test -s android/app/vela-release.jks
           flutter build apk --release --target-platform android-arm64
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk dist/Vela-v1.5.0-Android-arm64.apk
-          unzip -l dist/Vela-v1.5.0-Android-arm64.apk | grep 'lib/arm64-v8a/libcore.so'
-          unzip -l dist/Vela-v1.5.0-Android-arm64.apk | grep 'lib/arm64-v8a/libclash.so'
-          if unzip -l dist/Vela-v1.5.0-Android-arm64.apk | grep -q libmihomo-jni.so; then
+          cp build/app/outputs/flutter-apk/app-release.apk dist/Vela-v1.6.0-Android-arm64.apk
+          unzip -l dist/Vela-v1.6.0-Android-arm64.apk | grep 'lib/arm64-v8a/libcore.so'
+          unzip -l dist/Vela-v1.6.0-Android-arm64.apk | grep 'lib/arm64-v8a/libclash.so'
+          if unzip -l dist/Vela-v1.6.0-Android-arm64.apk | grep -q libmihomo-jni.so; then
             echo 'Unexpected legacy native core included' >&2
             exit 1
           fi
@@ -321,27 +328,27 @@ jobs:
           # The Python helper verifies the APK cryptographically and checks the
           # signer SHA-256 before the package can reach any release artifact.
           python3 scripts/finalize_android_signing.py \
-            --apk dist/Vela-v1.5.0-Android-arm64.apk \
+            --apk dist/Vela-v1.6.0-Android-arm64.apk \
             --keystore android/app/vela-release.jks \
             --apksigner "$signer"
           rm -f android/app/vela-release.jks
           # Confirm the app identity and monotonically increasing versionCode.
           aapt="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
           test -x "$aapt"
-          "$aapt" dump badging dist/Vela-v1.5.0-Android-arm64.apk |
-            grep -q "^package: name='com.shuowang.vela' versionCode='23' versionName='1.5.0'"
-          sha256sum dist/Vela-v1.5.0-Android-arm64.apk | sed 's#  dist/#  #' > dist/SHA256-Android.txt
+          "$aapt" dump badging dist/Vela-v1.6.0-Android-arm64.apk |
+            grep -q "^package: name='com.shuowang.vela' versionCode='27' versionName='1.6.0'"
+          sha256sum dist/Vela-v1.6.0-Android-arm64.apk | sed 's#  dist/#  #' > dist/SHA256-Android.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Vela-v1.5.0-Android-arm64
+          name: Vela-v1.6.0-Android-arm64
           path: vela/dist/*
           if-no-files-found: error
           retention-days: 14
 
 
   publish:
-    name: Publish verified Vela v1.5.0 stable release
-    if: github.ref == 'refs/heads/release/v1.5.0'
+    name: Publish verified Vela v1.6.0 stable release
+    if: github.ref == 'refs/heads/release/v1.6.0'
     needs: [vela-ui, windows, android]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -351,41 +358,41 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: Vela-v1.5.0-Windows-x64
+          name: Vela-v1.6.0-Windows-x64
           path: release/windows
       - uses: actions/download-artifact@v4
         with:
-          name: Vela-v1.5.0-Android-arm64
+          name: Vela-v1.6.0-Android-arm64
           path: release/android
       - name: Verify version, SHA-256 checksums and installers
         shell: bash
         run: |
           set -euo pipefail
-          grep -qx 'version: 1.5.0+23' pubspec.yaml
+          grep -qx 'version: 1.6.0+27' pubspec.yaml
           (cd release/windows && sha256sum -c SHA256-Windows.txt)
           # Compatible with the pre-release build layout as well.
           sed -i 's#  dist/#  #' release/android/SHA256-Android.txt
           (cd release/android && sha256sum -c SHA256-Android.txt)
-          unzip -t release/windows/Vela-v1.5.0-Windows-x64.zip >/dev/null
-          unzip -l release/windows/Vela-v1.5.0-Windows-x64.zip | grep -q 'Vela.exe'
-          unzip -t release/android/Vela-v1.5.0-Android-arm64.apk >/dev/null
-          unzip -l release/android/Vela-v1.5.0-Android-arm64.apk | grep -q 'lib/arm64-v8a/libclash.so'
-      - name: Publish GitHub Release v1.5.0 with verified Windows and Android assets
+          unzip -t release/windows/Vela-v1.6.0-Windows-x64.zip >/dev/null
+          unzip -l release/windows/Vela-v1.6.0-Windows-x64.zip | grep -q 'Vela.exe'
+          unzip -t release/android/Vela-v1.6.0-Android-arm64.apk >/dev/null
+          unzip -l release/android/Vela-v1.6.0-Android-arm64.apk | grep -q 'lib/arm64-v8a/libclash.so'
+      - name: Publish GitHub Release v1.6.0 with verified Windows and Android assets
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          if gh release view v1.5.0 >/dev/null 2>&1; then
-            echo "Release v1.5.0 already exists; refuse to replace frozen artifacts" >&2
+          if gh release view v1.6.0 >/dev/null 2>&1; then
+            echo "Release v1.6.0 already exists; refuse to replace frozen artifacts" >&2
             exit 1
           fi
-          gh release create v1.5.0 \
-            release/windows/Vela-v1.5.0-Windows-x64.zip \
-            release/android/Vela-v1.5.0-Android-arm64.apk \
+          gh release create v1.6.0 \
+            release/windows/Vela-v1.6.0-Windows-x64.zip \
+            release/android/Vela-v1.6.0-Android-arm64.apk \
             release/windows/SHA256-Windows.txt \
             release/android/SHA256-Android.txt \
             --target "$GITHUB_SHA" \
-            --title "Vela 1.5.0" \
-            --notes-file docs/RELEASE_v1.5.0.md \
+            --title "Vela 1.6.0" \
+            --notes-file docs/RELEASE_v1.6.0.md \
             --latest

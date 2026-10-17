@@ -207,6 +207,7 @@ class VelaSmartController extends ChangeNotifier {
   bool _scanning = false;
   bool _cancelRequested = false;
   bool _allNodesScan = false;
+  String _scanKind = 'latency'; // latency, download, combined
   bool _disposed = false;
   bool _autoPickWhenIdle = false;
   Timer? _periodicTimer;
@@ -245,6 +246,7 @@ class VelaSmartController extends ChangeNotifier {
   bool get scanning => _scanning;
   bool get cancelling => _cancelRequested && _scanning;
   bool get allNodesScan => _allNodesScan;
+  String get scanKind => _scanKind;
   bool get autoPickWhenIdle => _autoPickWhenIdle;
   int get scanned => _finished;
   int get total => _total;
@@ -464,10 +466,64 @@ class VelaSmartController extends ChangeNotifier {
   Future<void> testAllLatencies() async {
     if (!canTestAll) return;
     _results.clear();
-    _downloads.clear();
+    // Re-testing latency does not erase previous independent download results.
     _cursor = 0;
     final indices = List<int>.generate(count, (i) => i);
     await _runScan(indices, all: true, latencyOnly: true);
+  }
+
+  /// Separate download-only action. Never triggers URLTest or changes existing
+  /// latency readings; one download at a time to respect native IPC limits.
+  Future<void> testAllDownloads() async {
+    if (!canTestAll || _downloadProbe == null) return;
+    _downloads.clear();
+    _scanning = true;
+    _cancelRequested = false;
+    _allNodesScan = true;
+    _scanKind = 'download';
+    final run = ++_generation;
+    final nodes = subscription.nodes;
+    final totalNodes = nodes.length;
+    _finished = 0;
+    _total = totalNodes;
+    _successful = 0;
+    _failed = 0;
+    _status = '独立下载测速：逐节点测试；不会重测延迟…';
+    _emit();
+    var next = 0;
+    Future<void> worker() async {
+      while (!_disposed && !_cancelRequested && run == _generation) {
+        if (next >= totalNodes) return;
+        final index = next++;
+        VelaDownloadSample sample;
+        try {
+          sample = await _downloadProbe.measureDownload(nodes[index]);
+        } catch (_) {
+          sample = const VelaDownloadSample(ok: false, reason: 'transport_error');
+        }
+        if (_disposed || _cancelRequested || run != _generation) return;
+        _downloads[index] = sample;
+        if (sample.ok) { _successful++; } else { _failed++; }
+        _finished++;
+        _emit();
+      }
+    }
+    try {
+      await worker();
+    } finally {
+      if (!_disposed) {
+        final cancelled = _cancelRequested || run != _generation;
+        if (!cancelled) {
+          _lastScan = _clock();
+          _status = '下载测速完成：成功 $_successful，失败 $_failed，共 $_total 个。';
+        } else if (run == _generation) {
+          _status = '下载测速已停止：已测 $_finished / $_total。';
+        }
+        _scanning = false;
+        _cancelRequested = false;
+        _emit();
+      }
+    }
   }
 
   /// The original manual 8-at-a-time tool remains available when idle.
@@ -501,6 +557,7 @@ class VelaSmartController extends ChangeNotifier {
     _scanning = true;
     _cancelRequested = false;
     _allNodesScan = all;
+    _scanKind = latencyOnly ? 'latency' : 'combined';
     final run = ++_generation;
     final nodes = subscription.nodes; // stable snapshot for this scan
     // Automatic rounds are capped at ~50 MiB of download samples.

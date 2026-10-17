@@ -48,10 +48,7 @@ class VelaVpnService : VpnService() {
             val display = name.trim().take(64).ifEmpty { "Vela" }
             context.getSharedPreferences(AIRPORT_PREFS, Context.MODE_PRIVATE)
                 .edit().putString(AIRPORT_KEY, display).apply()
-            if (VelaVpnState.state != "connected" &&
-                VelaVpnState.state != "connecting") {
-                showIdleNotification(context)
-            }
+
         }
 
         private fun notificationManager(context: Context): NotificationManager {
@@ -86,18 +83,7 @@ class VelaVpnService : VpnService() {
             return builder.build()
         }
 
-        fun showIdleNotification(context: Context, afterStop: Boolean = false) {
-            if (!afterStop && (VelaVpnState.state == "connecting" ||
-                VelaVpnState.state == "connected" ||
-                VelaVpnState.state == "preparing")) return
-            if (Build.VERSION.SDK_INT >= 33 &&
-                context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                    != android.content.pm.PackageManager.PERMISSION_GRANTED) return
-            val manager = notificationManager(context)
-            if (!manager.areNotificationsEnabled()) return
-            manager.notify(NOTIFICATION_ID,
-                statusNotification(context, "0 B/s", "0 B/s", ongoing = false))
-        }
+
     }
 
     private val generation = AtomicInteger(0)
@@ -383,8 +369,9 @@ class VelaVpnService : VpnService() {
         File(cacheDir, "vela-vpn/config.yaml").delete()
         if (!failed) VelaVpnState.report("disconnected")
         stopForeground(STOP_FOREGROUND_REMOVE)
-        // Keep the app-opened idle card; never leave stale VPN speeds on it.
-        showIdleNotification(this, afterStop = true)
+        // On disconnect remove the notification completely.
+        getSystemService(NotificationManager::class.java)
+            .cancel(NOTIFICATION_ID)
     }
 
     override fun onRevoke() {

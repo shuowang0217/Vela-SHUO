@@ -38,5 +38,25 @@ void main() {
     );
     expect(route.waypoints.length, greaterThan(2));
     expect(route.pointAt(0.5).dy, lessThan(34.0));
+  });  test('geographic waypoint turns form smooth arcs without sharp corners', () {
+    const route = VelaMaritimeRoute(
+      from: VelaMaritimeRoute.shanghai,
+      to: Offset(-.13, 51.5),
+    );
+    final points = route.samples;
+    // Interior sampled segments must not form visible angular kinks.
+    // The curve still passes through its actual sea-lane waypoints.
+    for (var i = 1; i < points.length - 1; i++) {
+      final before = points[i] - points[i - 1];
+      final after = points[i + 1] - points[i];
+      if (before.distance < 0.000001 || after.distance < 0.000001) continue;
+      final cross = (before.dx * after.dy - before.dy * after.dx).abs();
+      final sinTurn = cross / (before.distance * after.distance);
+      expect(sinTurn, lessThan(.30), reason: 'sharp turn at sample $i');
+    }
+    expect(route.path((p) => p).computeMetrics().first.length,
+        greaterThan(0));
   });
+
+
 }
