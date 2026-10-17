@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../brand/vela_glass_toast.dart';
 
 import '../android/vela_android_vpn.dart';
 import '../core/vela_connection_coordinator.dart';
@@ -88,8 +89,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
 
   void _notify(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)));
+    VelaGlassToast.show(context, message);
   }
 
   Future<void> _refresh({String? profileId}) async {

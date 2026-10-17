@@ -59,4 +59,19 @@ void main() {
   });
 
 
+
+  test('Beijing visual home port reaches Japan via Bohai and Yellow Sea', () {
+    expect(VelaMaritimeRoute.homePort, const Offset(116.4, 39.9));
+    const route = VelaMaritimeRoute(
+      from: VelaMaritimeRoute.homePort,
+      to: Offset(139.7, 35.7));
+    expect(route.waypoints.first, VelaMaritimeRoute.homePort);
+    expect(route.waypoints.last, const Offset(139.7, 35.7));
+    expect(route.waypoints.any((p) =>
+        p.dx > 119 && p.dx < 125 && p.dy > 36 && p.dy < 39), true);
+    expect(route.waypoints.any((p) =>
+        p.dx > 125 && p.dx < 131 && p.dy < 36), true);
+    expect(route.pointAt(0), VelaMaritimeRoute.homePort);
+    expect(route.samples.length, greaterThan(20));
+  });
 }

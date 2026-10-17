@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../brand/vela_glass_toast.dart';
 
 import '../android/vela_android_vpn.dart';
 import '../core/vela_connection_coordinator.dart';
@@ -80,8 +81,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     } else {
       final message = vpn?.error ?? conn?.error ??
           sub.error ?? '航线服务未确认节点选择';
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)));
+      VelaGlassToast.show(context, message);
     }
   }
 
@@ -321,8 +321,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     final sub = widget.subscription;
     if (sub is VelaFlClashSubscriptionController &&
         !sub.selectRoutingGroup(label)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('FlClash 核心未找到当前策略组')));
+      VelaGlassToast.show(context, 'FlClash 核心未找到当前策略组');
       return;
     }
     // Group navigation never changes Mihomo route mode or selected outbound.
@@ -335,8 +334,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     final ok = await sub.selectGroupMember(name);
     if (!mounted) return;
     if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(sub.error ?? '下级策略组未被核心确认')));
+      VelaGlassToast.show(context, sub.error ?? '下级策略组未被核心确认');
     }
   }
 

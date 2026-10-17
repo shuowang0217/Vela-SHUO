@@ -11,12 +11,23 @@ class VelaMaritimeRoute {
   final Offset to;
 
   static const shanghai = Offset(121.47, 31.23);
+  // Beijing is the visual route origin, though inland. The drawn voyage
+  // heads towards the Tianjin shoreline before entering the Bohai Sea.
+  static const homePort = Offset(116.40, 39.90);
 
   List<Offset> get waypoints {
     final east = _shortestDelta(from.dx, to.dx) > 0;
     final result = <Offset>[from];
     final asia = from.dx > 95 && from.dx < 151;
-    if (asia && to.dx > 127 && to.dx < 155 && to.dy > 22) {
+    if ((from - homePort).distance < 1.5 &&
+        to.dx > 127 && to.dx < 155 && to.dy > 22) {
+      // Beijing -> Tianjin -> Bohai -> Yellow Sea -> Japanese coast.
+      result.addAll(const [
+        Offset(117.8, 39.0), Offset(120.2, 38.4),
+        Offset(122.6, 37.5), Offset(125.4, 35.1),
+        Offset(129.4, 34.0), Offset(134.5, 33.4),
+      ]);
+    } else if (asia && to.dx > 127 && to.dx < 155 && to.dy > 22) {
       // Japan / Korea through the East China Sea and Philippine Sea.
       result.addAll(const [
         Offset(124.6, 29.3), Offset(129.8, 30.5),

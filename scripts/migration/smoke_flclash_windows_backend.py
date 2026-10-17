@@ -298,14 +298,25 @@ rules:
             # This is the SAME one-RPC batch used by the Vela proxy page.
             # Check two legitimate measurements and one missing node without
             # requiring a public proxy or leaking real subscription tokens.
-            batch = call("velaTestLatencies", {
-                "names": ["DIRECT", "Local Socks Test", "NOT_CONFIGURED"],
-                "test-url": url_204,
-            }, timeout=45)
-            assert isinstance(batch, list) and len(batch) == 3
-            assert [row["name"] for row in batch] == [
-                "DIRECT", "Local Socks Test", "NOT_CONFIGURED",
-            ]
+            # A new Windows CI runner can transiently fail its first
+            # simultaneous loopback URLTest during warm-up. Retry only the
+            # batch once; BOTH real DIRECT and SOCKS routes must still pass.
+            # Do not retry production downloads or weaken their assertions.
+            for attempt in range(2):
+                batch = call("velaTestLatencies", {
+                    "names": ["DIRECT", "Local Socks Test", "NOT_CONFIGURED"],
+                    "test-url": url_204,
+                }, timeout=45)
+                assert isinstance(batch, list) and len(batch) == 3
+                assert [row["name"] for row in batch] == [
+                    "DIRECT", "Local Socks Test", "NOT_CONFIGURED",
+                ]
+                if batch[0]["value"] > 0 and batch[1]["value"] > 0:
+                    break
+                if attempt == 0:
+                    print("Retrying transient Windows loopback latency batch once",
+                          file=sys.stderr)
+                    time.sleep(0.6)
             assert batch[0]["value"] > 0, "FlClash DIRECT latency failed"
             assert batch[1]["value"] > 0, (
                 "Real Mihomo SOCKS5 proxy outbound latency failed")

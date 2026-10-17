@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'brand/vela_glass_toast.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -918,16 +919,14 @@ class _MobileHome extends StatelessWidget {
       }
       final sub = subscription;
       if (sub == null || sub.androidVpnProfile == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请先导入有效机场配置，再连接 VPN')));
+        VelaGlassToast.show(context, '请先导入有效机场配置，再连接 VPN');
         return;
       }
       // The first-use Android VPN permission dialog is REQUIRED by Android.
       if (sub is VelaFlClashSubscriptionController &&
           !await sub.applyPendingProfileIfIdle()) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('新机场配置加载失败，VPN 未启动')));
+          VelaGlassToast.show(context, '新机场配置加载失败，VPN 未启动');
         }
         return;
       }
@@ -939,15 +938,13 @@ class _MobileHome extends StatelessWidget {
           routingController != null &&
           !await routingController.synchronize(sub.activeProfileId)) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('规则模式尚未被 FlClash 核心确认，VPN 未启动')));
+          VelaGlassToast.show(context, '规则模式尚未被 FlClash 核心确认，VPN 未启动');
         }
         return;
       }
       await vpn.start(sub);
       if (vpn.error != null && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(vpn.error!)));
+        VelaGlassToast.show(context, vpn.error!);
       }
       return;
     }
@@ -1290,8 +1287,7 @@ class _SettingsPage extends StatelessWidget {
               final info = await const VelaUpdateService().check();
               if (!context.mounted) return;
               if (!info.available || info.assetUrl == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('当前已是最新正式版本')));
+                VelaGlassToast.show(context, '当前已是最新正式版本');
                 return;
               }
               final accepted = await showDialog<bool>(
@@ -1315,14 +1311,12 @@ class _SettingsPage extends StatelessWidget {
                 final opened = await launchUrl(info.assetUrl!,
                     mode: LaunchMode.externalApplication);
                 if (!opened && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('无法打开下载链接')));
+                  VelaGlassToast.show(context, '无法打开下载链接');
                 }
               }
             } catch (_) {
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('检查更新失败，请确认网络后重试')));
+                VelaGlassToast.show(context, '检查更新失败，请确认网络后重试');
               }
             }
           },
@@ -1358,10 +1352,7 @@ class _SettingsPage extends StatelessWidget {
                 if (accepted != true || !context.mounted) return;
                 final restored = await windowExitGuard!.closeSafely();
                 if (!restored && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content:
-                        Text('未能安全恢复系统代理，程序仍在运行，请检查后重试。')),
-                  );
+                  VelaGlassToast.show(context, '未能安全恢复系统代理，程序仍在运行，请检查后重试。');
                 }
               },
               child: const Text('安全退出'),
@@ -1419,9 +1410,7 @@ class _DiagnosticsCard extends StatelessWidget {
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: diagnostics.report));
                 if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('已复制脱敏诊断记录'),
-                ));
+                VelaGlassToast.show(context, '已复制脱敏诊断记录');
               },
               icon: Icon(Icons.copy_rounded, size: 17),
               label: Text('复制诊断记录'),
@@ -1430,9 +1419,7 @@ class _DiagnosticsCard extends StatelessWidget {
               onPressed: () async {
                 final result = await diagnostics.clear();
                 if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text(result ? '本地诊断记录已清除' : '清除失败，请稍后重试'),
-                ));
+                VelaGlassToast.show(context, result ? '本地诊断记录已清除' : '清除失败，请稍后重试');
               },
               icon: Icon(Icons.delete_outline_rounded, size: 17),
               label: Text('清除诊断记录'),
@@ -1596,17 +1583,14 @@ Future<void> _toggleRealConnection(
       return;
     }
     if (!connection.available) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先在「配置」中导入订阅，并在「代理」中选择节点')),
-      );
+      VelaGlassToast.show(context, '请先在「配置」中导入订阅，并在「代理」中选择节点');
       return;
     }
     // The user explicitly chose one-click behavior. Retain the coordinator's
     // HTTPS verification, proxy snapshot, rollback and safe disconnect.
     final ok = await connection.connect();
     if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(connection.error ?? '连接失败，系统代理未更改')));
+      VelaGlassToast.show(context, connection.error ?? '连接失败，系统代理未更改');
     }
   }
 

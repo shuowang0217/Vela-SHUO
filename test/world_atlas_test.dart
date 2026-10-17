@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
+import 'package:vela_shuo/src/home/maritime_route.dart';
 
 void main() {
   test('wide map keeps China on screen and shows nearby continents', () {
@@ -97,5 +98,49 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 2300));
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+  test('hand-lettered labels are uppercase English and avoid vessel', () {
+    expect(VelaAtlasInk.englishLabel('东京 Tokyo-01'), 'TOKYO');
+    expect(VelaAtlasInk.englishLabel('终点'), 'DESTINATION');
+    expect(VelaAtlasInk.englishLabel('上海'), 'DESTINATION');
+    expect(VelaAtlasInk.family(TargetPlatform.windows), 'Segoe Print');
+    expect(VelaAtlasInk.family(TargetPlatform.android), 'casual');
+    const canvas = Size(390, 840);
+    const marker = Offset(190, 310);
+    final top = VelaAtlasInk.position(canvas, marker,
+        const Size(94, 25), above: true);
+    expect(top.dy, lessThan(marker.dy - 30));
+    expect(top.dx, greaterThan(marker.dx + 10));
+    final left = VelaAtlasInk.position(canvas, marker,
+        const Size(94, 25), toLeft: true);
+    expect(left.dx, lessThan(marker.dx - 90));
+  });
+
+  test('watercolor coastline calibration stays shared across route points', () {
+    const camera = VelaWorldCamera(size: Size(1600, 840),
+        longitude: 139.7, latitude: 35.7);
+    final shanghai = camera.projectArtwork(
+        VelaMaritimeRoute.shanghai);
+    final tokyo = camera.projectArtwork(const Offset(139.7, 35.7));
+    expect(shanghai.dx, lessThan(camera.project(
+        VelaMaritimeRoute.shanghai).dx - 55));
+    expect(tokyo.dx, lessThan(camera.project(
+        const Offset(139.7, 35.7)).dx - 55));
+    expect(shanghai.dy, lessThan(camera.project(
+        VelaMaritimeRoute.shanghai).dy - 20));
+    expect(camera.projectAlongArtwork(VelaMaritimeRoute.shanghai,
+        const Offset(139.7, 35.7)), tokyo);
+    // Real geographic calculations remain unchanged.
+    expect(camera.project(const Offset(139.7, 35.7)).dx,
+        closeTo(800, .001));
+  });
+
+  test('Beijing home port uses actual Beijing coordinates', () {
+    expect(VelaMaritimeRoute.homePort, VelaWorldCamera.beijing);
+    const camera = VelaWorldCamera(
+        size: Size(1200, 720), longitude: 116.4, latitude: 39.9);
+    final point = camera.projectArtwork(VelaMaritimeRoute.homePort);
+    expect(point.dx, inInclusiveRange(450, 650));
+    expect(point.dy, greaterThan(0));
   });
 }
