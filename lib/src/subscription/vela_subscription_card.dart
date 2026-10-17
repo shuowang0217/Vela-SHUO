@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../brand/vela_glass_toast.dart';
 
 import '../core/vela_core_controller.dart';
 import '../android/vela_android_vpn.dart';
@@ -74,8 +75,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
 
   void _message(String value) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(value)));
+    VelaGlassToast.show(context, value);
   }
 
   @override
@@ -240,11 +240,9 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                 // Do not retain subscription tokens in the visible input.
                 if (context.mounted) {
                   if (ok) _url.clear();
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(ok
+                  VelaGlassToast.show(context, ok
                         ? '机场获取成功，已自动加密保存'
-                        : subscription.error ?? '获取机场失败'),
-                  ));
+                        : subscription.error ?? '获取机场失败');
                 }
               },
               icon: const Icon(Icons.download_rounded, size: 19),
@@ -258,11 +256,9 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                 onPressed: busy || !subscription.canRefresh ? null : () async {
                   final ok = await subscription.refreshLastUrl();
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(ok
+                  VelaGlassToast.show(context, ok
                         ? '订阅已更新并自动保存'
-                        : subscription.error ?? '订阅更新失败，原节点列表仍保留'),
-                  ));
+                        : subscription.error ?? '订阅更新失败，原节点列表仍保留');
                 },
                 icon: const Icon(Icons.refresh_rounded, size: 19),
                 label: const Text('重新获取订阅（仅本次运行）'),
@@ -380,11 +376,9 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                     ? null : () async {
                   final ok = await subscription.refreshNativeProviders();
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(ok
+                  VelaGlassToast.show(context, ok
                         ? '远程节点已更新，保留仍存在的选择和收藏'
-                        : subscription.error ?? '节点提供者更新失败'),
-                  ));
+                        : subscription.error ?? '节点提供者更新失败');
                 },
                 icon: const Icon(Icons.sync_rounded, size: 19),
                 label: Text('更新远程节点提供者 '
@@ -469,10 +463,8 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                 onPressed: !busy && subscription.canSave ? () async {
                   final saved = await subscription.saveOnDevice();
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(saved ? '已加密保存到本机，重启后可恢复'
-                        : subscription.error ?? '无法保存订阅'),
-                  ));
+                  VelaGlassToast.show(context, saved ? '已加密保存到本机，重启后可恢复'
+                        : subscription.error ?? '无法保存订阅');
                 } : null,
                 icon: const Icon(Icons.lock_outline),
                 label: Text(subscription.storedOnDevice
@@ -483,10 +475,8 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                 onPressed: busy ? null : () async {
                   final deleted = await subscription.clearSaved();
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(deleted ? '已删除本机加密存档'
-                        : subscription.error ?? '删除失败'),
-                  ));
+                  VelaGlassToast.show(context, deleted ? '已删除本机加密存档'
+                        : subscription.error ?? '删除失败');
                 },
                 icon: const Icon(Icons.delete_outline),
                 label: const Text('删除本机存档'),

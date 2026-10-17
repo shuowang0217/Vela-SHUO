@@ -396,7 +396,8 @@ class _VelaAtlasWeatherState extends State<VelaAtlasWeather>
   );
 }
 
-/// Cloud 96s, ocean 12s, wind 30s, connected route 4s, night lights 15s.
+/// Five perceptible, gentle watercolor movements. Static world art is not
+/// re-decoded or repainted by this independent animated painter.
 @immutable
 class VelaAtlasWeatherPainter extends CustomPainter {
   const VelaAtlasWeatherPainter({
@@ -419,120 +420,173 @@ class VelaAtlasWeatherPainter extends CustomPainter {
         phase, VelaWeatherCadence.cloudSeconds) * math.pi * 2;
     final oceanTime = VelaWeatherCadence.progress(
         phase, VelaWeatherCadence.oceanSeconds) * math.pi * 2;
-    final windCycle = VelaWeatherCadence.progress(
-        phase, VelaWeatherCadence.windSeconds);
+    final windCycle = (VelaWeatherCadence.progress(
+        phase, VelaWeatherCadence.windSeconds) + .18) % 1;
     final windTime = windCycle * math.pi * 2;
     canvas.save();
     canvas.clipRect(Offset.zero & size);
 
-    // Coordinates keep water highlights in actual sea regions during pans.
-    final waveInk = Paint()
-      ..color = (dark ? const Color(0xFFB6DDF5) : const Color(0xFFF7FFFF))
-          .withValues(alpha: dark ? .105 : .20)
-      ..strokeWidth = 1.15
+    // Wider pearl-blue sea crests are intentionally noticeable, but remain
+    // geographically anchored to open-water coordinates during camera pans.
+    final water = Paint()
+      ..color = (dark ? const Color(0xFF9EDBEE) : const Color(0xFF2D8296))
+          .withValues(alpha: dark ? .37 : .39)
       ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.65
+      ..strokeCap = StrokeCap.round;
+    final seaLight = Paint()
+      ..color = (dark ? const Color(0xFFDAF9FF) : const Color(0xFFFFFFFF))
+          .withValues(alpha: dark ? .29 : .57)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.15
       ..strokeCap = StrokeCap.round;
     for (final geo in const [
-      Offset(-144, 18), Offset(-117, -18), Offset(-36, -27),
-      Offset(72, -15), Offset(155, 5), Offset(175, -38),
+      Offset(-152, 23), Offset(-120, -16), Offset(-90, 6),
+      Offset(-39, -26), Offset(-20, 5), Offset(34, -28),
+      Offset(76, -16), Offset(96, -36), Offset(155, 5),
+      Offset(173, -33), Offset(-167, -45),
     ]) {
       final center = camera.project(geo);
-      if (center.dx < -130 || center.dx > size.width + 130 ||
-          center.dy < -45 || center.dy > size.height + 45) {
+      if (center.dx < -140 || center.dx > size.width + 140 ||
+          center.dy < -75 || center.dy > size.height + 75) {
         continue;
       }
       for (var k = 0; k < 3; k++) {
-        final y = center.dy + k * 10.0;
-        final x = center.dx +
-            math.sin(oceanTime + k * .9 + geo.dx * .04) * 5;
+        final y = center.dy + k * 11.0;
+        final drift = math.sin(oceanTime + k * .9 + geo.dx * .035);
+        final x = center.dx + drift * 9;
+        final scale = .78 + .16 * math.sin(oceanTime + k + 1);
+        final span = 58 * scale;
         final path = Path()
-          ..moveTo(x - 43, y)
-          ..quadraticBezierTo(x - 20, y - 3.8, x, y)
-          ..quadraticBezierTo(x + 21, y + 3.8, x + 43, y);
-        canvas.drawPath(path, waveInk);
+          ..moveTo(x - span, y)
+          ..cubicTo(x - span * .4, y - 6 - drift * 2,
+              x + span * .25, y + 5 + drift * 2, x + span, y - 1);
+        canvas.drawPath(path, k.isEven ? seaLight : water);
       }
     }
 
-    final cloudInk = Paint()
-      ..color = (dark ? const Color(0xFFBCD4E6) : const Color(0xFFFFFFFF))
-          .withValues(alpha: dark ? .065 : .095)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 11);
-    for (var i = 0; i < 5; i++) {
-      final x = (i + .45) / 5 * size.width +
-          math.sin(cloudTime + i * .92) * size.width * .075;
-      final y = size.height * (.18 + (i % 3) * .29) +
-          math.cos(cloudTime + i) * 9;
-      final width = math.min(108.0, size.width * .24);
+    // Semi-transparent, softly edged cloud banks with independent drift.
+    // Multi-lobed shapes look like watercolor wisps rather than flat dots.
+    for (var i = 0; i < 6; i++) {
+      final drift = math.sin(cloudTime + i * .84);
+      final x = size.width * ((i + .42) / 6) +
+          drift * math.max(38.0, size.width * .07);
+      final y = size.height * (.12 + (i % 4) * .215) +
+          math.cos(cloudTime + i * .72) * 13;
+      final width = math.min(230.0, math.max(115.0, size.width * .32));
+      final cloudColor = dark
+          ? const Color(0xFFE0EEFD) : const Color(0xFFFFFFFF);
+      final diffuse = Paint()
+        ..color = cloudColor.withValues(alpha: dark ? .19 : .31)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 17);
+      final fringe = Paint()
+        ..color = cloudColor.withValues(alpha: dark ? .11 : .19)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+      canvas.drawOval(Rect.fromCenter(center: Offset(x, y),
+          width: width, height: 42), diffuse);
       canvas.drawOval(Rect.fromCenter(
-          center: Offset(x, y), width: width, height: 20), cloudInk);
+          center: Offset(x - width * .25, y - 8),
+          width: width * .61, height: 43), fringe);
       canvas.drawOval(Rect.fromCenter(
-          center: Offset(x - width * .19, y - 6),
-          width: width * .54, height: 23), cloudInk);
+          center: Offset(x + width * .19, y + 6),
+          width: width * .72, height: 28), diffuse);
     }
 
-    // Wind only appears around the center of its 30s cycle and fades.
-    final windOpacity = math.pow(math.sin(math.pi * windCycle), 4).toDouble();
-    final windInk = Paint()
-      ..color = (dark ? const Color(0xFFABC6DC) : const Color(0xFFECFFFF))
-          .withValues(alpha: (dark ? .14 : .23) * windOpacity)
-      ..strokeWidth = 1.0
+    // 30-second appearing/disappearing wind currents; a hairline underneath
+    // the pearl stroke gives contrast on both light and dark world textures.
+    final windEnvelope =
+        math.pow(math.sin(math.pi * windCycle), 2).toDouble();
+    final windPaint = Paint()
+      ..color = (dark ? const Color(0xFFDBECFF) : const Color(0xFF2C91A7))
+          .withValues(alpha: (dark ? .13 : .17) + windEnvelope * .46)
       ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 5; i++) {
-      final x = size.width * ((i + .2) / 5) +
-          math.sin(windTime + i * 1.4) * 26;
-      final y = size.height * (.12 + .18 * i) +
-          math.cos(windTime + i) * 8;
-      final path = Path()
-        ..moveTo(x - 34, y)
-        ..quadraticBezierTo(x, y - 11, x + 36, y - 2);
-      canvas.drawPath(path, windInk);
+    final windSheen = Paint()
+      ..color = const Color(0xFFF7FFFF)
+          .withValues(alpha: .11 + windEnvelope * .35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .85
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < 7; i++) {
+      final x = size.width * ((i + .2) / 7) +
+          math.sin(windTime + i * .92) * 33;
+      final y = size.height * (.09 + (i % 5) * .195) +
+          math.cos(windTime + i) * 13;
+      final span = math.min(112.0, size.width * .22);
+      final curve = Path()
+        ..moveTo(x - span * .5, y)
+        ..cubicTo(x - span * .23, y - 16,
+            x + span * .22, y + 13, x + span * .5, y - 5);
+      canvas.drawPath(curve, windPaint);
+      canvas.drawPath(curve.shift(const Offset(0, -2)), windSheen);
     }
 
-    // Night-only breathing glows are thematic, not actual port locations.
+    // Tiny coastal atmospheric glows, only in dark mode. This is decorative,
+    // not a live physical location/port map.
     if (dark) {
       final nightTime = VelaWeatherCadence.progress(
           phase, VelaWeatherCadence.nightSeconds) * math.pi * 2;
-      final alpha = .034 + .027 * (1 + math.sin(nightTime));
-      final nightInk = Paint()
-        ..color = const Color(0xFFFFDEA6).withValues(alpha: alpha)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
+      final alpha = .14 + .13 * (.5 + .5 * math.sin(nightTime));
+      final glow = Paint()
+        ..color = const Color(0xFFF8D99C).withValues(alpha: alpha)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+      final core = Paint()
+        ..color = const Color(0xFFFFE9BC).withValues(alpha: alpha * .82);
       for (final geo in const [
         Offset(121.47, 31.23), Offset(139.69, 35.68),
         Offset(103.82, 1.35), Offset(-74.01, 40.71),
         Offset(-.13, 51.50),
       ]) {
         final pos = camera.project(geo);
-        if (pos.dx < -40 || pos.dx > size.width + 40 ||
-            pos.dy < -40 || pos.dy > size.height + 40) {
+        if (pos.dx < -30 || pos.dx > size.width + 30 ||
+            pos.dy < -30 || pos.dy > size.height + 30) {
           continue;
         }
-        canvas.drawCircle(pos, 22, nightInk);
+        canvas.drawCircle(pos, 18, glow);
+        canvas.drawCircle(pos, 2.2, core);
       }
     }
 
-    // Cached spline samples match the existing geographic route.
-    // Two glints take four seconds to travel the route only when connected.
+    // Premium route effect: a single soft tapered light streak rather than
+    // obvious moving dots. It follows the cached real spline only while
+    // connected, softly fades at both endpoints and repeats every four sec.
     if (connected && route.length >= 2) {
-      final time = VelaWeatherCadence.progress(
+      final progress = VelaWeatherCadence.progress(
           phase, VelaWeatherCadence.routeSeconds);
-      final haloInk = Paint()
-        ..color = const Color(0x99BFE9FF)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-      final glintInk = Paint()..color = const Color(0xFFE7F9FF);
-      for (final offset in const [0.0, .5]) {
-        final p = (time + offset) % 1.0;
-        final scaled = p * (route.length - 1);
-        final index = scaled.floor();
-        final geo = Offset.lerp(
-            route[index], route[index + 1], scaled - index)!;
-        final pos = camera.projectAlong(routeFrom, geo);
-        if (pos.dx < -20 || pos.dx > size.width + 20 ||
-            pos.dy < -20 || pos.dy > size.height + 20) {
-          continue;
+      final fade = math.sin(math.pi * progress);
+      if (fade > .01) {
+        final gleam = Path();
+        const tailLength = .09;
+        for (var i = 0; i <= 24; i++) {
+          final t = (progress - tailLength * (1 - i / 24))
+              .clamp(0.0, 1.0);
+          final scaled = t * (route.length - 1);
+          final index = math.min(route.length - 2, scaled.floor());
+          final geo = Offset.lerp(route[index], route[index + 1],
+              scaled - index)!;
+          final pos = camera.projectAlong(routeFrom, geo);
+          if (i == 0) {
+            gleam.moveTo(pos.dx, pos.dy);
+          } else {
+            gleam.lineTo(pos.dx, pos.dy);
+          }
         }
-        canvas.drawCircle(pos, 9, haloInk);
-        canvas.drawCircle(pos, 2.2, glintInk);
+        final ambient = Paint()
+          ..color = const Color(0xFFE2F7FF)
+              .withValues(alpha: .26 * fade)
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 7
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+        final pearl = Paint()
+          ..color = const Color(0xFFFFEAC2)
+              .withValues(alpha: .75 * fade)
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 2.2;
+        canvas.drawPath(gleam, ambient);
+        canvas.drawPath(gleam, pearl);
       }
     }
     canvas.restore();
