@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/home/vela_oil_scene.dart';
 
 void main() {
-  test('v1.8 layered oil art references the approved scene and six cloud sprites', () {
+  test('v1.8 keeps six fully independent high-visibility cloud sprites', () {
     expect(VelaOilScene.clouds.length, 6);
     expect(VelaOilScene.referenceWidth, 1672);
     expect(VelaOilScene.referenceHeight, 941);
@@ -13,7 +13,7 @@ void main() {
       final file = File('assets/oil/clouds/${cloud.file}.png');
       expect(file.existsSync(), isTrue);
       expect(file.readAsBytesSync().length, greaterThan(1000));
-      expect(cloud.opacity, inInclusiveRange(0.2, 0.6));
+      expect(cloud.opacity, inInclusiveRange(0.9, 1.0));
     }
   });
 
