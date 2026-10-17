@@ -5,6 +5,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../brand/vela_sail_mark.dart';
+import '../theme/vela_palettes.dart';
 import 'demo_connection.dart';
 import 'maritime_route.dart';
 import 'vela_oil_scene.dart';
