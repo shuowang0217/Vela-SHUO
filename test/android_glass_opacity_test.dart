@@ -2,9 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/brand/vela_watercolor_chrome.dart';
+import 'package:vela_shuo/src/theme/vela_palettes.dart';
 
 void main() {
-  testWidgets('Android floating watercolor glass has 50% opacity',
+  testWidgets('Android oil canvas is opaque, legacy watercolor keeps 50% opacity',
       (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     try {
@@ -19,7 +20,7 @@ void main() {
     expect(decoration.gradient, isNotNull);
     final gradient = decoration.gradient! as LinearGradient;
     for (final color in gradient.colors) {
-      expect(color.a, closeTo(.5, .003));
+      expect(color.a, closeTo(VelaThemeRuntime.oilPreview ? .96 : .5, .03));
     }
     } finally {
       debugDefaultTargetPlatformOverride = null;
