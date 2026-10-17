@@ -413,12 +413,12 @@ class VelaAtlasWeatherPainter extends CustomPainter {
   final double phase;
 
   static const clouds = <VelaCloudSpec>[
-    VelaCloudSpec(Offset(.17, .24), 1.03, .34, 96, 14, .00),
-    VelaCloudSpec(Offset(.42, .14), .79, .24, 75, 11, .17),
-    VelaCloudSpec(Offset(.77, .36), 1.21, .33, 106, 18, .09),
-    VelaCloudSpec(Offset(.27, .65), .91, .29, 87, 14, .41),
-    VelaCloudSpec(Offset(.62, .73), 1.15, .27, 93, 19, .65),
-    VelaCloudSpec(Offset(.88, .80), .73, .23, 79, 11, .81),
+    VelaCloudSpec(Offset(.17, .24), 1.12, .70, 96, 14, .00),
+    VelaCloudSpec(Offset(.42, .14), .86, .62, 75, 11, .17),
+    VelaCloudSpec(Offset(.77, .36), 1.27, .84, 106, 18, .09),
+    VelaCloudSpec(Offset(.27, .65), .96, .67, 87, 14, .41),
+    VelaCloudSpec(Offset(.62, .73), 1.17, .75, 93, 19, .65),
+    VelaCloudSpec(Offset(.88, .80), .79, .66, 79, 11, .81),
   ];
 
   Offset cloudPosition(int index, Size size) {
@@ -430,19 +430,56 @@ class VelaAtlasWeatherPainter extends CustomPainter {
     );
   }
 
+  // Each silhouette is generated once and differs in its wind-torn peaks,
+  // undersides and wispy edges; no regular oval or reused cloud stamp.
+  static final List<Path> _outlines =
+      List.generate(clouds.length, (i) => _outline(i));
+  static final List<Path> _wisps =
+      List.generate(clouds.length, (i) => _wispLines(i));
+
+  static List<Rect> get cloudOutlineBounds =>
+      _outlines.map((p) => p.getBounds()).toList(growable: false);
+
   static Path _outline(int index) {
-    final variety = (index % 3 - 1) * 7.0;
-    return Path()
-      ..moveTo(-111, 15)
-      ..cubicTo(-125, -2, -106, -26, -79, -20)
-      ..cubicTo(-91, -42, -56, -57, -30, -43)
-      ..cubicTo(-11, -71, 29, -62, 43, -35 + variety)
-      ..cubicTo(66, -49, 98, -24, 89, -3)
-      ..cubicTo(123, 1, 124, 29, 94, 37)
-      ..cubicTo(65, 51, 45, 34, 26, 40)
-      ..cubicTo(4, 52, -15, 37, -34, 39)
-      ..cubicTo(-60, 51, -90, 40, -111, 15)
-      ..close();
+    final seed = index * 1.39;
+    const steps = 48;
+    final path = Path();
+    for (var j = 0; j <= steps; j++) {
+      final t = j / steps;
+      final x = (t * 2 - 1) * 151;
+      final envelope = math.pow(math.sin(math.pi * t), .64).toDouble();
+      final peaks = 1 + .26 * math.sin(t * 7.2 * math.pi + seed) +
+          .16 * math.cos(t * 12.7 * math.pi + seed * 1.6) +
+          .08 * math.sin(t * 23.7 * math.pi + seed * 2.1);
+      final y = 8 - envelope *
+          (31 * peaks + 10 * math.sin(t * 3.1 * math.pi + seed * .7));
+      if (j == 0) { path.moveTo(x, y); }
+      else { path.lineTo(x, y); }
+    }
+    for (var j = steps; j >= 0; j--) {
+      final t = j / steps;
+      final x = (t * 2 - 1) * 151;
+      final envelope = math.pow(math.sin(math.pi * t), .7).toDouble();
+      final y = 8 + envelope * (18 +
+          8 * math.sin(t * 8.3 * math.pi + seed * 1.4) +
+          4 * math.cos(t * 17.3 * math.pi + seed));
+      path.lineTo(x, y);
+    }
+    return path..close();
+  }
+
+  static Path _wispLines(int index) {
+    final result = Path();
+    final seed = index * 1.43;
+    for (var i = 0; i < 8; i++) {
+      final x = -116.0 + i * 30 + 8 * math.sin(seed + i * .77);
+      final y = -14 + math.sin(i * 1.34 + seed) * 18;
+      final length = 13 + (i % 3) * 9.0;
+      result.moveTo(x, y);
+      result.cubicTo(x + length * .2, y - 7,
+          x + length * .8, y + 5, x + length, y - 2);
+    }
+    return result;
   }
 
   @override
@@ -460,34 +497,42 @@ class VelaAtlasWeatherPainter extends CustomPainter {
       canvas.save();
       canvas.translate(center.dx, center.dy);
       canvas.scale(spec.size * viewportScale);
-      final path = _outline(i);
+      final path = _outlines[i];
       final shadow = Paint()
-        ..color = (dark ? const Color(0xFF456378)
-            : const Color(0xFF467C91)).withValues(alpha: a * .32)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
+        ..color = (dark ? const Color(0xFF34516E)
+            : const Color(0xFF2D6D8B)).withValues(alpha: a * .42)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 11);
       canvas.save();
       canvas.translate(5, 8);
       canvas.drawPath(path, shadow);
       canvas.restore();
       final wash = Paint()
         ..shader = ui.Gradient.linear(
-          const Offset(-111, -45), const Offset(110, 49),
+          const Offset(-125, -49), const Offset(124, 54),
           [
-            (dark ? const Color(0xFFACCADB) :
-                const Color(0xFFF7FAF0)).withValues(alpha: a * .74),
-            (dark ? const Color(0xFFE1EDF6) :
-                const Color(0xFFFFFFFF)).withValues(alpha: a),
-            (dark ? const Color(0xFF9FBFD0) :
-                const Color(0xFFACD2D9)).withValues(alpha: a * .46),
-          ], [0, .52, 1],
+            (dark ? const Color(0xFF82AEC5) :
+                const Color(0xFF96BAC6)).withValues(alpha: a * .71),
+            (dark ? const Color(0xFFE4F0FA) :
+                const Color(0xFFFCFBF3)).withValues(alpha: a * .94),
+            (dark ? const Color(0xFF95B6CF) :
+                const Color(0xFFB5D6DC)).withValues(alpha: a * .66),
+          ], [0, .44, 1],
         )
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.5);
       canvas.drawPath(path, wash);
+      // Broken pigment strokes provide paper-like edges and light-catching
+      // highlights, rather than a rigid continuous outline.
+      canvas.drawPath(_wisps[i], Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 6
+        ..color = const Color(0xFFFFFFFF).withValues(alpha: a * .42)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
       canvas.drawPath(path, Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = (dark ? const Color(0xFFE2F4FF) :
-            const Color(0xFF508397)).withValues(alpha: a * .29)
+        ..strokeWidth = 1.5
+        ..color = (dark ? const Color(0xFFB6D5E8) :
+            const Color(0xFF477F97)).withValues(alpha: a * .15)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
       canvas.restore();
     }

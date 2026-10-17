@@ -17,6 +17,11 @@ void main() {
         greaterThanOrEqualTo(4));
     expect(VelaAtlasWeatherPainter.clouds.map((c) => c.driftX).toSet().length,
         greaterThanOrEqualTo(4));
+    expect(VelaAtlasWeatherPainter.clouds.every((c) => c.alpha > .60), true);
+    final cloudBounds = VelaAtlasWeatherPainter.cloudOutlineBounds;
+    expect(cloudBounds.length, 6);
+    expect(cloudBounds.map((r) => r.height.round()).toSet().length,
+        greaterThanOrEqualTo(3));
     // After five seconds, the nearest cloud has moved visibly.
     expect((before.cloudPosition(0, camera.size) -
         after.cloudPosition(0, camera.size)).distance, greaterThan(30));
