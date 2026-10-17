@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'vela_watercolor_chrome.dart';
+import '../theme/vela_palettes.dart';
 
 /// One floating, translucent notice above the app, rather than a bottom
 /// Material SnackBar. Does not affect proxy/VPN state.
@@ -56,6 +58,33 @@ class _VelaGlassNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (VelaThemeRuntime.oilPreview) {
+      return TweenAnimationBuilder<double>(
+        key: const ValueKey('vela_glass_toast'),
+        tween: Tween(begin:0,end:1),
+        duration:const Duration(milliseconds:280),
+        curve:Curves.easeOutCubic,
+        builder:(context,t,child)=>Opacity(opacity:t,child:
+          Transform.translate(offset:Offset(0,-14*(1-t)),child:child)),
+        child:Material(type:MaterialType.transparency,
+          child:VelaWatercolorSurface(radius:21,
+            padding:const EdgeInsets.fromLTRB(16,13,12,13),
+            child:Row(mainAxisSize:MainAxisSize.min,children:[
+              const Icon(Icons.sailing_rounded,
+                color:Color(0xFF8B5929),size:21),
+              const SizedBox(width:12),
+              Flexible(child:Text(message,style:const TextStyle(
+                color:Color(0xFF243646),fontSize:13.5,
+                fontWeight:FontWeight.w600,height:1.35))),
+              const SizedBox(width:8),
+              InkResponse(onTap:onDismiss,radius:16,
+                child:const Icon(Icons.close_rounded,
+                  size:17,color:Color(0xFF5F6570))),
+            ]),
+          ),
+        ),
+      );
+    }
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = dark ? const Color(0xFFF4F9FE) : const Color(0xFF1C4052);
     final tint = dark ? const Color(0xFF19384C) : const Color(0xFFEFF9FD);
