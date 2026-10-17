@@ -385,12 +385,12 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text(ok
-                        ? 'FlClash 已更新远程节点提供者，保留仍存在的选择和收藏'
+                        ? '远程节点已更新，保留仍存在的选择和收藏'
                         : subscription.error ?? '节点提供者更新失败'),
                   ));
                 },
                 icon: const Icon(Icons.sync_rounded, size: 19),
-                label: Text('更新 FlClash 远程节点提供者 '
+                label: Text('更新远程节点提供者 '
                     '(${subscription.remoteProviderCount})'),
               ),
             ],
@@ -498,7 +498,7 @@ class _VelaSubscriptionCardState extends State<VelaSubscriptionCard> {
             const SizedBox(height: 12),
             Text(
               '目前支持常见 Shadowsocks、VMess、VLESS、Trojan 和 Hysteria2 '
-              '节点的部分 Clash/Mihomo YAML、sing-box JSON 格式。'
+              '节点的通用 YAML 配置及 JSON 格式。'
               '证书校验被关闭或不支持的传输参数会被跳过。'
               '${Platform.isAndroid ? 'Android VPN 只会在首页点击授权连接后启动。' : '导入与节点选择不会自动接管 Windows 系统流量。'}',
               style: TextStyle(color: colors.muted, fontSize: 11, height: 1.5),

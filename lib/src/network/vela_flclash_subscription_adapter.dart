@@ -83,7 +83,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   @override
   int get skipped => 0;
   @override
-  String? get format => backend.imported ? 'FlClash / Mihomo 原生配置' : null;
+  String? get format => backend.imported ? 'Vela 航线配置' : null;
   @override
   int? get selectedIndex => _selection;
   @override
@@ -176,7 +176,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       final loaded = await action();
       if (_closed) return false;
       if (loaded.isEmpty) {
-        throw StateError('FlClash returned no nodes');
+        throw StateError('航线服务未返回可用节点');
       }
       _raw = source ?? backend.lastImportedSource;
       _sessionUrl = sourceUrl;
@@ -202,7 +202,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       _emit();
       return true;
     } catch (_) {
-      _lastError = 'FlClash 后台导入失败：请检查订阅是否为 Mihomo 配置、网络代理或内核状态';
+      _lastError = '订阅导入失败：请检查订阅格式、网络或航线服务状态';
       _current = backend.nodes.isEmpty
           ? VelaSubscriptionPhase.failed : VelaSubscriptionPhase.ready;
       _emit();
@@ -389,7 +389,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       _emit();
       return true;
     } catch (_) {
-      _lastError = 'FlClash 节点提供者更新失败；原节点与加密存档未被清除';
+      _lastError = '远程节点更新失败；原节点与加密存档仍然保留';
       _current = VelaSubscriptionPhase.ready;
       _emit();
       return false;
@@ -408,7 +408,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       _lastError = null;
       _queueCurrentSave();
     } else {
-      _lastError = 'FlClash 节点组不允许选择当前节点';
+      _lastError = '当前节点组不允许选择此节点';
     }
     _emit();
     return accepted;
@@ -774,7 +774,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       }
       return ok;
     } catch (_) {
-      _lastError = 'FlClash 订阅安全存档读取失败';
+      _lastError = '订阅安全存档读取失败';
       return false;
     } finally {
       _storageBusy = false;

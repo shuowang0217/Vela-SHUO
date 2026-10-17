@@ -14,6 +14,7 @@ import 'package:vela_shuo/src/core/vela_windows_tray.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
+import 'package:vela_shuo/src/network/vela_routing_mode.dart';
 import 'package:vela_shuo/src/network/flclash_go_node_probe.dart';
 import 'package:vela_shuo/src/android/vela_android_vpn.dart';
 import 'package:vela_shuo/src/traffic/vela_traffic_monitor.dart';
@@ -24,9 +25,11 @@ import 'package:vela_shuo/src/core/vela_core_settings_card.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/globe.dart';
+import 'package:vela_shuo/src/brand/vela_sail_mark.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_proxy_page.dart';
+import 'package:vela_shuo/src/stellar/vela_routing_mode_selector.dart';
 import 'package:vela_shuo/src/stellar/vela_stellar_config_page.dart';
 
 Color get _background => VelaThemeRuntime.active.background;
@@ -118,11 +121,30 @@ class _Shell extends StatefulWidget {
 class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   final VelaDemoController demo = VelaDemoController();
   VelaSubscriptionController? subscription;
+  VelaRoutingModeController? routing;
+  bool _vpnWasConnected = false;
   VelaConnectionCoordinator? connection;
   VelaSmartController? smart;
   VelaAndroidVpnController? androidVpn;
   VelaTrafficMonitor? traffic;
   int tab = 0;
+
+  void _synchronizeRouting() {
+    final mode = routing;
+    final sub = subscription;
+    if (mode == null || sub is! VelaFlClashSubscriptionController) return;
+    unawaited(mode.synchronize(sub.activeProfileId));
+  }
+
+  void _onVpnForRouting() {
+    final connected = androidVpn?.connected == true;
+    if (connected && !_vpnWasConnected) {
+      // The Android VPN service reloads native configuration on startup.
+      routing?.invalidateAfterVpnStart();
+      _synchronizeRouting();
+    }
+    _vpnWasConnected = connected;
+  }
 
   void syncRealGlobe() {
     traffic?.sync(Platform.isAndroid
@@ -173,6 +195,16 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
               backend: runtime.backend, core: runtime)
           : VelaSubscriptionController(
               core: widget.core!, previewOnly: Platform.isAndroid);
+      if (runtime is VelaFlClashCoreController) {
+        routing = VelaRoutingModeController(runtime.backend);
+        unawaited(routing!.restore().then((_) => _synchronizeRouting()));
+        subscription!.addListener(_synchronizeRouting);
+        runtime.ensureRoutingMode = () async {
+          await routing!.restore();
+          return routing!.synchronize(
+              (subscription! as VelaFlClashSubscriptionController).activeProfileId);
+        };
+      }
       unawaited(subscription!.restoreSaved());
       if (subscription is VelaFlClashSubscriptionController) {
         widget.windowExitGuard?.flushSavedProfiles =
@@ -218,6 +250,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     }
     if (androidVpn != null) {
       androidVpn!.addListener(syncRealGlobe);
+      androidVpn!.addListener(_onVpnForRouting);
       syncRealGlobe();
     }
     WidgetsBinding.instance.addObserver(this);
@@ -249,9 +282,11 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     subscription?.removeListener(syncRealGlobe);
+    subscription?.removeListener(_synchronizeRouting);
     connection?.removeListener(syncRealGlobe);
     smart?.dispose();
     androidVpn?.removeListener(syncRealGlobe);
+    androidVpn?.removeListener(_onVpnForRouting);
     androidVpn?.dispose();
     traffic?.dispose();
     widget.windowExitGuard?.shutdownConnection = null;
@@ -268,6 +303,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     } else {
       engine?.dispose();
     }
+    routing?.dispose();
     subscription?.dispose();
     demo.dispose();
     super.dispose();
@@ -283,7 +319,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     1 => VelaStellarProxyPage(
       demo: demo, subscription: subscription,
       connection: connection, androidVpn: androidVpn,
-      smart: smart, traffic: traffic, openConfig: () => navigate(4)),
+      smart: smart, traffic: traffic,
+      openConfig: () => navigate(4)),
     2 => _SmartPage(demo: demo, smart: smart, subscription: subscription),
     4 => VelaStellarConfigPage(
       demo: demo, subscription: subscription, core: widget.core,
@@ -298,7 +335,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     _ => _HomePage(
       demo: demo, desktop: desktop,
       connection: connection, subscription: subscription, smart: smart,
-      androidVpn: androidVpn, traffic: traffic,
+      androidVpn: androidVpn, traffic: traffic, routing: routing,
       showNodes: () => navigate(1), showSmart: () => navigate(2),
     ),
   };
@@ -316,12 +353,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
           SafeArea(child: Row(children: [
             if (desktop)
               ClipRect(child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
                 child: Container(
                   width: extended ? 190 : 90,
                   decoration: BoxDecoration(
                     color: _panel.withValues(alpha:
-                        VelaThemeRuntime.active.dark ? .13 : .32),
+                        VelaThemeRuntime.active.dark ? .50 : .50),
                     border: Border(right: BorderSide(
                         color: _foreground.withValues(alpha: .17))),
                   ),
@@ -329,15 +366,28 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                       selected: tab, extended: extended, onSelect: navigate),
                 ),
               )),
-            Expanded(child: page(desktop)),
+            Expanded(child: TweenAnimationBuilder<double>(
+              key: ValueKey('vela_page_$tab'),
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) => Opacity(
+                opacity: value,
+                child: Transform.translate(
+                  offset: Offset(0, (1 - value) * 9),
+                  child: child,
+                ),
+              ),
+              child: page(desktop),
+            )),
           ])),
         ]),
         bottomNavigationBar: desktop ? null : ClipRect(child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
           child: Container(
           decoration: BoxDecoration(
             color: _panel.withValues(alpha:
-                VelaThemeRuntime.active.dark ? .14 : .33),
+                VelaThemeRuntime.active.dark ? .50 : .50),
             border: Border(top: BorderSide(
                 color: _foreground.withValues(alpha: .18))),
           ),
@@ -352,8 +402,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
             destinations: [
               for (final index in navOrder)
                 NavigationDestination(
-                  icon: Icon(destinations[index].$1, color: _muted),
-                  selectedIcon: Icon(destinations[index].$2, color: _blue),
+                  icon: index == 0
+                      ? const VelaSailMark(size: 25, monochrome: true)
+                      : Icon(destinations[index].$1, color: _muted),
+                  selectedIcon: index == 0
+                      ? const VelaSailMark(size: 25)
+                      : Icon(destinations[index].$2, color: _blue),
                   label: destinations[index].$3,
                 ),
             ],
@@ -378,7 +432,7 @@ class _EarthBackdrop extends StatelessWidget {
       final side = math.max(width * 1.65, height * 1.45);
       final cx = width * (desktop ? .66 : .58);
       final cy = height * (desktop ? .52 : .40);
-      final tokens = VelaThemeRuntime.active;
+      // Draw a single undimmed Earth; all frosting is clipped to cards.
       return ClipRect(child: Stack(fit: StackFit.expand, children: [
         ColoredBox(color: _background),
         Positioned(
@@ -386,28 +440,6 @@ class _EarthBackdrop extends StatelessWidget {
           width: side, height: side,
           child: IgnorePointer(child: VelaGlobe(demo: demo)),
         ),
-        DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
-          begin: Alignment.centerLeft, end: Alignment.centerRight,
-          colors: tokens.dark
-              ? [
-                  _background.withValues(alpha: .36),
-                  _background.withValues(alpha: .14),
-                  _background.withValues(alpha: .07),
-                ]
-              : [
-                  _background.withValues(alpha: .50),
-                  _background.withValues(alpha: .31),
-                  _background.withValues(alpha: .21),
-                ],
-        ))),
-        DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
-          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [
-            _background.withValues(alpha: .18),
-            Colors.transparent,
-            _background.withValues(alpha: .22),
-          ],
-        ))),
       ]));
     },
   );
@@ -463,12 +495,15 @@ class _DesktopNav extends StatelessWidget {
                     ? MainAxisAlignment.start : MainAxisAlignment.center,
                 children: [
                   if (extended) SizedBox(width: 15),
-                  Icon(
-                    selected == i
-                        ? _ShellState.destinations[i].$2
-                        : _ShellState.destinations[i].$1,
-                    color: selected == i ? _blue : _muted, size: 22,
-                  ),
+                  if (i == 0)
+                    VelaSailMark(size: 26, monochrome: selected != 0)
+                  else
+                    Icon(
+                      selected == i
+                          ? _ShellState.destinations[i].$2
+                          : _ShellState.destinations[i].$1,
+                      color: selected == i ? _blue : _muted, size: 22,
+                    ),
                   if (extended) ...[
                     SizedBox(width: 15),
                     Text(_ShellState.destinations[i].$3,
@@ -489,48 +524,25 @@ class _DesktopNav extends StatelessWidget {
   ]);
 }
 
+/// Animated master mark shared with launcher and system-tray branding.
 class VelaBrandLogo extends StatelessWidget {
   const VelaBrandLogo({super.key, this.size = 65});
   final double size;
 
   @override
-  Widget build(BuildContext context) => CustomPaint(
-    size: Size(size, size * .75),
-    painter: _SailLogoPainter(),
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: 1),
+    duration: const Duration(milliseconds: 650),
+    curve: Curves.easeOutCubic,
+    builder: (context, value, child) => Opacity(
+      opacity: value,
+      child: Transform.translate(
+        offset: Offset(0, (1 - value) * 5),
+        child: child,
+      ),
+    ),
+    child: VelaSailMark(size: size),
   );
-}
-
-class _SailLogoPainter extends CustomPainter {
-  const _SailLogoPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    final left = Path()
-      ..moveTo(w * .52, h * .02)
-      ..lineTo(w * .14, h * .77)
-      ..lineTo(w * .52, h * .77)..close();
-    final right = Path()
-      ..moveTo(w * .59, h * .21)
-      ..lineTo(w * .91, h * .77)
-      ..lineTo(w * .59, h * .77)..close();
-    canvas.drawPath(left, Paint()
-      ..shader = LinearGradient(
-        colors: [Color(0xFFB7E7FF), Color(0xFF448DBF)],
-      ).createShader(Offset.zero & size));
-    canvas.drawPath(right, Paint()..color = Color(0xFF8DBCD8));
-    final hull = Path()
-      ..moveTo(w * .1, h * .88)
-      ..quadraticBezierTo(w * .52, h * 1.03, w * .94, h * .88);
-    canvas.drawPath(hull, Paint()
-      ..color = Color(0xFFB7E7FF)
-      ..strokeWidth = w * .026
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke);
-  }
-
-  @override
-  bool shouldRepaint(_SailLogoPainter oldDelegate) => false;
 }
 
 class _HomePage extends StatelessWidget {
@@ -544,6 +556,7 @@ class _HomePage extends StatelessWidget {
     this.smart,
     this.androidVpn,
     this.traffic,
+    this.routing,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
@@ -551,6 +564,7 @@ class _HomePage extends StatelessWidget {
   final VelaSmartController? smart;
   final VelaAndroidVpnController? androidVpn;
   final VelaTrafficMonitor? traffic;
+  final VelaRoutingModeController? routing;
   final bool desktop;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
@@ -562,13 +576,13 @@ class _HomePage extends StatelessWidget {
     builder: (context, _) => desktop && !Platform.isAndroid
       ? _DesktopHome(
           demo: demo, connection: connection, subscription: subscription,
-          smart: smart, traffic: traffic,
+          smart: smart, traffic: traffic, routing: routing,
           showNodes: showNodes, showSmart: showSmart,
         )
       : _MobileHome(
           demo: demo, connection: connection, subscription: subscription,
           smart: smart, androidVpn: androidVpn, traffic: traffic,
-          showNodes: showNodes, showSmart: showSmart,
+          routing: routing, showNodes: showNodes, showSmart: showSmart,
         ),
   );
 }
@@ -577,12 +591,14 @@ class _DesktopHome extends StatelessWidget {
   const _DesktopHome({
     required this.demo, required this.showNodes, required this.showSmart,
     this.connection, this.subscription, this.smart, this.traffic,
+    this.routing,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
   final VelaSubscriptionController? subscription;
   final VelaSmartController? smart;
   final VelaTrafficMonitor? traffic;
+  final VelaRoutingModeController? routing;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
 
@@ -620,6 +636,23 @@ class _DesktopHome extends StatelessWidget {
                           connection: connection!, showNodes: showNodes)
                       : _ConnectionCard(demo: demo, showNodes: showNodes),
                 ),
+                if (routing != null)
+                  Positioned(
+                    key: const ValueKey('home_routing_position'),
+                    top: 365, right: 20,
+                    width: math.min(designWidth * .41, 460),
+                    child: VelaRoutingModeSelector(
+                      key: const ValueKey('home_routing_selector'),
+                      controller: routing!,
+                      activeProfileId:
+                          subscription is VelaFlClashSubscriptionController
+                              ? (subscription! as VelaFlClashSubscriptionController)
+                                  .activeProfileId
+                              : null,
+                      locked: connection?.busy == true ||
+                          smart?.scanning == true,
+                    ),
+                  ),
                 Positioned(
                   left: 12, right: 12, bottom: 18,
                   child: _Stats(demo: demo, showSmart: showSmart,
@@ -675,7 +708,7 @@ class _DemoTag extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
     decoration: BoxDecoration(
       color: _panel.withValues(alpha:
-          VelaThemeRuntime.active.dark ? .14 : .31),
+          VelaThemeRuntime.active.dark ? .50 : .50),
       border: Border.all(color: _line),
       borderRadius: BorderRadius.circular(30),
     ),
@@ -688,7 +721,9 @@ class _DemoTag extends StatelessWidget {
   );
 }
 
-class _GlassCard extends StatelessWidget {
+/// Local, legible frosted surface; the Earth outside this card is untouched.
+/// Hover elevation is subtle to preserve a calm, precise interface.
+class _GlassCard extends StatefulWidget {
   const _GlassCard({
     required this.child, this.padding = const EdgeInsets.all(18),
   });
@@ -696,23 +731,46 @@ class _GlassCard extends StatelessWidget {
   final EdgeInsets padding;
 
   @override
-  Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(18),
-    child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-      child: Container(
-        padding: padding,
-        decoration: BoxDecoration(
-          color: _panel.withValues(alpha:
-              VelaThemeRuntime.active.dark ? .12 : .28),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-              color: _foreground.withValues(alpha: .19)),
+  State<_GlassCard> createState() => _GlassCardState();
+}
+
+class _GlassCardState extends State<_GlassCard> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = VelaThemeRuntime.active;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 190),
+            curve: Curves.easeOutCubic,
+            padding: widget.padding,
+            decoration: BoxDecoration(
+              color: _panel.withValues(alpha: .50),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: _hover
+                  ? _blue.withValues(alpha: .60)
+                  : _foreground.withValues(alpha: t.dark ? .33 : .24)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: t.dark ? .24 : .10),
+                  blurRadius: _hover ? 23 : 15,
+                  offset: Offset(0, _hover ? 7 : 4),
+                ),
+              ],
+            ),
+            child: widget.child,
+          ),
         ),
-        child: child,
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _ConnectionCard extends StatelessWidget {
@@ -956,7 +1014,7 @@ class _MobileHome extends StatelessWidget {
   const _MobileHome({
     required this.demo, required this.showNodes, required this.showSmart,
     this.connection, this.subscription, this.smart, this.androidVpn,
-    this.traffic,
+    this.traffic, this.routing,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
@@ -964,6 +1022,7 @@ class _MobileHome extends StatelessWidget {
   final VelaSmartController? smart;
   final VelaAndroidVpnController? androidVpn;
   final VelaTrafficMonitor? traffic;
+  final VelaRoutingModeController? routing;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
 
@@ -1002,6 +1061,20 @@ class _MobileHome extends StatelessWidget {
               ? _RealConnectionCard(connection: connection!,
                   showNodes: showNodes, compact: true)
               : _ConnectionCard(demo: demo, showNodes: showNodes, compact: true),
+      if (routing != null) ...[
+        const SizedBox(height: 12),
+        VelaRoutingModeSelector(
+          key: const ValueKey('home_routing_selector'),
+          controller: routing!,
+          activeProfileId:
+              subscription is VelaFlClashSubscriptionController
+                  ? (subscription! as VelaFlClashSubscriptionController)
+                      .activeProfileId
+                  : null,
+          locked: connection?.busy == true ||
+              androidVpn?.busy == true || smart?.scanning == true,
+        ),
+      ],
       SizedBox(height: 12),
       Row(children: [
         Expanded(child: _MetricCard(
@@ -1091,7 +1164,7 @@ class _SmartPage extends StatelessWidget {
     if (smart != null && subscription?.nodes.isNotEmpty == true) {
       return _ScreenPadding(child: ListView(children: [
         _ScreenHeading('智能优选', Platform.isAndroid
-            ? 'FlClash 原生测速 · VPN 连接保护'
+            ? '原生航线测速 · VPN 连接保护'
             : '真实 HTTPS 测速 · 稳定优先'),
         SizedBox(height: 18),
         _RealTag(),
@@ -1202,8 +1275,8 @@ class _SettingsPage extends StatelessWidget {
         Divider(height: 1, color: _line),
         ListTile(
           leading: Icon(Icons.info_outline, color: _blue),
-          title: Text(Platform.isAndroid ? 'Vela-SHUO v1.2.0 · Android VPN Beta'
-              : 'Vela-SHUO v1.2.0 · Windows Beta'),
+          title: Text(Platform.isAndroid ? 'Vela-SHUO v1.3.0 · Android VPN'
+              : 'Vela-SHUO v1.3.0 · Windows'),
           subtitle: Text(Platform.isAndroid
               ? '可授权 Android 系统 VPN；真实连接以服务状态为准'
               : '真实系统代理连接测试 · 尚非 TUN/VPN 全局代理'),
@@ -1469,8 +1542,8 @@ class _AndroidVpnTag extends StatelessWidget {
       color: _blue.withValues(alpha: .13),
       border: Border.all(color: _blue.withValues(alpha: .35)),
     ),
-    child: Text(vpn.connected ? 'Android Mihomo VPN · 已连接'
-        : 'Android Mihomo VPN · Beta',
+    child: Text(vpn.connected ? 'Vela VPN · 已连接'
+        : 'Vela VPN · Beta',
         style: const TextStyle(fontSize: 10)),
   );
 }
@@ -1495,7 +1568,7 @@ class _AndroidVpnCard extends StatelessWidget {
           children: [
             Text(vpn.phaseText, style: TextStyle(color: _foreground,
                 fontSize: 18, fontWeight: FontWeight.w700)),
-            Text('Mihomo · Android VpnService · TUN',
+            Text('当前航线 · ${subscription is VelaFlClashSubscriptionController ? ((subscription as VelaFlClashSubscriptionController).profileName ?? '未命名机场') : '未命名机场'}',
                 style: TextStyle(color: _muted, fontSize: 11)),
           ],
         )),
@@ -1644,7 +1717,7 @@ class _RealConnectionCard extends StatelessWidget {
                   color: color, fontWeight: FontWeight.bold,
                   fontSize: compact ? 21 : 26,
                 )),
-                Text('Mihomo · 真实线路与系统代理',
+                Text('当前航线 · ${connection.subscription is VelaFlClashSubscriptionController ? ((connection.subscription as VelaFlClashSubscriptionController).profileName ?? '未命名机场') : '未命名机场'}',
                     style: TextStyle(color: _muted, fontSize: 12)),
               ],
             )),

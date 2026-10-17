@@ -44,6 +44,22 @@ class FlClashWindowsBackend {
   // subscription HTTP response, not from Mihomo proxy-providers.
   FlClashSubscriptionUsage? subscriptionUsage;
 
+  /// The core is the source of truth; increment on every profile import.
+  /// Each new profile must have the saved route mode reapplied to its rules.
+  int profileRevision = 0;
+  String activeRoutingMode = 'global';
+
+  Future<bool> updateRoutingMode(String mode) async {
+    if (!imported || !const {'rule', 'global', 'direct'}.contains(mode)) {
+      return false;
+    }
+    final reply = await api.invoke('updateConfig',
+        arguments: {'mode': mode});
+    if (reply is! String || reply.isNotEmpty) return false;
+    activeRoutingMode = mode;
+    return true;
+  }
+
   Future<void> initialize() async {
     if (ready) return;
     if (!Platform.isWindows && transport is FlClashWindowsTransport) {
@@ -71,18 +87,18 @@ class FlClashWindowsBackend {
         final bundled = File(
             '${source.path}${Platform.pathSeparator}$name');
         if (!await bundled.exists()) {
-          throw StateError('FlClash Geo database missing: $name');
+          throw StateError('航线地理数据缺失: $name');
         }
         final temp = File('${target.path}.tmp');
         await bundled.copy(temp.path);
         if (await temp.length() == 0) {
-          throw StateError('Empty FlClash Geo database: $name');
+          throw StateError('航线地理数据为空: $name');
         }
         await temp.rename(target.path);
       }
     }
     if (!await api.initialize(path)) {
-      throw StateError('FlClash Go core rejected initialization');
+      throw StateError('航线服务初始化失败');
     }
     ready = true;
   }
@@ -110,16 +126,18 @@ class FlClashWindowsBackend {
     if (!groupNames.contains('GLOBAL') ||
         !proxies.containsKey('GLOBAL')) {
       throw const FlClashCoreFailure(
-          'no_global', 'Mihomo GLOBAL selector is missing');
+          'no_global', '订阅的 GLOBAL 节点组缺失');
     }
     const groupName = 'GLOBAL';
     final importedNodes = _nodesFromMihomo(
         proxies, groupNames, rawProxies: nativeProxies);
     if (importedNodes.isEmpty) {
       throw const FlClashCoreFailure('empty_profile',
-          'FlClash core loaded no usable nodes');
+          '当前订阅没有可用节点');
     }
     imported = true;
+    profileRevision++;
+    activeRoutingMode = 'global'; // restored mode is reapplied after import
     lastImportedSource = raw;
     // Local text/file imports have no authoritative subscription HTTP header.
     subscriptionUsage = null;
@@ -241,7 +259,7 @@ class FlClashWindowsBackend {
   /// Disconnected-only: updating active outbound sets requires special care.
   Future<List<VelaSubscriptionNode>> refreshRemoteProviders() async {
     if (!ready || !imported || listenerStarted) {
-      throw StateError('请先断开连接再更新 FlClash 节点提供者');
+      throw StateError('请先断开连接再更新远程节点');
     }
     final names = await loadRemoteProviders();
     if (names.isEmpty) {
@@ -250,18 +268,18 @@ class FlClashWindowsBackend {
     for (final name in names) {
       final message = await api.updateExternalProvider(name);
       if (message.isNotEmpty) {
-        throw StateError('FlClash 节点提供者更新失败');
+        throw StateError('远程节点更新失败');
       }
     }
     final latest = await api.getProxies();
     final proxies = latest['proxies'];
     final all = latest['all'];
     if (proxies is! Map || all is! List) {
-      throw StateError('FlClash 核心返回的节点列表不完整');
+      throw StateError('航线服务返回的节点列表不完整');
     }
     final updated = _nodesFromMihomo(proxies, all.whereType<String>().toList());
     if (updated.isEmpty) {
-      throw StateError('提供者更新后 FlClash 未返回有效节点');
+      throw StateError('远程节点更新后未返回有效节点');
     }
     nodes = List.unmodifiable(updated);
     groups = List.unmodifiable(all.whereType<String>());
@@ -311,7 +329,7 @@ class FlClashWindowsBackend {
 
   Future<void> start() async {
     if (!ready || !imported || activeName == null) {
-      throw StateError('Select a FlClash node before connecting');
+      throw StateError('请先选择节点再连接');
     }
     // The upstream RPC can return true even when WinSock fails to bind
     // its local MixedPort. Check exclusive availability BEFORE starting,
@@ -326,7 +344,7 @@ class FlClashWindowsBackend {
       }
     }
     if (!await api.startListener()) {
-      throw StateError('FlClash Go listener did not start');
+      throw StateError('航线服务未能启动代理监听');
     }
     if (Platform.isWindows && transport is FlClashWindowsTransport) {
       var listening = false;
@@ -344,7 +362,7 @@ class FlClashWindowsBackend {
       }
       if (!listening) {
         await api.stopListener();
-        throw StateError('FlClash Go 未能在本机 20808 端口建立代理监听');
+        throw StateError('航线服务未能在本机 20808 端口建立代理监听');
       }
     }
     listenerStarted = true;
@@ -372,8 +390,8 @@ class FlClashWindowsBackend {
       internetVerified = (res['status-code'] == 204 ||
           res['status-code'] == 200) &&
           (res['error'] == null || res['error'] == '') &&
-          chains is List &&
-          chains.contains(activeName);
+          (activeRoutingMode != 'global' ||
+              (chains is List && chains.contains(activeName)));
       if (!internetVerified) return false;
       // A Go-internal probe alone does NOT prove the browser-facing
       // Windows MixedPort forwards HTTPS. Exercise the actual HTTP CONNECT
@@ -434,7 +452,7 @@ class FlClashWindowsBackend {
   /// batch failure, NOT misreported as 42 unreachable proxy nodes.
   Future<Map<String, int?>> testLatencies(List<String> names) async {
     if (!ready || !imported) {
-      throw StateError('FlClash 核心尚未载入配置');
+      throw StateError('尚未载入航线配置');
     }
     if (names.isEmpty || names.length > 512) {
       throw ArgumentError.value(names.length, 'names', 'Invalid batch size');
@@ -463,12 +481,12 @@ class FlClashWindowsBackend {
         readings[name] = null;
         final code = entry['reason'];
         _delayErrors[name] = switch (code) {
-          'missing' => '节点未加载到 FlClash 核心',
-          'busy' => 'FlClash 测速队列繁忙',
+          'missing' => '节点尚未载入航线服务',
+          'busy' => '航线测速队列繁忙',
           'bad_status' => '测速地址响应异常',
           'unreachable' => '节点暂时无法访问检测服务',
           final String value => _safeProbeFailure(value),
-          _ => 'FlClash 节点测试失败',
+          _ => '航线节点测试失败',
         };
       }
     }
@@ -478,7 +496,7 @@ class FlClashWindowsBackend {
   Future<int?> delay(String name) async {
     _delayErrors.remove(name);
     if (!imported || !nodes.any((node) => node.name == name)) {
-      _delayErrors[name] = '节点不在当前 FlClash 配置中';
+      _delayErrors[name] = '节点不在当前航线配置中';
       return null;
     }
 
@@ -494,7 +512,7 @@ class FlClashWindowsBackend {
       } on FlClashCoreFailure catch (error) {
         if (error.code == 'not_initialized' ||
             error.code == 'not_implemented') {
-          _delayErrors[name] = 'FlClash 测速接口不可用';
+          _delayErrors[name] = '航线测速接口不可用';
           return null;
         }
       } catch (_) {
@@ -514,7 +532,7 @@ class FlClashWindowsBackend {
       try {
         final reply = await api.probe(url, name);
         if (reply is! Map) {
-          _delayErrors[name] = 'FlClash 返回的测速数据为空';
+          _delayErrors[name] = '航线测速数据为空';
           continue;
         }
         final error = reply['error'];
@@ -536,8 +554,8 @@ class FlClashWindowsBackend {
         _delayErrors[name] = '测速超时';
       } on FlClashCoreFailure catch (error) {
         _delayErrors[name] = error.code == 'not_implemented'
-            ? 'FlClash 测速接口不可用'
-            : 'FlClash 核心拒绝测速请求';
+            ? '航线测速接口不可用'
+            : '航线服务拒绝测速请求';
       } catch (_) {
         _delayErrors[name] = '网络探测未能完成';
       }
@@ -556,7 +574,7 @@ class FlClashWindowsBackend {
       'proxy' => '代理连接失败',
       'network' => '网络连接失败',
       'cancelled' => '测速已取消',
-      _ => 'FlClash 节点探测失败',
+      _ => '航线节点探测失败',
     };
   }
 

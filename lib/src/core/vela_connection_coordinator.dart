@@ -154,7 +154,7 @@ class VelaConnectionCoordinator extends ChangeNotifier {
     final oldName = subscription.configuredNameFor(previous);
     final newName = subscription.configuredNameFor(index);
     if (oldName == null || newName == null) {
-      _emit(VelaRealPhase.connected, '节点不在当前 Mihomo 配置中，请先断开后重新导入');
+      _emit(VelaRealPhase.connected, '节点不在当前航线配置中，请先断开后重新导入');
       return false;
     }
     _beginOperation();

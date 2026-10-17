@@ -26,27 +26,27 @@ class VelaCoreSettingsCard extends StatelessWidget {
       return ClipRRect(
         borderRadius: BorderRadius.circular(18),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
           child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: theme.surface.withValues(alpha:
-              theme.dark ? .12 : .29),
-          border: Border.all(color: theme.text.withValues(alpha: .18)),
+               .50),
+          border: Border.all(color: theme.text.withValues(alpha: theme.dark ? .30 : .24)),
           borderRadius: BorderRadius.circular(18),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(Icons.settings_ethernet_rounded, color: theme.accent),
             const SizedBox(width: 10),
-            Expanded(child: Text('Mihomo 代理内核',
+            Expanded(child: Text('Vela 网络服务',
               style: TextStyle(color: theme.text, fontSize: 17,
                 fontWeight: FontWeight.w600))),
           ]),
           const SizedBox(height: 8),
           Text(
             controller.usingBundledCore
-              ? '已内置经 SHA-256 校验的官方 Mihomo。'
+              ? '已内置经 SHA-256 校验的网络服务。'
                 '本地直连测试配置会自动创建；无需自行下载内核。'
               : '未发现打包内核，可重新解压完整便携包，'
                 '或手动选择可信来源的 mihomo.exe。',

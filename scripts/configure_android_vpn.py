@@ -30,7 +30,7 @@ gradle.write_text(source, encoding="utf-8")
 
 xml = manifest.read_text(encoding="utf-8")
 xml, count = re.subn(r'android:label="[^"]+"',
-    'android:label="Vela-SHUO Mihomo VPN Beta"', xml, count=1)
+    'android:label="Vela-SHUO VPN"', xml, count=1)
 if count != 1:
     raise SystemExit("Unexpected Flutter manifest label")
 if 'android:allowBackup=' not in xml:

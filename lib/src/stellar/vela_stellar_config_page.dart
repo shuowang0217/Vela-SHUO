@@ -111,7 +111,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
         _notify('没有本次运行的订阅地址或可更新的 HTTP 提供者；可重新导入配置');
         return;
       }
-      _notify(ok ? 'FlClash 配置更新成功'
+      _notify(ok ? '航线配置更新成功'
           : sub.error ?? '更新失败，原节点列表保持不变');
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -122,7 +122,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
     final controller = widget.subscription;
     final core = widget.core;
     if (controller == null || core == null) {
-      _notify('FlClash 核心尚未就绪');
+      _notify('航线服务尚未就绪');
       return;
     }
     final stage = widget.connection?.connected == true ||
@@ -262,7 +262,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
         child: Column(mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const StellarSectionHeading('配置操作', '仅执行已经接入 FlClash 的真实功能'),
+            const StellarSectionHeading('配置操作', '安全管理订阅、机场和航线'),
             const SizedBox(height: 20),
             ListTile(
               leading: const Icon(Icons.sync_rounded),
@@ -329,7 +329,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                   children: [
                     Row(children: [
                       Expanded(child: StellarSectionHeading(
-                        '配置管理', '订阅世界的更多可能 · FlClash 原生配置')),
+                        '配置管理', '每条航线，都有自己的目的地')),
                       if (!narrow)
                         StellarAction(label: '刷新配置',
                           icon: Icons.sync_rounded,
@@ -390,7 +390,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                     else _emptyProfile(context),
                     const SizedBox(height: 15),
                     StellarPanel(child: Row(children: [
-                      StellarPlanetGlyph(size: 46),
+                      StellarCompassGlyph(size: 46),
                       const SizedBox(width: 12),
                       Expanded(child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -400,7 +400,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                               fontWeight: FontWeight.w700, fontSize: 15)),
                           const SizedBox(height: 5),
                           const StellarLabel(
-                              '导入新的订阅或 Mihomo 配置 · 本机安全管理'),
+                              '导入机场订阅或配置文件 · 本机安全管理'),
                         ],
                       )),
                       IconButton.filledTonal(
@@ -441,10 +441,10 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    StellarPlanetGlyph(size: 43),
+                    StellarCompassGlyph(size: 43),
                     const SizedBox(width: 8),
                     Flexible(child: Text(active
-                        ? '当前航线 · FlClash' : '等待第一份配置',
+                        ? '当前航线 · ${_native?.profileName ?? '未命名机场'}' : '等待第一份配置',
                       maxLines: 2, style: TextStyle(color: t.text,
                         fontWeight: FontWeight.bold, fontSize: 20))),
                   ]),
@@ -505,7 +505,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
         padding: const EdgeInsets.all(17),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            StellarPlanetGlyph(size: 42),
+            StellarCompassGlyph(size: 42),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -568,12 +568,12 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
     return StellarPanel(child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 33),
       child: Center(child: Column(children: [
-        StellarPlanetGlyph(size: 75),
+        StellarCompassGlyph(size: 75),
         const SizedBox(height: 14),
         Text('尚未添加航线配置', style: TextStyle(
           color: t.text, fontWeight: FontWeight.bold, fontSize: 17)),
         const SizedBox(height: 5),
-        const StellarLabel('支持 FlClash / Mihomo 配置和 HTTPS 订阅'),
+        const StellarLabel('支持通用配置文件及 HTTPS 订阅'),
         const SizedBox(height: 14),
         FilledButton.icon(onPressed: _openImporter,
           icon: const Icon(Icons.add_rounded),
