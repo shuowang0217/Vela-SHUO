@@ -19,7 +19,7 @@ enum VelaRoutingMode {
 
   static VelaRoutingMode decode(String? mode) =>
       VelaRoutingMode.values.firstWhere((m) => m.wire == mode,
-          orElse: () => VelaRoutingMode.global);
+          orElse: () => VelaRoutingMode.rule);
 }
 
 class VelaRoutingModeController extends ChangeNotifier {
@@ -30,7 +30,7 @@ class VelaRoutingModeController extends ChangeNotifier {
   final FlClashWindowsBackend backend;
   SharedPreferences? _preferences;
 
-  VelaRoutingMode current = VelaRoutingMode.global;
+  VelaRoutingMode current = VelaRoutingMode.rule;
   bool busy = false;
   String? error;
   bool _closed = false;

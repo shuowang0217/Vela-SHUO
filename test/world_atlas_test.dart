@@ -64,6 +64,21 @@ void main() {
     expect(reverse, closeTo(-102.1, .001));
   });
 
+
+  test('compact Android portrait camera reveals more geography at native size', () {
+    const size = Size(390, 844);
+    const full = VelaWorldCamera(
+      size: size, longitude: 116.4, latitude: 39.9);
+    const compact = VelaWorldCamera(
+      size: size, longitude: 116.4, latitude: 39.9,
+      portraitWidthScale: VelaWorldCamera.androidCompactScale);
+    expect(compact.worldWidth, lessThan(full.worldWidth * .85));
+    expect(compact.worldHeight, lessThan(size.height));
+    expect(compact.top, greaterThan(0));
+    expect(compact.top + compact.worldHeight, lessThan(size.height));
+    expect(compact.project(VelaWorldCamera.beijing).dx, closeTo(195, .001));
+  });
+
   testWidgets('real connection state moves atlas and disconnects safely',
       (tester) async {
     final demo = VelaDemoController();

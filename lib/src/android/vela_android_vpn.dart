@@ -91,8 +91,10 @@ class VelaAndroidVpnController extends ChangeNotifier {
   }
 
   Future<bool> start(VelaSubscriptionController subscription) async {
+    // FlClash can start VPN with native selectors and selectedMap even
+    // when the root selected outbound is URLTest/Fallback, not a leaf node.
     if (!Platform.isAndroid || _disposed || active ||
-        subscription.selected == null) {
+        subscription.androidVpnProfile == null) {
       return false;
     }
     final profile = subscription.androidVpnProfile;
@@ -133,8 +135,7 @@ class VelaAndroidVpnController extends ChangeNotifier {
   }
 
   /// Change a live VPN node through FlClash's actual Go selector RPC.
-  /// Validate the selected outbound with real HTTPS before committing UI
-  /// state; a failed route test rolls the Go selector back.
+  /// Confirm actual Mihomo selector state, not arbitrary HTTP reachability.
   Future<bool> switchNode(
       VelaSubscriptionController subscription, int index) async {
     if (!Platform.isAndroid || _disposed || !connected ||
@@ -152,12 +153,17 @@ class VelaAndroidVpnController extends ChangeNotifier {
         ? (subscription.backend.activeGroup ?? 'GLOBAL')
         : 'VELA_SELECT';
     try {
+      // FlClash changes the native Mihomo selector directly. A public
+      // reachability probe is diagnostic, not a node-selection veto.
       await api.changeProxy(group, nextName);
-      if (await testConnectivity()) {
+      final snapshot = await api.getProxies();
+      final proxies = snapshot['proxies'];
+      final state = proxies is Map ? proxies[group] : null;
+      if (state is Map && state['now'] == nextName) {
         return subscription.confirmVpnSelection(index);
       }
       await api.changeProxy(group, oldName);
-      _error = '新节点联网验证失败，已恢复原节点';
+      _error = 'FlClash 核心未确认新节点，已恢复原节点';
       notifyListeners();
     } catch (_) {
       try {

@@ -29,6 +29,25 @@ class FlClashWindowsBackend {
   List<VelaSubscriptionNode> nodes = const [];
   List<String> groups = const [];
   Map<String, List<String>> groupMembers = const {};
+  Set<String> selectableGroups = const {};
+  Map<String, String> groupTypes = const {};
+  Set<String> hiddenGroups = const {};
+  Map<String, String> groupNow = const {};
+
+  /// FlClash's currentGroupsStateProvider filters groups by native mode:
+  /// RULE hides GLOBAL and hidden groups; GLOBAL shows every core group;
+  /// DIRECT displays none. The UI must not invent "全部节点" as a group.
+  List<String> get visibleGroups => switch (activeRoutingMode) {
+    'direct' => const <String>[],
+    'global' => groups,
+    _ => groups.where(
+        (name) => name != 'GLOBAL' && !hiddenGroups.contains(name))
+        .toList(growable: false),
+  };
+  bool groupIsSelector(String name) => selectableGroups.contains(name);
+
+  final Map<String, String> _selectedMap = {};
+  Map<String, String> get selectedMap => Map.unmodifiable(_selectedMap);
   String? activeName;
   String? activeGroup;
   // Provider downloads/updates belong to the upstream FlClash Go runtime.
@@ -47,16 +66,86 @@ class FlClashWindowsBackend {
   /// The core is the source of truth; increment on every profile import.
   /// Each new profile must have the saved route mode reapplied to its rules.
   int profileRevision = 0;
-  String activeRoutingMode = 'global';
+  String activeRoutingMode = 'rule';
+  String _defaultRuleGroup = 'GLOBAL';
 
   Future<bool> updateRoutingMode(String mode) async {
     if (!imported || !const {'rule', 'global', 'direct'}.contains(mode)) {
       return false;
     }
+    final previousMode = activeRoutingMode;
     final reply = await api.invoke('updateConfig',
         arguments: {'mode': mode});
     if (reply is! String || reply.isNotEmpty) return false;
+    if (mode == 'global') {
+      // The GLOBAL tab is only presentation. The real Mihomo selector may
+      // still point at DIRECT or a stale choice after Android quickSetup.
+      // Read it back, restore the saved native policy, and confirm its "now".
+      // Never generate a new proxy group or replace the airport's rules.
+      try {
+        var snapshot = await api.getProxies();
+        var all = snapshot['proxies'];
+        var state = all is Map ? all['GLOBAL'] : null;
+        if (state is! Map || state['all'] is! List) {
+          throw StateError('GLOBAL selector missing');
+        }
+        final members = (state['all'] as List).whereType<String>().toSet();
+        final saved = _selectedMap['GLOBAL'];
+        final now = state['now']?.toString();
+        String? target;
+        if (saved != null && members.contains(saved) &&
+            !const {'DIRECT', 'REJECT', 'REJECT-DROP'}.contains(saved)) {
+          target = saved;
+        } else if (now == null ||
+            const {'DIRECT', 'REJECT', 'REJECT-DROP'}.contains(now)) {
+          // On first global use prefer the already working RULE/MATCH group.
+          // A policy group stays native (URLTest/Fallback are not flattened).
+          if (members.contains(_defaultRuleGroup) &&
+              _defaultRuleGroup != 'GLOBAL') {
+            target = _defaultRuleGroup;
+          } else if (activeName != null && members.contains(activeName)) {
+            target = activeName;
+          }
+        }
+        if (target != null && target != now) {
+          await api.changeProxy('GLOBAL', target);
+          snapshot = await api.getProxies();
+          all = snapshot['proxies'];
+          state = all is Map ? all['GLOBAL'] : null;
+        }
+        final actual = state is Map ? state['now'] : null;
+        if (actual is! String || actual.isEmpty ||
+            (target != null && actual != target)) {
+          throw StateError('GLOBAL native selection was not acknowledged');
+        }
+        _selectedMap['GLOBAL'] = actual;
+        groupNow = Map.unmodifiable({...groupNow, 'GLOBAL': actual});
+      } catch (_) {
+        // Do not claim GLOBAL works when the native selector is unknown.
+        // A failed readback leaves the previous core mode in place.
+        await api.invoke('updateConfig',
+            arguments: {'mode': previousMode});
+        return false;
+      }
+    }
     activeRoutingMode = mode;
+    if (mode == 'global') {
+      activeGroup = 'GLOBAL';
+    } else if (mode == 'rule' && activeGroup == 'GLOBAL') {
+      activeGroup = _defaultRuleGroup;
+    }
+    final chosen = _selectedMap[activeGroup];
+    activeName = chosen != null &&
+        nodes.any((node) => node.name == chosen) ? chosen : null;
+    if (previousMode != mode) {
+      // Existing TCP sessions retain their old decision; FlClash's native
+      // connection manager must close them so the new mode takes effect.
+      try {
+        await api.invoke('closeConnections');
+      } catch (_) {
+        // Route mode and selector were already acknowledged by the core.
+      }
+    }
     return true;
   }
 
@@ -109,7 +198,8 @@ class FlClashWindowsBackend {
     await initialize();
     if (listenerStarted) throw StateError('Disconnect before importing a profile');
     final result = await api.invoke('velaLoadProfile',
-        arguments: {'content': raw}, timeout: const Duration(minutes: 2));
+        arguments: {'content': raw},
+        timeout: const Duration(minutes: 2));
     if (result is! Map) {
       throw const FlClashCoreFailure('invalid_response', 'Profile RPC failed');
     }
@@ -128,7 +218,6 @@ class FlClashWindowsBackend {
       throw const FlClashCoreFailure(
           'no_global', '订阅的 GLOBAL 节点组缺失');
     }
-    const groupName = 'GLOBAL';
     final importedNodes = _nodesFromMihomo(
         proxies, groupNames, rawProxies: nativeProxies);
     if (importedNodes.isEmpty) {
@@ -137,14 +226,39 @@ class FlClashWindowsBackend {
     }
     imported = true;
     profileRevision++;
-    activeRoutingMode = 'global'; // restored mode is reapplied after import
+    activeRoutingMode = 'rule'; // FlClash default; restore the saved mode
     lastImportedSource = raw;
     // Local text/file imports have no authoritative subscription HTTP header.
     subscriptionUsage = null;
     nodes = List.unmodifiable(importedNodes);
     groups = List.unmodifiable(groupNames);
-    groupMembers = _readGroupMembers(proxies, groupNames);
-    activeGroup = groupName;
+    _updateGroupMetadata(proxies, groupNames,
+        rawGroups: result['raw-proxy-groups']);
+    // FlClash only permits explicit node selection in Selector groups.
+    // URLTest/Fallback/LoadBalance remain owned by their native strategy.
+    selectableGroups = Set.unmodifiable({
+      for (final name in groupNames)
+        if (proxies[name] is Map &&
+            ((proxies[name] as Map)['type']?.toString().toLowerCase() ==
+                'selector'))
+          name,
+    });
+    // Show the real MATCH selector in RULE mode instead of automatically
+    // editing GLOBAL, which is only the outbound group for GLOBAL mode.
+    final match = result['match-group'];
+    // If the rule set has no MATCH target, there is no safe single
+    // default group: do not guess one from the order of group names.
+    _defaultRuleGroup = match is String && selectableGroups.contains(match)
+        ? match : 'GLOBAL';
+    activeGroup = _defaultRuleGroup;
+    _selectedMap.clear();
+    for (final group in selectableGroups) {
+      final state = proxies[group];
+      final current = state is Map ? state['now'] : null;
+      if (current is String && current.isNotEmpty) {
+        _selectedMap[group] = current;
+      }
+    }
     activeName = null;
     internetVerified = false;
     providerCount = result['provider-count'] is int
@@ -224,6 +338,40 @@ class FlClashWindowsBackend {
     ).hasMatch(name.trim());
   }
 
+  void _updateGroupMetadata(Map proxies, List<String> names,
+      {Object? rawGroups}) {
+    groupMembers = _readGroupMembers(proxies, names);
+    // FlClash also respects proxy-groups[].hidden. The native proxy
+    // registry may omit that flag; the imported RawConfig retains it.
+    final rawHidden = <String>{};
+    if (rawGroups is List) {
+      for (final entry in rawGroups) {
+        if (entry is Map && entry['name'] is String &&
+            entry['hidden'] == true) {
+          rawHidden.add(entry['name'] as String);
+        }
+      }
+    }
+    groupTypes = Map.unmodifiable({
+      for (final name in names)
+        if (proxies[name] is Map)
+          name: ((proxies[name] as Map)['type'] ?? '').toString(),
+    });
+    hiddenGroups = Set.unmodifiable({
+      for (final name in names)
+        if (rawHidden.contains(name) ||
+            (proxies[name] is Map &&
+                (proxies[name] as Map)['hidden'] == true))
+          name,
+    });
+    groupNow = Map.unmodifiable({
+      for (final name in names)
+        if (proxies[name] is Map &&
+            (proxies[name] as Map)['now'] is String)
+          name: (proxies[name] as Map)['now'] as String,
+    });
+  }
+
   Map<String, List<String>> _readGroupMembers(
       Map proxies, List<String> groupNames) {
     return Map.unmodifiable({
@@ -283,8 +431,11 @@ class FlClashWindowsBackend {
     }
     nodes = List.unmodifiable(updated);
     groups = List.unmodifiable(all.whereType<String>());
-    groupMembers = _readGroupMembers(
-        proxies, all.whereType<String>().toList());
+    _updateGroupMetadata(proxies, groups);
+    _selectedMap.removeWhere((group, name) =>
+        !groups.contains(group) ||
+        (groupMembers[group]?.isNotEmpty == true &&
+            !groupMembers[group]!.contains(name)));
     if (activeName != null && !updated.any((n) => n.name == activeName)) {
       activeName = null;
     }
@@ -305,10 +456,97 @@ class FlClashWindowsBackend {
     return loaded;
   }
 
+  /// FlClash switches displayed group tabs without touching the native
+  /// routing configuration. Auto/Fallback are legitimate tabs too. Changing
+  /// tabs while connected is safe: the existing Mihomo pick stays unchanged.
+  bool selectRoutingGroup(String name) {
+    if (!imported || !visibleGroups.contains(name)) {
+      return false;
+    }
+    activeGroup = name;
+    final selected = _selectedMap[name] ?? groupNow[name];
+    activeName = selected != null &&
+        nodes.any((node) => node.name == selected) ? selected : null;
+    internetVerified = false;
+    return true;
+  }
+
+  /// Preserve FlClash Profile.selectedMap for every native selector, not
+  /// just the group currently visible in Vela's node list. Invalid/stale
+  /// provider selections are ignored rather than substituted by GLOBAL.
+  Future<void> restoreSelectedMap(Map<String, String> saved,
+      {String? selectedGroup}) async {
+    if (!imported || listenerStarted) return;
+    for (final entry in saved.entries) {
+      final group = entry.key;
+      final name = entry.value;
+      if (!selectableGroups.contains(group) || name.isEmpty ||
+          (groupMembers[group]?.isNotEmpty == true &&
+              !groupMembers[group]!.contains(name))) {
+        continue;
+      }
+      try {
+        await api.changeProxy(group, name);
+        final registry = await api.getProxies();
+        final all = registry['proxies'];
+        final state = all is Map ? all[group] : null;
+        if (state is Map && state['now'] == name) {
+          _selectedMap[group] = name;
+        }
+      } catch (_) {
+        // A stale selector must not discard the other valid groups.
+      }
+    }
+    if (selectedGroup != null && selectableGroups.contains(selectedGroup)) {
+      activeGroup = selectedGroup;
+    }
+    final chosen = _selectedMap[activeGroup];
+    activeName = chosen != null &&
+        nodes.any((node) => node.name == chosen) ? chosen : null;
+  }
+
+  /// Called only after a live native selector RPC has been confirmed.
+  /// The source of truth stays in Mihomo, not a separate Vela route engine.
+  void recordNativeSelection(String group, String name) {
+    if (!selectableGroups.contains(group)) return;
+    _selectedMap[group] = name;
+    if (group == activeGroup) activeName = name;
+  }
+
+  /// A Selector can select another policy group (e.g. 自动选择/故障转移)
+  /// rather than a leaf proxy. FlClash sends the exact member name to
+  /// Mihomo; routing of that nested group remains native and automatic.
+  Future<bool> selectGroupMember(String member) async {
+    final group = activeGroup;
+    if (!imported || group == null || !selectableGroups.contains(group) ||
+        !groups.contains(member) ||
+        !(groupMembers[group]?.contains(member) ?? false)) {
+      return false;
+    }
+    try {
+      await api.changeProxy(group, member);
+      final snapshot = await api.getProxies();
+      final proxies = snapshot['proxies'];
+      final state = proxies is Map ? proxies[group] : null;
+      if (state is! Map || state['now'] != member) return false;
+      _selectedMap[group] = member;
+      groupNow = Map.unmodifiable({...groupNow, group: member});
+      activeName = null; // Policy group, not a concrete server.
+      internetVerified = false;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> selectNode(String name) async {
     if (!imported || !nodes.any((node) => node.name == name)) return false;
     final group = activeGroup;
-    if (group == null) return false;
+    if (group == null ||
+        (groupMembers[group]?.isNotEmpty == true &&
+            !groupMembers[group]!.contains(name))) {
+      return false;
+    }
     try {
       await api.changeProxy(group, name);
       // Do not confirm only because the RPC accepted the request. Read the
@@ -319,6 +557,8 @@ class FlClashWindowsBackend {
       if (selectedGroup is! Map || selectedGroup['now'] != name) {
         return false;
       }
+      _selectedMap[group] = name;
+      groupNow = Map.unmodifiable({...groupNow, group: name});
       activeName = name;
       internetVerified = false;
       return true;
@@ -328,8 +568,10 @@ class FlClashWindowsBackend {
   }
 
   Future<void> start() async {
-    if (!ready || !imported || activeName == null) {
-      throw StateError('请先选择节点再连接');
+    // Mihomo rules can route to a nested URLTest/Fallback selector. A
+    // concrete leaf node is NOT mandatory for FlClash listener startup.
+    if (!ready || !imported) {
+      throw StateError('请先导入有效机场配置再连接');
     }
     // The upstream RPC can return true even when WinSock fails to bind
     // its local MixedPort. Check exclusive availability BEFORE starting,

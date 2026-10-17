@@ -13,7 +13,7 @@ source = gradle.read_text(encoding="utf-8")
 old = 'applicationId = "com.shuowang.vela_shuo"'
 if source.count(old) != 1:
     raise SystemExit("Unexpected generated Flutter application id")
-source = source.replace(old, 'applicationId = "com.shuowang.vela.vpn.beta"', 1)
+source = source.replace(old, 'applicationId = "com.shuowang.vela"', 1)
 if "dependencies {" in source:
     source += '\n// AAR is downloaded separately and SHA-256-verified by CI.\n'
 source += '\ndependencies {\n    implementation(files("libs/libmihomo.aar"))\n}\n'
@@ -26,11 +26,33 @@ android {
     }
 }
 '''
+# Reuse the pinned FlClash-Custom permanent signing certificate:
+# its ciphertext is public, only the password lives in Vela's Actions secret.
+# Never generate another key: the stable certificate enables future upgrades.
+source += '''
+android {
+    signingConfigs {
+        create("velaRelease") {
+            storeFile = file("vela-release.jks")
+            val permanentPassword = System.getenv("SHUO_SIGNING_PASSWORD")
+                ?: error("Missing SHUO permanent Android signing password")
+            storePassword = permanentPassword
+            keyAlias = "shuo-release"
+            keyPassword = permanentPassword
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("velaRelease")
+        }
+    }
+}
+'''
 gradle.write_text(source, encoding="utf-8")
 
 xml = manifest.read_text(encoding="utf-8")
 xml, count = re.subn(r'android:label="[^"]+"',
-    'android:label="Vela-SHUO VPN"', xml, count=1)
+    'android:label="Vela"', xml, count=1)
 if count != 1:
     raise SystemExit("Unexpected Flutter manifest label")
 if 'android:allowBackup=' not in xml:
@@ -69,4 +91,9 @@ manifest.write_text(xml, encoding="utf-8")
 kotlin_dir.mkdir(parents=True, exist_ok=True)
 for item in ("MainActivity.kt", "VelaVpnService.kt", "VelaVpnState.kt"):
     shutil.copy2(Path("native/android") / item, kotlin_dir / item)
-print("Android real VPN Beta: VpnService, JNI native bridge, ARM64 and foreground service configured")
+
+icon_source = Path("native/android/vela_notification_sail.xml")
+drawable_dir = Path("android/app/src/main/res/drawable")
+drawable_dir.mkdir(parents=True, exist_ok=True)
+shutil.copy2(icon_source, drawable_dir / icon_source.name)
+print("Vela stable Android: fixed package ID and release signing enforced")

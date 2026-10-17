@@ -5,6 +5,25 @@ import 'package:vela_shuo/src/subscription/vela_profile_library.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_vault.dart';
 
 void main() {
+  test('encrypted source URL and auto-update survive app restart', () async {
+    final vault = VelaMemoryProfileVault();
+    final library = VelaProfileLibrary(vault);
+    const source = 'https://example.test/sub?token=secret-value';
+    const profile = VelaStoredProfile(id: 'a', name: 'Airport',
+        raw: 'proxies: []', sourceUrl: source, autoUpdateMinutes: 1440);
+    await library.write([profile], 'a');
+    final saved = (await library.read()).profiles.single;
+    expect(saved.sourceUrl, source);
+    expect(saved.autoUpdateMinutes, 1440);
+    expect(saved.copyWith(name: 'Renamed').sourceUrl, source);
+    expect(saved.copyWith(disableAutoUpdate: true).autoUpdateMinutes, isNull);
+    expect(saved.copyWith(clearSourceUrl: true).sourceUrl, isNull);
+    expect(VelaStoredProfile.isSafeSubscriptionUrl('http://example.test'), false);
+    expect(VelaStoredProfile.isSafeSubscriptionUrl('https://localhost/sub'), false);
+    expect(VelaStoredProfile.isSafeSubscriptionUrl('https://127.0.0.1/sub'), false);
+    expect(VelaStoredProfile.isSafeSubscriptionUrl('https://123example.com/sub'), true);
+  });
+
   test('encrypted library persists separate subscription selections', () async {
     final vault = VelaMemoryProfileVault();
     final library = VelaProfileLibrary(vault);
