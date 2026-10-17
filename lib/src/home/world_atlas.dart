@@ -8,6 +8,7 @@ import '../brand/vela_sail_mark.dart';
 import 'demo_connection.dart';
 import 'maritime_route.dart';
 import 'vela_oil_scene.dart';
+import 'vela_oil_impasto.dart';
 
 /// Camera for a precisely georeferenced 2:1 equirectangular world map.
 @immutable
@@ -251,9 +252,7 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
           return ClipRect(child: Stack(fit: StackFit.expand, children: [
             const ColoredBox(color: Color(0xFF071929)),
             // Oil reference beta: disable with VELA_OIL_PREVIEW=false.
-            if (const bool.fromEnvironment('VELA_OIL_PREVIEW', defaultValue: true))
-              const VelaOilScene(),
-            if (!const bool.fromEnvironment('VELA_OIL_PREVIEW', defaultValue: true) && compactAndroid)
+            if (compactAndroid)
               ImageFiltered(
                 // Full-bleed soft watercolor beneath a smaller atlas avoids
                 // exposed black strips at the north/south edges.
@@ -265,8 +264,7 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
                     asset: 'assets/world/watercolor_night.webp', show: dark),
                 ]),
               ),
-            if (!const bool.fromEnvironment('VELA_OIL_PREVIEW', defaultValue: true))
-              ShaderMask(
+            ShaderMask(
               shaderCallback: (rect) => (compactAndroid
                 ? const LinearGradient(
                     begin: Alignment.topCenter, end: Alignment.bottomCenter,
@@ -296,7 +294,10 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
               ),
             ))),
             // Hand-painted moving clouds above the map, below the clear route.
-            if (!const bool.fromEnvironment('VELA_OIL_PREVIEW', defaultValue: true))
+            if (const bool.fromEnvironment('VELA_OIL_PREVIEW', defaultValue: true)) ...[
+              const VelaOilImpasto(),
+              const VelaOilScene(),
+            ] else
               VelaAtlasWeather(camera: camera, dark: dark,
                 connected: widget.demo.phase == VelaPhase.connected),
             CustomPaint(painter: _WorldRoutePainter(
