@@ -789,7 +789,7 @@ class _VoyageDock extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(17),
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+                filter: ImageFilter.blur(sigmaX: VelaThemeRuntime.oilPreview ? 0 : 9, sigmaY: VelaThemeRuntime.oilPreview ? 0 : 9),
                 child: VelaWatercolorSurface(
                   selected: selected == target,
                   padding: EdgeInsets.zero,
@@ -822,7 +822,7 @@ class _VoyageHomeShortcut extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(18),
     child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+      filter: ImageFilter.blur(sigmaX: VelaThemeRuntime.oilPreview ? 0 : 9, sigmaY: VelaThemeRuntime.oilPreview ? 0 : 9),
       child: VelaWatercolorSurface(
         radius: 18, padding: EdgeInsets.zero,
         child: Material(color: Colors.transparent,
@@ -890,7 +890,7 @@ class _GlassCardState extends State<_GlassCard> {
     child: ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+        filter: ImageFilter.blur(sigmaX: VelaThemeRuntime.oilPreview ? 0 : 9, sigmaY: VelaThemeRuntime.oilPreview ? 0 : 9),
         child: VelaWatercolorSurface(
           hovered: _hover, padding: const EdgeInsets.all(18),
           child: widget.child),
@@ -1010,32 +1010,64 @@ class _MobileHome extends StatelessWidget {
       );
       return Stack(children: [
         Positioned(
-          top: 13, left: 16, right: 12,
-          child: Row(children: [
-            const VelaSailMark(size: 40),
-            const SizedBox(width: 9),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('VELA', style: TextStyle(color: _foreground,
-                    fontSize: 26, fontWeight: FontWeight.w800,
-                    letterSpacing: 2.5)),
-                Text(velaBrandTagline, style: TextStyle(
-                    color: _muted, fontSize: 9)),
-              ],
-            )),
-            if (vpn != null)
-              Icon(Icons.shield_outlined, size: 18,
-                  color: connected ? _mint : _blue),
-          ]),
+          top: 12, left: 14, right: 14,
+          child: VelaThemeRuntime.oilPreview
+            ? VelaWatercolorSurface(
+                key: const ValueKey('mobile_oil_masthead'),
+                radius: 20,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 15, vertical: 9),
+                child: Row(children: [
+                  const VelaSailMark(size: 39),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('VELA', style: TextStyle(color: _foreground,
+                        fontFamily: 'Georgia', fontSize: 24,
+                        fontWeight: FontWeight.w800, letterSpacing: 2.3)),
+                      Text('航海油画  ·  v1.8.2', style: TextStyle(
+                        color: _blue, fontSize: 10,
+                        letterSpacing: 1.1, fontWeight: FontWeight.w700)),
+                      Text(velaBrandTagline, style: TextStyle(
+                        color: _muted, fontSize: 9)),
+                    ],
+                  )),
+                  if (vpn != null)
+                    Icon(Icons.shield_outlined, size: 20,
+                      color: connected ? _mint : _blue),
+                ]),
+              )
+            : Row(children: [
+                const VelaSailMark(size: 40),
+                const SizedBox(width: 9),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('VELA', style: TextStyle(color: _foreground,
+                        fontSize: 26, fontWeight: FontWeight.w800,
+                        letterSpacing: 2.5)),
+                    Text(velaBrandTagline, style: TextStyle(
+                        color: _muted, fontSize: 9)),
+                  ],
+                )),
+                if (vpn != null)
+                  Icon(Icons.shield_outlined, size: 18,
+                      color: connected ? _mint : _blue),
+              ]),
         ),
         Positioned(
-          top: 90, left: 14, right: 14,
+          top: VelaThemeRuntime.oilPreview ? 104 : 90,
+          left: 14, right: 14,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              // Oil uses opaque paint rather than blurred glass.
+              filter: ImageFilter.blur(
+                sigmaX: VelaThemeRuntime.oilPreview ? 0 : 10,
+                sigmaY: VelaThemeRuntime.oilPreview ? 0 : 10),
               child: VelaWatercolorSurface(
+                key: const ValueKey('mobile_oil_status'),
                 radius: 24,
                 padding: const EdgeInsets.fromLTRB(14, 8, 9, 8),
                 child: Row(children: [
@@ -1080,8 +1112,13 @@ class _MobileHome extends StatelessWidget {
                         ? Icons.power_settings_new_rounded
                         : Icons.sailing_rounded, size: 24),
                     style: IconButton.styleFrom(
-                      backgroundColor: _blue.withValues(alpha: .9),
-                      foregroundColor: Colors.white,
+                      backgroundColor: VelaThemeRuntime.oilPreview
+                          ? const Color(0xFF885526) : _blue.withValues(alpha: .9),
+                      foregroundColor: VelaThemeRuntime.oilPreview
+                          ? const Color(0xFFFFF4D9) : Colors.white,
+                      side: VelaThemeRuntime.oilPreview
+                          ? const BorderSide(color: Color(0xFFD9B078),
+                              width: 1.5) : null,
                       minimumSize: const Size(48, 48)),
                   ),
                 ]),
