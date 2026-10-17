@@ -34,6 +34,12 @@ float fbm3(vec2 p) {
   return v;
 }
 
+float coastalLight(vec2 point, vec2 city) {
+  vec2 delta = abs(point - city);
+  delta.x = min(delta.x, 1.0 - delta.x);
+  return exp(-length(delta * vec2(2.0, 1.0)) * 94.0);
+}
+
 void main() {
   vec2 pos = FlutterFragCoord().xy;
   vec2 screen = pos / max(uResolution, vec2(1.0));
@@ -88,15 +94,12 @@ void main() {
   float warm = 0.0;
   if (uNight > .5) {
     float pulse = .5 + .5 * sin(6.2831853 * mod(t, 15.0) / 15.0);
-    vec2 cities[4] = vec2[4](
-      vec2(.838, .325), vec2(.889, .302),
-      vec2(.788, .492), vec2(.295, .274));
-    for (int k = 0; k < 4; k++) {
-      vec2 delta = abs(mapUV - cities[k]);
-      delta.x = min(delta.x, 1.0 - delta.x);
-      float d = length(delta * vec2(2.0, 1.0));
-      warm += exp(-d * 94.0);
-    }
+    // Flutter Windows Skia/SkSL cannot compile GLSL array initializers.
+    // Evaluate the four sparse night-light sites without shader arrays.
+    warm += coastalLight(mapUV, vec2(.838, .325));
+    warm += coastalLight(mapUV, vec2(.889, .302));
+    warm += coastalLight(mapUV, vec2(.788, .492));
+    warm += coastalLight(mapUV, vec2(.295, .274));
     warm = min(warm, 1.0) * (.055 + .057 * pulse);
   }
 

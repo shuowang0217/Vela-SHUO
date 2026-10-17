@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
@@ -61,5 +62,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.pumpWidget(weather(false, true));
     await tester.pumpAndSettle();
+  });
+
+  test('watercolor shader remains compatible with Windows SkSL', () {
+    // GLSL array constructors fail on Flutter Windows' Skia backend.
+    final source = File('shaders/vela_watercolor_atmosphere.frag')
+        .readAsStringSync();
+    expect(source, contains('coastalLight('));
+    expect(source, isNot(contains('vec2 cities[')));
+    expect(source, isNot(contains('vec2[4](')));
   });
 }
