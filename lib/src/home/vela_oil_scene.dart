@@ -83,21 +83,42 @@ class _VelaOilSceneState extends State<VelaOilScene>
         c.maxWidth<=0 || c.maxHeight<=0) {
       return const SizedBox.shrink();
     }
+    final portrait=c.maxHeight>c.maxWidth*1.25;
     final scale=math.max(c.maxWidth/VelaOilScene.referenceWidth,
         c.maxHeight/VelaOilScene.referenceHeight);
     final dx=(c.maxWidth-VelaOilScene.referenceWidth*scale)/2;
     final dy=(c.maxHeight-VelaOilScene.referenceHeight*scale)/2;
+    // Desktop's wide artwork crops clouds outside the Android portrait.
+    // Use responsive independent sprite rectangles on narrow screens.
+    final phoneRects=<Rect>[
+      const Rect.fromLTWH(-.22,.11,.76,.13),
+      const Rect.fromLTWH(.41,.06,.77,.17),
+      const Rect.fromLTWH(.35,.32,.86,.18),
+      const Rect.fromLTWH(-.28,.46,.86,.15),
+      const Rect.fromLTWH(.31,.60,.84,.19),
+      const Rect.fromLTWH(-.13,.81,.79,.14),
+    ];
     return IgnorePointer(child:ClipRect(child:RepaintBoundary(
       child:AnimatedBuilder(animation:_wind,builder:(context,_) {
         return Stack(fit:StackFit.expand,clipBehavior:Clip.hardEdge,children:[
-          for (final cloud in VelaOilScene.clouds)
+          for (final (index,cloud) in VelaOilScene.clouds.indexed)
             Positioned(
-              left:dx+cloud.bounds.left*scale,
-              top:dy+cloud.bounds.top*scale,
-              width:cloud.bounds.width*scale,
-              height:cloud.bounds.height*scale,
+              key: ValueKey('oil_cloud_${cloud.file}'),
+              left: portrait
+                ? phoneRects[index].left*c.maxWidth
+                : dx+cloud.bounds.left*scale,
+              top: portrait
+                ? phoneRects[index].top*c.maxHeight
+                : dy+cloud.bounds.top*scale,
+              width: portrait
+                ? phoneRects[index].width*c.maxWidth
+                : cloud.bounds.width*scale,
+              height: portrait
+                ? phoneRects[index].height*c.maxHeight
+                : cloud.bounds.height*scale,
               child:Transform.translate(
-                offset:cloud.position(_wind.value)*scale,
+                offset:cloud.position(_wind.value)*
+                  (portrait ? math.min(c.maxWidth/900, .85) : scale),
                 child:Opacity(opacity:cloud.opacity,
                   child:RepaintBoundary(child:Image.asset(
                     'assets/oil/clouds/${cloud.file}.png',
