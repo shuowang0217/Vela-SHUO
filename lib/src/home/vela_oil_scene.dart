@@ -80,7 +80,9 @@ class _VelaOilSceneState extends State<VelaOilScene>
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder:(context,c) {
     if (!c.hasBoundedWidth || !c.hasBoundedHeight ||
-        c.maxWidth<=0 || c.maxHeight<=0) return const SizedBox.shrink();
+        c.maxWidth<=0 || c.maxHeight<=0) {
+      return const SizedBox.shrink();
+    }
     final scale=math.max(c.maxWidth/VelaOilScene.referenceWidth,
         c.maxHeight/VelaOilScene.referenceHeight);
     final dx=(c.maxWidth-VelaOilScene.referenceWidth*scale)/2;
