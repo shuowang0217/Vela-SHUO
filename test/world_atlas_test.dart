@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
 import 'package:vela_shuo/src/home/maritime_route.dart';
-import 'package:vela_shuo/src/home/maritime_route.dart';
 
 void main() {
   test('wide map keeps China on screen and shows nearby continents', () {
