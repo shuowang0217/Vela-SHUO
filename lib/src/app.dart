@@ -78,7 +78,9 @@ class VelaShuoApp extends StatelessWidget {
       return MaterialApp(
         title: 'Vela',
         debugShowCheckedModeBanner: false,
-        themeMode: VelaThemeRuntime.oilPreview ? ThemeMode.light : settings.themeMode,
+        themeMode: VelaThemeRuntime.oilPreview
+            ? (VelaThemeRuntime.active.dark ? ThemeMode.dark : ThemeMode.light)
+            : settings.themeMode,
         theme: _theme(Brightness.light, palette),
         darkTheme: _theme(Brightness.dark, palette),
         home: _Shell(settings: settings, diagnostics: diagnostics,
@@ -91,7 +93,8 @@ class VelaShuoApp extends StatelessWidget {
 
 ThemeData _theme(Brightness brightness, VelaPalette palette) {
   final t = VelaThemeRuntime.oilPreview ? VelaThemeRuntime.active : palette.tokens(brightness);
-  final actualBrightness = VelaThemeRuntime.oilPreview ? Brightness.light : brightness;
+  final actualBrightness = VelaThemeRuntime.oilPreview
+      ? (t.dark ? Brightness.dark : Brightness.light) : brightness;
   final scheme = ColorScheme.fromSeed(
     seedColor: t.accent, brightness: actualBrightness,
     primary: t.accent, secondary: t.accentSoft, surface: t.background);
@@ -636,7 +639,8 @@ class _DesktopHome extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(28),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              filter: ImageFilter.blur(sigmaX: VelaThemeRuntime.oilPreview ? 0 : 10,
+                sigmaY: VelaThemeRuntime.oilPreview ? 0 : 10),
               child: VelaWatercolorSurface(
                 key: const ValueKey('immersive_connection'),
                 radius: 28,
@@ -710,7 +714,8 @@ class _VoyageRatePanel extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(19),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(sigmaX: VelaThemeRuntime.oilPreview ? 0 : 10,
+                sigmaY: VelaThemeRuntime.oilPreview ? 0 : 10),
         child: SizedBox(
           key: const ValueKey('voyage_speed_panel'),
           width: 283, height: 79,
@@ -1026,7 +1031,7 @@ class _MobileHome extends StatelessWidget {
                       Text('VELA', style: TextStyle(color: _foreground,
                         fontFamily: 'Georgia', fontSize: 24,
                         fontWeight: FontWeight.w800, letterSpacing: 2.3)),
-                      Text('航海油画  ·  v1.8.2', style: TextStyle(
+                      Text('航海油画  ·  v1.8.3', style: TextStyle(
                         color: _blue, fontSize: 10,
                         letterSpacing: 1.1, fontWeight: FontWeight.w700)),
                       Text(velaBrandTagline, style: TextStyle(
@@ -1112,13 +1117,13 @@ class _MobileHome extends StatelessWidget {
                         ? Icons.power_settings_new_rounded
                         : Icons.sailing_rounded, size: 24),
                     style: IconButton.styleFrom(
-                      backgroundColor: VelaThemeRuntime.oilPreview
-                          ? const Color(0xFF885526) : _blue.withValues(alpha: .9),
+                      backgroundColor: _blue.withValues(alpha: .95),
                       foregroundColor: VelaThemeRuntime.oilPreview
-                          ? const Color(0xFFFFF4D9) : Colors.white,
+                          ? (VelaThemeRuntime.active.dark
+                              ? const Color(0xFF1E1B17) : Colors.white)
+                          : Colors.white,
                       side: VelaThemeRuntime.oilPreview
-                          ? const BorderSide(color: Color(0xFFD9B078),
-                              width: 1.5) : null,
+                          ? BorderSide(color: _line, width: 1.5) : null,
                       minimumSize: const Size(48, 48)),
                   ),
                 ]),
@@ -1495,7 +1500,9 @@ class _PalettePicker extends StatelessWidget {
           Text('8 套', style: TextStyle(color: _muted, fontSize: 12)),
         ]),
         SizedBox(height: 7),
-        Text('Color Hunt · Popular / All time 前 8 套配色',
+        Text(VelaThemeRuntime.oilPreview
+          ? '选择油画颜料配色，所有卡片、按钮与弹窗同步更换颜色'
+          : 'Color Hunt · Popular / All time 前 8 套配色',
           style: TextStyle(fontSize: 12, color: _muted),
         ),
         SizedBox(height: 18),
