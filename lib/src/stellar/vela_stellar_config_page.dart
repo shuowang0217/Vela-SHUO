@@ -4,8 +4,8 @@ import '../android/vela_android_vpn.dart';
 import '../core/vela_connection_coordinator.dart';
 import '../core/vela_core_controller.dart';
 import '../home/demo_connection.dart';
-import '../home/globe.dart';
 import '../network/vela_flclash_subscription_adapter.dart';
+import '../subscription/vela_profile_library.dart';
 import 'vela_stellar_import_dialog.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../theme/vela_palettes.dart';
@@ -125,19 +125,128 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
       _notify('FlClash 核心尚未就绪');
       return;
     }
-    if (widget.connection?.connected == true ||
-        widget.androidVpn?.active == true || core.isListening) {
-      _notify('为保护当前连接，请先断开再切换配置');
-      return;
-    }
+    final stage = widget.connection?.connected == true ||
+        widget.connection?.proxy.active == true ||
+        widget.androidVpn?.active == true || core.isListening;
     final imported = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => VelaStellarImportDialog(controller: controller),
+      builder: (_) => VelaStellarImportDialog(
+          controller: controller, stageOnly: stage),
     );
     if (!mounted) return;
     if (imported == true) {
-      _notify('FlClash 已成功导入配置，${controller.nodes.length} 个节点');
+      _notify(stage ? '已获取并自动保存新机场，原代理连接保持不变'
+          : '新机场已自动保存，${controller.nodes.length} 个节点');
+    }
+  }
+
+  Future<void> _activateAirport(String id) async {
+    final native = _native;
+    if (native == null || _busy || native.activeProfileId == id) return;
+    final oldId = native.activeProfileId;
+    final connection = widget.connection;
+    final vpn = widget.androidVpn;
+    final wasWindows = connection?.connected == true;
+    final wasAndroid = vpn?.connected == true;
+    setState(() => _busy = true);
+    try {
+      if (connection != null &&
+          (connection.proxy.active || connection.core.isListening)) {
+        if (!await connection.disconnect()) {
+          _notify('系统代理未能安全断开，已取消机场切换');
+          return;
+        }
+      }
+      if (vpn?.active == true && !await vpn!.stop()) {
+        _notify('VPN 未能安全停止，已取消机场切换');
+        return;
+      }
+      final switched = await native.activateProfile(id);
+      if (!switched) {
+        if (wasWindows && connection != null) await connection.connect();
+        if (wasAndroid && vpn != null) await vpn.start(native);
+        _notify(native.error ?? '加载目标机场失败，已尝试恢复原线路');
+        return;
+      }
+      if (wasWindows && connection != null) {
+        if (!await connection.connect()) {
+          if (oldId != null && await native.activateProfile(oldId)) {
+            await connection.connect();
+          }
+          _notify('目标机场连接验证失败，已尝试恢复之前的机场');
+          return;
+        }
+      }
+      if (wasAndroid && vpn != null) {
+        if (!await vpn.start(native)) {
+          if (oldId != null && await native.activateProfile(oldId)) {
+            await vpn.start(native);
+          }
+          _notify('新机场 VPN 启动失败，已尝试恢复旧机场');
+          return;
+        }
+      }
+      _notify((wasWindows || wasAndroid)
+          ? '机场切换完成，已重新建立代理连接'
+          : '已切换机场，下次连接将使用此机场');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<String?> _askAirportName(String initial) async {
+    final input = TextEditingController(text: initial);
+    try {
+      return await showDialog<String>(
+        context: context, builder: (dialog) => AlertDialog(
+          title: const Text('重命名机场'),
+          content: TextField(controller: input, maxLength: 64,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: '机场名称')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog),
+                child: const Text('取消')),
+            FilledButton(onPressed: () {
+              final value = input.text.trim();
+              if (value.isNotEmpty) Navigator.pop(dialog, value);
+            }, child: const Text('确定')),
+          ],
+        ),
+      );
+    } finally {
+      input.dispose();
+    }
+  }
+
+  Future<void> _handleAirportMenu(VelaStoredProfile profile,
+      String action) async {
+    final native = _native;
+    if (native == null || _busy) return;
+    if (action == 'switch') {
+      await _activateAirport(profile.id);
+    } else if (action == 'rename') {
+      final name = await _askAirportName(profile.name);
+      if (name != null) {
+        _notify(await native.renameProfile(profile.id, name)
+            ? '机场已重命名' : native.error ?? '无法修改机场名称');
+      }
+    } else if (action == 'delete') {
+      final confirmed = await showDialog<bool>(
+        context: context, builder: (dialog) => AlertDialog(
+          title: Text('删除 ${profile.name}？'),
+          content: const Text('将删除此机场的加密存档，不会删除其他机场。'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false),
+                child: const Text('取消')),
+            FilledButton(onPressed: () => Navigator.pop(dialog, true),
+                child: const Text('删除')),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+      _notify(await native.removeProfile(profile.id)
+          ? '已删除该机场' : native.error ?? '删除失败');
     }
   }
 
@@ -259,10 +368,25 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                       ),
                     ]),
                     const SizedBox(height: 10),
-                    if (hasProfile)
-                      _profileCard(context, selected: true,
-                        used: used, total: total, percent: percent,
-                        online: online)
+                    if (_native?.profiles.isNotEmpty == true)
+                      LayoutBuilder(builder: (context, area) {
+                        final profiles = [..._native!.profiles];
+                        if (_sortRecent) {
+                          profiles.sort((a, b) => (b.updatedAt ?? DateTime(1970))
+                              .compareTo(a.updatedAt ?? DateTime(1970)));
+                        }
+                        final cardWidth = area.maxWidth >= 680
+                            ? (area.maxWidth - 12) / 2 : area.maxWidth;
+                        return Wrap(spacing: 12, runSpacing: 12,
+                          children: [for (final profile in profiles)
+                            SizedBox(width: cardWidth,
+                              child: _profileCard(context, profile,
+                                selected: profile.id == _native!.activeProfileId,
+                                online: online &&
+                                    profile.id == _native!.activeProfileId)),
+                          ],
+                        );
+                      })
                     else _emptyProfile(context),
                     const SizedBox(height: 15),
                     StellarPanel(child: Row(children: [
@@ -287,9 +411,8 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                       ),
                     ])),
                     const SizedBox(height: 14),
-                    StellarLabel('目前 FlClash 适配层支持单活动配置。'
-                        '多配置切换需进一步接入 FlClash 的完整 Profile 管理，'
-                        '不会显示虚构的其他订阅或套餐用量。'),
+                    StellarLabel('多机场独立加密保存；连接中可获取新机场。'
+                        '切换正在使用的机场时会安全断开并自动重连，短暂中断流量。'),
                   ],
                 ),
               ),
@@ -308,18 +431,11 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
       child: SizedBox(height: narrow ? 246 : 285,
         child: ClipRRect(borderRadius: BorderRadius.circular(24),
           child: Stack(children: [
-            Positioned(top: narrow ? -60 : -118,
-              right: narrow ? -113 : -38,
-              width: narrow ? 315 : 490,
-              height: narrow ? 315 : 490,
-              child: IgnorePointer(child: Opacity(
-                opacity: t.dark ? .72 : .46,
-                child: VelaGlobe(demo: widget.demo),
-              ))),
             Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(
               gradient: LinearGradient(colors: [
-                t.surface, t.surface.withValues(alpha: .87),
-                t.surface.withValues(alpha: .05)],
+                t.surface.withValues(alpha: .26),
+                t.surface.withValues(alpha: .10),
+                t.surface.withValues(alpha: .015)],
               stops: const [0, .51, 1])))),
             Positioned(left: 20, top: 22, right: narrow ? 66 : 270,
               child: Column(crossAxisAlignment: CrossAxisAlignment.start,
@@ -371,62 +487,70 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
     );
   }
 
-  Widget _profileCard(BuildContext context, {required bool selected,
-      num? used, num? total, double? percent, required bool online}) {
+  Widget _profileCard(BuildContext context, VelaStoredProfile profile, {
+    required bool selected, required bool online,
+  }) {
     final t = VelaThemeRuntime.active;
-    final sub = widget.subscription!;
-    final remote = _native?.remoteProviderCount ?? 0;
-    return StellarPanel(selected: selected, padding: const EdgeInsets.all(17),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          StellarPlanetGlyph(size: 58),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(_native?.profileName ?? '当前配置', style: TextStyle(color: t.text,
-                fontWeight: FontWeight.bold, fontSize: 19)),
-              const SizedBox(height: 4),
-              StellarLabel(online ? '● 正在连接' : '● 已载入 FlClash 核心',
-                accent: true),
-            ],
-          )),
-          PopupMenuButton<String>(
-            tooltip: '配置菜单',
-            onSelected: (action) {
-              if (action == 'update') _refresh();
-              if (action == 'replace') _openImporter();
-              if (action == 'manage') _showManagement();
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(value: 'update',
-                  enabled: !online && !_busy,
-                  child: const Text('更新当前配置')),
-              const PopupMenuItem(value: 'replace',
-                  child: Text('替换配置')),
-              const PopupMenuItem(value: 'manage',
-                  child: Text('保存和管理')),
-            ],
-          ),
+    final usage = profile.usage;
+    final total = usage?['total'];
+    final used = usage == null ? null :
+        (usage['upload'] ?? 0) + (usage['download'] ?? 0);
+    final fraction = total != null && total > 0 && used != null
+        ? (used / total).clamp(0.0, 1.0).toDouble() : null;
+    return InkWell(
+      key: ValueKey('airport_card_${profile.id}'),
+      borderRadius: BorderRadius.circular(18),
+      onTap: _busy || selected ? null : () => _activateAirport(profile.id),
+      child: StellarPanel(selected: selected,
+        padding: const EdgeInsets.all(17),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            StellarPlanetGlyph(size: 42),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(profile.name, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: t.text,
+                      fontWeight: FontWeight.bold, fontSize: 17)),
+                const SizedBox(height: 4),
+                StellarLabel(online ? '● 代理正在使用'
+                    : selected ? '● 当前机场' : '点击切换机场',
+                    accent: selected),
+              ])),
+            PopupMenuButton<String>(
+              key: ValueKey('airport_menu_${profile.id}'),
+              tooltip: '机场操作',
+              onSelected: (value) => _handleAirportMenu(profile, value),
+              itemBuilder: (_) => [
+                PopupMenuItem(value: 'switch', enabled: !selected,
+                    child: const Text('切换到此机场')),
+                const PopupMenuItem(value: 'rename',
+                    child: Text('重命名机场')),
+                const PopupMenuItem(value: 'delete',
+                    child: Text('删除机场')),
+              ],
+            ),
+          ]),
+          const SizedBox(height: 14),
+          Text(used != null && total != null
+              ? '${_humanBytes(used)} / ${_humanBytes(total)}'
+              : '未提供套餐用量',
+            style: TextStyle(color: t.text, fontSize: 13)),
+          const SizedBox(height: 7),
+          LinearProgressIndicator(value: fraction ?? 0, minHeight: 5,
+              borderRadius: BorderRadius.circular(8),
+              backgroundColor: t.line, color: t.accent),
+          const SizedBox(height: 11),
+          Wrap(spacing: 12, runSpacing: 7, children: [
+            if (profile.nodeCount != null)
+              _iconLabel(Icons.hub_outlined, '${profile.nodeCount} 个节点'),
+            _iconLabel(Icons.schedule_outlined,
+                _elapsed(profile.updatedAt)),
+            _iconLabel(Icons.lock_outline, '已加密保存'),
+          ]),
         ]),
-        const SizedBox(height: 17),
-        if (percent != null && used != null && total != null) ...[
-          Text('${_humanBytes(used)} / ${_humanBytes(total)}',
-            style: TextStyle(color: t.text)),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(value: percent, minHeight: 6,
-            borderRadius: BorderRadius.circular(8),
-            backgroundColor: t.line),
-          const SizedBox(height: 10),
-        ],
-        Wrap(spacing: 15, runSpacing: 8, children: [
-          _iconLabel(Icons.public_outlined, '${sub.nodes.length} 个节点'),
-          _iconLabel(Icons.hub_outlined, '$remote 个在线提供者'),
-          _iconLabel(Icons.schedule_outlined,
-              _elapsed(sub.lastUpdatedAt)),
-          _iconLabel(Icons.shield_outlined,
-              sub.storedOnDevice ? '已加密保存' : '仅当前会话'),
-        ]),
-      ]),
+      ),
     );
   }
 

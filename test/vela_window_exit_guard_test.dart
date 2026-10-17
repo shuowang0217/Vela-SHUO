@@ -27,6 +27,33 @@ void main() {
     expect(actions, ['minimize', 'shutdown', 'allow-close', 'destroy']);
   });
 
+  test('X hides to tray, while - remains the OS taskbar minimizer',
+      () async {
+    final actions = <String>[];
+    final guard = VelaWindowExitGuard(
+      core: VelaCoreController(supported: false),
+      proxy: VelaSystemProxyManager(supported: false),
+      minimizeWindow: () async { actions.add('taskbar'); },
+    )..hideToTray = () async {
+        actions.add('tray');
+        return true;
+      };
+    expect(await guard.minimizeOnClose(), true);
+    expect(actions, ['tray']);
+  });
+
+  test('unavailable system tray falls back to a reachable taskbar window',
+      () async {
+    final actions = <String>[];
+    final guard = VelaWindowExitGuard(
+      core: VelaCoreController(supported: false),
+      proxy: VelaSystemProxyManager(supported: false),
+      minimizeWindow: () async { actions.add('taskbar'); },
+    )..hideToTray = () async => false;
+    expect(await guard.minimizeOnClose(), true);
+    expect(actions, ['taskbar']);
+  });
+
   test('failed proxy recovery prevents explicit program exit', () async {
     final actions = <String>[];
     final guard = VelaWindowExitGuard(

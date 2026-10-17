@@ -10,6 +10,7 @@ import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/core/vela_core_controller.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/core/vela_window_exit_guard.dart';
+import 'package:vela_shuo/src/core/vela_windows_tray.dart';
 import 'package:vela_shuo/src/core/vela_connection_coordinator.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
@@ -47,12 +48,14 @@ class VelaShuoApp extends StatelessWidget {
     this.core,
     this.systemProxy,
     this.windowExitGuard,
+    this.windowsTray,
   });
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
   final VelaSystemProxyManager? systemProxy;
   final VelaWindowExitGuard? windowExitGuard;
+  final VelaWindowsTrayController? windowsTray;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -72,7 +75,7 @@ class VelaShuoApp extends StatelessWidget {
         darkTheme: _theme(Brightness.dark, palette),
         home: _Shell(settings: settings, diagnostics: diagnostics,
           core: core, systemProxy: systemProxy,
-          windowExitGuard: windowExitGuard),
+          windowExitGuard: windowExitGuard, windowsTray: windowsTray),
       );
     },
   );
@@ -100,12 +103,13 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
 
 class _Shell extends StatefulWidget {
   const _Shell({required this.settings, this.diagnostics,
-    this.core, this.systemProxy, this.windowExitGuard});
+    this.core, this.systemProxy, this.windowExitGuard, this.windowsTray});
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
   final VelaCoreController? core;
   final VelaSystemProxyManager? systemProxy;
   final VelaWindowExitGuard? windowExitGuard;
+  final VelaWindowsTrayController? windowsTray;
 
   @override
   State<_Shell> createState() => _ShellState();
@@ -170,6 +174,11 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
           : VelaSubscriptionController(
               core: widget.core!, previewOnly: Platform.isAndroid);
       unawaited(subscription!.restoreSaved());
+      if (subscription is VelaFlClashSubscriptionController) {
+        widget.windowExitGuard?.flushSavedProfiles =
+            (subscription! as VelaFlClashSubscriptionController)
+                .flushPendingSaves;
+      }
       if (Platform.isAndroid) {
         subscription!.addListener(syncRealGlobe);
       }
@@ -181,6 +190,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         subscription!.addListener(syncRealGlobe);
         connection!.addListener(syncRealGlobe);
         widget.windowExitGuard?.shutdownConnection = connection!.shutdown;
+        widget.windowsTray?.attachConnection(connection!);
       }
       // Android uses the same FlClash Go IPC and measurement algorithms as
       // Windows. Its Android VpnService does not have a WinINet coordinator.
@@ -245,6 +255,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     androidVpn?.dispose();
     traffic?.dispose();
     widget.windowExitGuard?.shutdownConnection = null;
+    widget.windowExitGuard?.flushSavedProfiles = null;
     // Restore WinINet BEFORE terminating its local endpoint. Never kill
     // the core synchronously while the system proxy still points at it.
     final link = connection;
@@ -298,35 +309,37 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       final desktop = constraints.maxWidth >= 820;
       final extended = constraints.maxWidth >= 1250;
       return Scaffold(
-        backgroundColor: _background,
-        body: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [_background, VelaThemeRuntime.active.raised, _background],
-            ),
-          ),
-          child: SafeArea(
-            child: Row(children: [
-              if (desktop)
-                Container(
+        backgroundColor: Colors.transparent,
+        extendBody: true,
+        body: Stack(fit: StackFit.expand, children: [
+          _EarthBackdrop(demo: demo),
+          SafeArea(child: Row(children: [
+            if (desktop)
+              ClipRect(child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
                   width: extended ? 190 : 90,
                   decoration: BoxDecoration(
-                    color: _panel.withValues(alpha: .84),
-                    border: Border(right: BorderSide(color: _line)),
+                    color: _panel.withValues(alpha:
+                        VelaThemeRuntime.active.dark ? .13 : .32),
+                    border: Border(right: BorderSide(
+                        color: _foreground.withValues(alpha: .17))),
                   ),
                   child: _DesktopNav(
-                    selected: tab, extended: extended, onSelect: navigate,
-                  ),
+                      selected: tab, extended: extended, onSelect: navigate),
                 ),
-              Expanded(child: page(desktop)),
-            ]),
-          ),
-        ),
-        bottomNavigationBar: desktop ? null : Container(
+              )),
+            Expanded(child: page(desktop)),
+          ])),
+        ]),
+        bottomNavigationBar: desktop ? null : ClipRect(child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
           decoration: BoxDecoration(
-            color: _panel,
-            border: Border(top: BorderSide(color: _line)),
+            color: _panel.withValues(alpha:
+                VelaThemeRuntime.active.dark ? .14 : .33),
+            border: Border(top: BorderSide(
+                color: _foreground.withValues(alpha: .18))),
           ),
           child: NavigationBar(
             height: 68,
@@ -345,8 +358,57 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
                 ),
             ],
           ),
-        ),
+        ))),
       );
+    },
+  );
+}
+
+
+class _EarthBackdrop extends StatelessWidget {
+  const _EarthBackdrop({required this.demo});
+  final VelaDemoController demo;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = constraints.maxWidth;
+      final height = constraints.maxHeight;
+      final desktop = width >= 820;
+      final side = math.max(width * 1.65, height * 1.45);
+      final cx = width * (desktop ? .66 : .58);
+      final cy = height * (desktop ? .52 : .40);
+      final tokens = VelaThemeRuntime.active;
+      return ClipRect(child: Stack(fit: StackFit.expand, children: [
+        ColoredBox(color: _background),
+        Positioned(
+          left: cx - side / 2, top: cy - side / 2,
+          width: side, height: side,
+          child: IgnorePointer(child: VelaGlobe(demo: demo)),
+        ),
+        DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.centerLeft, end: Alignment.centerRight,
+          colors: tokens.dark
+              ? [
+                  _background.withValues(alpha: .36),
+                  _background.withValues(alpha: .14),
+                  _background.withValues(alpha: .07),
+                ]
+              : [
+                  _background.withValues(alpha: .50),
+                  _background.withValues(alpha: .31),
+                  _background.withValues(alpha: .21),
+                ],
+        ))),
+        DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+          colors: [
+            _background.withValues(alpha: .18),
+            Colors.transparent,
+            _background.withValues(alpha: .22),
+          ],
+        ))),
+      ]));
     },
   );
 }
@@ -534,7 +596,6 @@ class _DesktopHome extends StatelessWidget {
       final availableHeight = constraints.maxHeight;
       final designWidth = math.max(820.0, math.min(availableWidth - 24, 1320.0));
       const designHeight = 760.0;
-      final globeSize = math.min(designWidth * .94, 960.0);
 
       return Center(
         child: SizedBox(
@@ -547,13 +608,6 @@ class _DesktopHome extends StatelessWidget {
               width: designWidth,
               height: designHeight,
               child: Stack(clipBehavior: Clip.hardEdge, children: [
-                Positioned(
-                  top: -globeSize * .16,
-                  right: -globeSize * .10,
-                  width: globeSize,
-                  height: globeSize,
-                  child: IgnorePointer(child: VelaGlobe(demo: demo)),
-                ),
                 Positioned(top: 20, right: 12, child: subscription?.selected
                     != null ? _RealTag() : _DemoTag()),
                 Positioned(left: 22, top: 62, child: _HeroIdentity()),
@@ -620,7 +674,8 @@ class _DemoTag extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
     decoration: BoxDecoration(
-      color: _panel.withValues(alpha: .94),
+      color: _panel.withValues(alpha:
+          VelaThemeRuntime.active.dark ? .14 : .31),
       border: Border.all(color: _line),
       borderRadius: BorderRadius.circular(30),
     ),
@@ -644,13 +699,15 @@ class _GlassCard extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(18),
     child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
       child: Container(
         padding: padding,
         decoration: BoxDecoration(
-          color: _panel.withValues(alpha: .92),
+          color: _panel.withValues(alpha:
+              VelaThemeRuntime.active.dark ? .12 : .28),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _line),
+          border: Border.all(
+              color: _foreground.withValues(alpha: .19)),
         ),
         child: child,
       ),
@@ -933,10 +990,9 @@ class _MobileHome extends StatelessWidget {
             : _DemoTag(compact: true),
       ]),
       SizedBox(height: 7),
-      SizedBox(
-        height: math.min(MediaQuery.sizeOf(context).width, 400),
-        child: VelaGlobe(demo: demo),
-      ),
+      // Open sky for the single Earth background on mobile.
+      SizedBox(height: math.min(
+          MediaQuery.sizeOf(context).width * .42, 180)),
       SizedBox(height: 8),
       Platform.isAndroid
           ? _AndroidVpnCard(
@@ -1146,8 +1202,8 @@ class _SettingsPage extends StatelessWidget {
         Divider(height: 1, color: _line),
         ListTile(
           leading: Icon(Icons.info_outline, color: _blue),
-          title: Text(Platform.isAndroid ? 'Vela-SHUO · Android VPN Beta'
-              : 'Vela-SHUO · Windows Beta'),
+          title: Text(Platform.isAndroid ? 'Vela-SHUO v1.2.0 · Android VPN Beta'
+              : 'Vela-SHUO v1.2.0 · Windows Beta'),
           subtitle: Text(Platform.isAndroid
               ? '可授权 Android 系统 VPN；真实连接以服务状态为准'
               : '真实系统代理连接测试 · 尚非 TUN/VPN 全局代理'),
@@ -1158,7 +1214,8 @@ class _SettingsPage extends StatelessWidget {
             key: const ValueKey('windows_exit_action'),
             leading: Icon(Icons.power_settings_new_rounded, color: _blue),
             title: const Text('退出程序'),
-            subtitle: const Text('点击窗口 × 只会最小化；这里才会断开代理并退出'),
+            subtitle: const Text('点击 × 隐藏到系统托盘；点击 — 最小化到任务栏。'
+                '托盘右键可开启/关闭代理与安全退出。'),
             trailing: OutlinedButton(
               onPressed: () async {
                 final accepted = await showDialog<bool>(

@@ -10,6 +10,7 @@ import 'package:vela_shuo/src/network/flclash_android_backend.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/core/vela_system_proxy.dart';
 import 'package:vela_shuo/src/core/vela_window_exit_guard.dart';
+import 'package:vela_shuo/src/core/vela_windows_tray.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:vela_shuo/src/diagnostics/vela_diagnostics.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
@@ -48,15 +49,20 @@ void main() {
     if (Platform.isWindows) await systemProxy.recover();
     await core.initialize(); // Does not automatically start a proxy.
     VelaWindowExitGuard? exitGuard;
+    VelaWindowsTrayController? tray;
     if (Platform.isWindows) {
       await windowManager.ensureInitialized();
       exitGuard = VelaWindowExitGuard(core: core, proxy: systemProxy);
-      // Native window close will wait for proxy recovery + core termination.
       await windowManager.setPreventClose(true);
       windowManager.addListener(exitGuard);
+      tray = VelaWindowsTrayController(exitGuard);
+      // Startup never hides the main window. If the tray is unavailable,
+      // pressing X falls back to ordinary taskbar minimization.
+      await tray.initialize();
     }
     runApp(VelaShuoApp(settings: settings, diagnostics: diagnostics,
-      core: core, systemProxy: systemProxy, windowExitGuard: exitGuard));
+      core: core, systemProxy: systemProxy,
+      windowExitGuard: exitGuard, windowsTray: tray));
   }, (error, stack) {
     diagnostics.record(VelaDiagnosticEvent.uncaughtError);
   });
