@@ -59,7 +59,7 @@ class VelaWatercolorSurface extends StatelessWidget {
       ),
       child: CustomPaint(
         painter: _VelaInkStroke(
-          t.dark ? t.accentSoft : t.text, radius),
+          t.dark ? t.accentSoft : t.text, t.accent, t.line, radius, oil),
         child: Padding(padding: padding, child: child),
       ),
     );
@@ -67,17 +67,24 @@ class VelaWatercolorSurface extends StatelessWidget {
 }
 
 class _VelaInkStroke extends CustomPainter {
-  const _VelaInkStroke(this.ink, this.radius);
+  const _VelaInkStroke(
+    this.ink, this.pigment, this.edge, this.radius, this.oil);
   final Color ink;
+  final Color pigment;
+  final Color edge;
   final double radius;
+  final bool oil;
 
   @override
   void paint(Canvas c, Size size) {
     if (size.width < 28 || size.height < 28) return;
+    c.save();
+    c.clipRRect(RRect.fromRectAndRadius(
+      Offset.zero & size, Radius.circular(radius)));
     final p = Paint()
-      ..color = ink.withValues(alpha: .13)
+      ..color = ink.withValues(alpha: .15)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = .75
+      ..strokeWidth = .85
       ..strokeCap = StrokeCap.round;
     final path = Path()
       ..moveTo(radius + 5, 3.8)
@@ -87,29 +94,54 @@ class _VelaInkStroke extends CustomPainter {
     c.drawLine(Offset(14, size.height - 4.3),
         Offset(math.min(size.width - 16, size.width * .4),
             size.height - 3.7), p);
-    if (VelaThemeRuntime.oilPreview) {
-      // Deterministic little impasto strokes across every card, dialog panel,
-      // bottom dock tile and settings/route selector that uses this material.
-      final bristle=Paint()..strokeCap=StrokeCap.round
-        ..style=PaintingStyle.stroke;
-      for (var y=10.0; y<size.height-7; y+=16) {
-        for (var x=12.0; x<size.width-10; x+=24) {
-          final k=(((x*37).toInt() ^ (y*23).toInt()) & 31)/31.0;
-          bristle.color=ink.withValues(alpha:.055+k*.04);
-          bristle.strokeWidth=1.2+k*1.6;
-          c.drawLine(Offset(x+k*5,y),
-            Offset(math.min(x+6+k*9,size.width-10),y-1+k*3),bristle);
+
+    if (oil) {
+      // Deterministic little impasto strokes, far denser and more tactile
+      // than the former near-invisible crosshatch. Shared by every screen.
+      final bristle = Paint()
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
+      for (var y = 6.0; y < size.height - 3; y += 13) {
+        for (var x = 7.0; x < size.width - 4; x += 19) {
+          final salt = ((x.toInt() * 37 ^ y.toInt() * 43) & 63) / 63.0;
+          final dx = 5.0 + salt * 10.0;
+          bristle.color = (salt < .50 ? pigment : ink)
+              .withValues(alpha: .14 + salt * .13);
+          bristle.strokeWidth = 1.6 + salt * 2.2;
+          c.drawLine(Offset(x + salt * 4, y + 1),
+              Offset(x + dx, y - 1.8 + salt * 3.8), bristle);
+          if (salt > .70) {
+            bristle.color = edge.withValues(alpha: .24);
+            bristle.strokeWidth = .9 + salt;
+            c.drawLine(Offset(x + 1, y + 4),
+              Offset(x + dx * .7, y + 3), bristle);
+          }
         }
       }
-      final gild=Paint()..color=const Color(0xFFD4A25A).withValues(alpha:.32)
-        ..style=PaintingStyle.stroke..strokeWidth=1.1;
-      c.drawArc(Rect.fromLTWH(6,5,math.max(1,size.width-12),
-          math.max(1,size.height-10)),math.pi*.97,math.pi*.18,false,gild);
+      final rim = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..color = edge.withValues(alpha: .62)
+        ..strokeWidth = 1.7;
+      c.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(2, 2, size.width - 4, size.height - 4),
+        Radius.circular(math.max(0, radius - 2))), rim);
+      final highlight = Paint()
+        ..color = pigment.withValues(alpha: .47)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2;
+      c.drawArc(
+        Rect.fromLTWH(7, 7, math.max(1, size.width - 14),
+          math.max(1, size.height - 14)),
+        math.pi * .96, math.pi * .22, false, highlight);
     }
+    c.restore();
   }
+
   @override
   bool shouldRepaint(covariant _VelaInkStroke old) =>
-    old.ink != ink || old.radius != radius;
+      old.ink != ink || old.pigment != pigment || old.edge != edge ||
+      old.radius != radius || old.oil != oil;
 }
 
 /// Distinct nautical ink silhouettes, not generic Material icon shapes.
