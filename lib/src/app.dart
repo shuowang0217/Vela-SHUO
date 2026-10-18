@@ -650,7 +650,7 @@ class _DesktopHome extends StatelessWidget {
                 shape: VelaOilReliefShape.connection,
                 key: const ValueKey('immersive_connection'),
                 radius: 28,
-                padding: const EdgeInsets.fromLTRB(20, 13, 12, 13),
+                padding: EdgeInsets.fromLTRB(20, narrow ? 18 : 31, 12, narrow ? 18 : 31),
                 child: Row(children: [
                   Icon(Icons.circle, size: 9,
                     color: busy ? _blue : connected ? _mint : _muted),
@@ -686,9 +686,11 @@ class _DesktopHome extends StatelessWidget {
                       tooltip: busy ? '正在连接' :
                           connected ? '安全断开' : '连接',
                       onPressed: busy ? null : () => _toggle(context),
-                      icon: Icon(connected
-                          ? Icons.power_settings_new_rounded
-                          : Icons.sailing_rounded, size: 27),
+                      icon: VelaThemeRuntime.oilPreview
+                          ? const SizedBox(width: 28, height: 28)
+                          : Icon(connected
+                              ? Icons.power_settings_new_rounded
+                              : Icons.sailing_rounded, size: 27),
                       style: IconButton.styleFrom(
                         backgroundColor: VelaThemeRuntime.oilPreview
                             ? Colors.transparent : _blue.withValues(alpha: .87),
@@ -732,7 +734,7 @@ class _VoyageRatePanel extends StatelessWidget {
                 sigmaY: VelaThemeRuntime.oilPreview ? 0 : 10),
         child: SizedBox(
           key: const ValueKey('voyage_speed_panel'),
-          width: wide ? 416 : 283, height: wide ? 102 : 79,
+          width: wide ? 416 : 283, height: wide ? 124 : 92,
           child: VelaOilReliefSurface(
             shape: VelaOilReliefShape.speed,
             radius: 19,
@@ -816,7 +818,13 @@ class _VoyageDock extends StatelessWidget {
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: VelaThemeRuntime.oilPreview ? 0 : 9, sigmaY: VelaThemeRuntime.oilPreview ? 0 : 9),
                 child: VelaOilReliefSurface(
-                  shape: VelaOilReliefShape.medallion,
+                  shape: switch (target) {
+                    1 => VelaOilReliefShape.medallion,
+                    4 => VelaOilReliefShape.book,
+                    2 => VelaOilReliefShape.compass,
+                    3 => VelaOilReliefShape.helm,
+                    _ => VelaOilReliefShape.medallion,
+                  },
                   selected: selected == target,
                   padding: EdgeInsets.zero,
                   radius: 36,
@@ -827,9 +835,13 @@ class _VoyageDock extends StatelessWidget {
                       onTap: () => onNavigate(target),
                       borderRadius: BorderRadius.circular(17),
                       child: SizedBox(width: 61, height: 61,
-                        child: Center(child: VelaVoyageGlyph(
-                          symbol: symbol, size: 26,
-                          active: selected == target))),
+                        child: VelaThemeRuntime.oilPreview
+                          // The actual reference image already contains the
+                          // icon. This transparent InkWell handles the action.
+                          ? const SizedBox.expand()
+                          : Center(child: VelaVoyageGlyph(
+                              symbol: symbol, size: 26,
+                              active: selected == target))),
                     ),
                   ),
                 ),
@@ -1058,7 +1070,7 @@ class _MobileHome extends StatelessWidget {
                       Text('VELA', style: TextStyle(color: _foreground,
                         fontFamily: 'Georgia', fontSize: 24,
                         fontWeight: FontWeight.w800, letterSpacing: 2.3)),
-                      Text('航海油画  ·  v1.8.7', style: TextStyle(
+                      Text('航海油画  ·  v1.8.8', style: TextStyle(
                         color: _blue, fontSize: 10,
                         letterSpacing: 1.1, fontWeight: FontWeight.w700)),
                       Text(velaBrandTagline, style: TextStyle(
@@ -1104,7 +1116,7 @@ class _MobileHome extends StatelessWidget {
                 shape: VelaOilReliefShape.connection,
                 key: const ValueKey('mobile_oil_status'),
                 radius: 24,
-                padding: const EdgeInsets.fromLTRB(14, 8, 9, 8),
+                padding: const EdgeInsets.fromLTRB(14, 16, 9, 16),
                 child: Row(children: [
                   Icon(Icons.circle, size: 9, color:
                       busy ? _blue : connected ? _mint : _muted),
@@ -1146,9 +1158,11 @@ class _MobileHome extends StatelessWidget {
                       tooltip: busy ? '正在连接' :
                           connected ? '断开航线' : '启航连接',
                       onPressed: busy ? null : () => _toggle(context),
-                      icon: Icon(connected
-                          ? Icons.power_settings_new_rounded
-                          : Icons.sailing_rounded, size: 26),
+                      icon: VelaThemeRuntime.oilPreview
+                          ? const SizedBox(width: 26, height: 26)
+                          : Icon(connected
+                              ? Icons.power_settings_new_rounded
+                              : Icons.sailing_rounded, size: 26),
                       style: IconButton.styleFrom(
                         backgroundColor: VelaThemeRuntime.oilPreview
                             ? Colors.transparent : _blue.withValues(alpha: .95),
