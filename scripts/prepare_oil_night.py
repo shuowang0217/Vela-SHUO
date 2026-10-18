@@ -82,7 +82,8 @@ def main():
                  (30,37,66),(207,204,196)).convert('RGB').save(
                      ui/'oil_canvas_night.webp','WEBP',quality=90,method=5)
     for name in ['connection_plaque.png','speed_plaque.png',
-                 'paint_medallion.png','power_medallion.png']:
+                 'paint_medallion.png','power_medallion.png',
+                 'oil_nav_book.png','oil_nav_compass.png','oil_nav_helm.png']:
         colored=colorize_oil(Image.open(ui/name),
              (101,111,145),(30,37,66),(207,204,196))
         colored.save(ui/f'night_{name}','PNG',optimize=True)
