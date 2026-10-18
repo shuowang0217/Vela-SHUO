@@ -460,7 +460,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
           final used = uploaded != null && downloaded != null
               ? uploaded + downloaded : null;
           final percent = total != null && total > 0 && used != null
-              ? ((total - used) / total).clamp(0.0, 1.0).toDouble() : null;
+              ? (used / total).clamp(0.0, 1.0).toDouble() : null;
           return SingleChildScrollView(
             child: Center(child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 875),
@@ -595,21 +595,21 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                   Text(
                     used == null || total == null
                         ? '流量配额未提供'
-                        : '剩余 ${_humanBytes((total - used).clamp(0, total))} / ${_humanBytes(total)}',
+                        : '${_humanBytes(used)} / ${_humanBytes(total)}',
                     maxLines: 1, style: TextStyle(color: t.text,
                       fontWeight: FontWeight.w600, fontSize: 16)),
                   const SizedBox(height: 10),
                   SizedBox(width: narrow ? 178 : 315,
                     child: LinearProgressIndicator(
-                      value: percent ?? 0, minHeight: 6,
+                      value: percent ?? 0, minHeight: 9,
                       borderRadius: BorderRadius.circular(8),
-                      backgroundColor: t.line,
+                      backgroundColor: t.dark ? const Color(0xFF53647A) : const Color(0xFFC8BBA7),
                       color: t.accent,
                     )),
                   const SizedBox(height: 9),
                   StellarLabel(percent == null
                     ? '套餐未返回用量数据'
-                    : '剩余 ${(percent * 100).toStringAsFixed(1)}% · 已用 ${(100 - percent * 100).toStringAsFixed(1)}%'),
+                    : '已用 ${(percent * 100).toStringAsFixed(1)}%'),
                 ],
               )),
             Positioned(left: 20, bottom: 16, right: 18,
@@ -687,9 +687,10 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
               : '未提供套餐用量',
             style: TextStyle(color: t.text, fontSize: 13)),
           const SizedBox(height: 7),
-          LinearProgressIndicator(value: fraction ?? 0, minHeight: 5,
+          LinearProgressIndicator(value: fraction ?? 0, minHeight: 8,
               borderRadius: BorderRadius.circular(8),
-              backgroundColor: t.line, color: t.accent),
+              backgroundColor: t.dark ? const Color(0xFF53647A) : const Color(0xFFC8BBA7),
+              color: t.accent),
           const SizedBox(height: 11),
           Wrap(spacing: 12, runSpacing: 7, children: [
             if (profile.nodeCount != null)
