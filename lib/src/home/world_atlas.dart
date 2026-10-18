@@ -59,9 +59,12 @@ class VelaWorldCamera {
       size.height / oilImageSize.height) *
       (compactOilPortrait ? .66 : 1.0);
 
-  Offset get oilImageOrigin => Offset(
-      (size.width - oilImageSize.width * oilImageScale) / 2,
-      (size.height - oilImageSize.height * oilImageScale) / 2);
+  // v1.6 focus restored for the painted atlas: the very same animated
+  // longitude/latitude drives the bitmap, all route points and city pins.
+  // Image and geographic overlays therefore travel together when a user
+  // changes the connected node, including across the date line.
+  Offset get oilImageOrigin => Offset(size.width / 2, size.height / 2) -
+      oilCanvasPosition(Offset(longitude, latitude)) * oilImageScale;
 
   Offset oilCanvasPosition(Offset geographicPoint) {
     final dx = shortestDelta(beijing.dx, geographicPoint.dx);
@@ -489,11 +492,12 @@ class _OilMapLayer extends StatelessWidget {
         width: VelaWorldCamera.oilImageSize.width * scale,
         height: VelaWorldCamera.oilImageSize.height * scale,
         child: ShaderMask(
-          shaderCallback: (rect) => const LinearGradient(
-            begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [Colors.transparent, Colors.white,
-              Colors.white, Colors.transparent],
-            stops: [0, .10, .90, 1],
+          // The focused image can extend past any viewport edge. Feather
+          // all four borders into the existing soft full-bleed backdrop.
+          shaderCallback: (rect) => const RadialGradient(
+            radius: .82,
+            colors: [Colors.white, Colors.white, Colors.transparent],
+            stops: [0, .72, 1],
           ).createShader(rect),
           blendMode: BlendMode.dstIn,
           child: Image.asset(asset, fit: BoxFit.fill,
