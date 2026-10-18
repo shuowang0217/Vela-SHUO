@@ -33,7 +33,7 @@ void main() {
     expect(map, contains('opacity: dark ? 1.0 : 0.0'));
     final clouds = File('lib/src/home/vela_oil_scene.dart')
         .readAsStringSync();
-    expect(clouds, contains("night_${cloud.file}.png"));
+    expect(clouds, contains(r"night_${cloud.file}.png"));
     expect(File('scripts/prepare_oil_night.py').readAsStringSync(),
         contains('urban_lights('));
   });
