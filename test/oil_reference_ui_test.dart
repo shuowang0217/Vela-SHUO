@@ -9,6 +9,7 @@ void main() {
     for (final name in [
       'connection_plaque.png', 'speed_plaque.png',
       'paint_medallion.png', 'power_medallion.png',
+      'oil_nav_book.png','oil_nav_compass.png','oil_nav_helm.png',
     ]) {
       final file = File('assets/oil/ui/$name');
       expect(file.existsSync(), isTrue, reason: name);
@@ -57,6 +58,11 @@ void main() {
     expect(source,contains('shape: VelaOilReliefShape.speed'));
     expect(source,contains('shape: VelaOilReliefShape.medallion'));
     expect(source,contains('shape: VelaOilReliefShape.power'));
+    expect(source,contains('VelaOilReliefShape.book'));
+    expect(source,contains('VelaOilReliefShape.compass'));
+    expect(source,contains('VelaOilReliefShape.helm'));
+    expect(source,contains('VelaThemeRuntime.oilPreview'));
+    expect(File('assets/oil/ui/reference_atlas.webp').existsSync(),isTrue);
     expect(source,contains("ValueKey('immersive_connection')"));
     expect(source,contains("ValueKey('mobile_oil_status')"));
   });
