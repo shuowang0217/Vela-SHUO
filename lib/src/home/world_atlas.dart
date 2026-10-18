@@ -94,6 +94,38 @@ class VelaWorldCamera {
   /// The moving sail, line, and shimmer all use this identical transform.
   Offset projectSeaLane(Offset origin, Offset destination, Offset geo) {
     final painted = projectAlongArtwork(origin, geo);
+    // The oil painting is an illustration, not a georeferenced atlas.
+    // The Europe/Asia voyage must follow an independently calibrated
+    // southern-water corridor rather than project a geographic polyline
+    // through the illustrated Eurasian mountains.
+    final europe = destination.dx >= -12 && destination.dx <= 20 &&
+        destination.dy >= 43 && destination.dy <= 62;
+    final asia = origin.dx >= 105 && origin.dx <= 150 &&
+        origin.dy >= 15 && origin.dy <= 47;
+    if (oilIllustration && asia && europe) {
+      const sea = <Offset>[
+        Offset(120.6, 35.1), Offset(123, 22), Offset(117, 12),
+        Offset(103.5, 1.6), Offset(85, 3), Offset(58, 13),
+        Offset(43, 13), Offset(33, 28), Offset(31, 32),
+        Offset(16, 35.5), Offset(-6, 36), Offset(-4, 48.5),
+      ];
+      const paintedSea = <Offset>[
+        Offset(610, 322), Offset(612, 400), Offset(582, 520),
+        Offset(520, 650), Offset(449, 720), Offset(366, 705),
+        Offset(321, 666), Offset(289, 625), Offset(266, 550),
+        Offset(241, 476), Offset(210, 410), Offset(151, 315),
+      ];
+      var nearest = 0;
+      var best = double.infinity;
+      for (var i = 0; i < sea.length; i++) {
+        final distance = (sea[i] - geo).distanceSquared;
+        if (distance < best) {
+          best = distance;
+          nearest = i;
+        }
+      }
+      return oilImageOrigin + paintedSea[nearest] * oilImageScale;
+    }
     if (!oilIllustration ||
         origin.dx < 110 || origin.dx > 125 ||
         destination.dx < 135 || destination.dx > 142 ||
@@ -257,16 +289,8 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
       _homebound = false;
       if (!sameNode) {
         // The route starts at the current boat position if retargeted.
-        _routeFrom = _destination == null
-            ? VelaMaritimeRoute.homePort : _currentBoatLocation;
-        final oldDestination = _destination;
-        final lastCity = oldDestination == null
-            ? null : Offset(oldDestination.longitude, oldDestination.latitude);
-        _originName = (_routeFrom - VelaMaritimeRoute.homePort).distance < .75
-            ? 'BEIJING'
-            : lastCity != null && (_routeFrom - lastCity).distance < .75
-                ? VelaAtlasInk.englishLabel(oldDestination!.mapLabel)
-                : 'AT SEA';
+        _routeFrom = VelaMaritimeRoute.homePort;
+        _originName = 'BEIJING';
         _routeTo = Offset(node.longitude, node.latitude);
         _destination = node;
         _sail.forward(from: 0);
