@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/app.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
+import 'package:vela_shuo/src/brand/vela_watercolor_chrome.dart';
 
 class _PaletteStore implements VelaPreferenceStore, VelaPalettePreferenceStore {
   String? theme = 'dark';
@@ -108,10 +109,26 @@ void main() {
     for (final p in VelaPalette.all) {
       expect(find.byKey(ValueKey('palette_${p.id}')), findsOneWidget);
     }
+    final painted = find.byType(VelaWatercolorSurface).first;
+    final previousBox = tester.widget<DecoratedBox>(find.descendant(
+      of: painted, matching: find.byType(DecoratedBox)).first);
+    final previousGradient =
+        (previousBox.decoration as BoxDecoration).gradient
+            as LinearGradient;
+    final previousPigment = previousGradient.colors.first;
     await tester.tap(find.byKey(const ValueKey('palette_mint')));
     await tester.pump();
     expect(settings.paletteId, 'mint');
     expect(settings.themeMode, ThemeMode.light);
+    final nextBox = tester.widget<DecoratedBox>(find.descendant(
+      of: find.byType(VelaWatercolorSurface).first,
+      matching: find.byType(DecoratedBox)).first);
+    final nextDecoration = nextBox.decoration as BoxDecoration;
+    expect((nextDecoration.gradient! as LinearGradient).colors.first,
+        isNot(previousPigment));
+    expect(nextDecoration.image, isNotNull);
+    expect((nextDecoration.image!.image as AssetImage).assetName,
+        'assets/oil/oil_map_clean.webp');
     await tester.pumpWidget(const SizedBox.shrink());
     settings.dispose();
   });
