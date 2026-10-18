@@ -10,11 +10,26 @@ void main() {
       oilIllustration: true,
     );
     expect(camera.projectArtwork(VelaWorldCamera.beijing),
-        const Offset(592, 290));
+        const Offset(836, 470.5));
     final tokyo = camera.projectArtwork(const Offset(139.69, 35.68));
-    expect((tokyo - const Offset(806, 298)).distance, lessThan(.1));
+    expect((tokyo - const Offset(1050, 478.5)).distance, lessThan(.1));
     expect(camera.projectAlongArtwork(VelaWorldCamera.beijing,
         const Offset(139.69, 35.68)), tokyo);
+  });
+
+  test('v1.6-like focus centers every selected node on oil panorama', () {
+    for (final node in [
+      const Offset(139.69, 35.68), // Tokyo
+      const Offset(-0.13, 51.5), // London
+      const Offset(-118.24, 34.05), // Los Angeles
+      const Offset(103.8, 1.3), // Singapore
+    ]) {
+      final camera = VelaWorldCamera(
+        size: const Size(390, 844), longitude: node.dx,
+        latitude: node.dy, oilIllustration: true);
+      expect((camera.projectArtwork(node) -
+          const Offset(195, 422)).distance, lessThan(.001));
+    }
   });
 
   test('cover-fit crop is applied identically to background and route', () {
