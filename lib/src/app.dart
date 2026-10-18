@@ -1151,11 +1151,9 @@ class _MobileHome extends StatelessWidget {
                       tooltip: busy ? '正在连接' :
                           connected ? '断开航线' : '启航连接',
                       onPressed: busy ? null : () => _toggle(context),
-                      icon: VelaThemeRuntime.oilPreview
-                          ? const SizedBox(width: 26, height: 26)
-                          : Icon(connected
-                              ? Icons.power_settings_new_rounded
-                              : Icons.sailing_rounded, size: 26),
+                      icon: Icon(connected
+                          ? Icons.power_settings_new_rounded
+                          : Icons.sailing_rounded, size: 24),
                       style: IconButton.styleFrom(
                         backgroundColor: _blue.withValues(alpha: .9),
                         foregroundColor: Colors.white,
