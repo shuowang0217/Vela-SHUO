@@ -140,7 +140,7 @@ class _VoyageGlyphPainter extends CustomPainter {
     c.scale(s.width / 32, s.height / 32);
     final p = Paint()
       ..color = ink
-      ..strokeWidth = 1.65
+      ..strokeWidth = 2.05
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
@@ -187,6 +187,25 @@ class _VoyageGlyphPainter extends CustomPainter {
               Offset(16 + 13 * vx, 16 + 13 * vy), p);
         }
         break;
+    }
+    // A few raised ivory/gold brush ridges keep the icon readable on glass
+    // while giving its contours the same hand-painted texture as the map.
+    final ridge = Paint()
+      ..color = wash.withValues(alpha: .82)
+      ..strokeWidth = 1.35
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    c.drawPath(Path()..moveTo(6, 7)..quadraticBezierTo(9, 4, 12, 6), ridge);
+    c.drawPath(Path()..moveTo(22, 25)..quadraticBezierTo(24, 23, 26, 19), ridge);
+    final flecks = Paint()
+      ..color = ink.withValues(alpha: .55)
+      ..style = PaintingStyle.fill;
+    for (var i = 0; i < 7; i++) {
+      final x = 7.0 + (i * 17 % 19).toDouble();
+      final y = 5.0 + (i * 11 % 23).toDouble();
+      c.drawOval(Rect.fromCenter(
+        center: Offset(x,y), width: i.isEven ? 1.8 : 1.1,
+        height: 0.8), flecks);
     }
     c.restore();
   }
