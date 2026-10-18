@@ -61,7 +61,7 @@ void main() {
         .readAsStringSync();
     expect(shell, contains('VelaThemeRuntime.active.dark'));
     expect(shared, contains('sigmaX: 9, sigmaY: 9'));
-    expect(shared, contains('t.surface.withValues(alpha: .50)'));
+    expect(shared, contains('t.surface.withValues(alpha: .42)'));
     expect(shared, isNot(contains('Image.asset(asset')));
     expect(stellar, contains('VelaWatercolorSurface('));
     expect(importing, contains('child: VelaWatercolorSurface('));
