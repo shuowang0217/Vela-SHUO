@@ -14,7 +14,7 @@ void main() {
     expect(File('scripts/prepare_oil_atlas.py').existsSync(), isTrue);
     expect(source, contains('camera.projectSeaLane(from, to, geo)'));
     expect(source, contains('const VelaOilScene()'));
-    expect(source, contains("Image.asset('assets/oil/oil_map_clean.webp'"));
+    expect(source, contains("asset: 'assets/oil/oil_map_clean.webp'"));
     // Only the pure painted MAP image is used; HUD elements remain live.
     expect(source, contains('oilIllustration: VelaThemeRuntime.oilPreview'));
     const camera = VelaWorldCamera(size: Size(1400, 800),
