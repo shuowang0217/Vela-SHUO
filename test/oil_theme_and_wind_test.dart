@@ -49,7 +49,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  test('all major panels and import notifications use painterly surfaces', () {
+  test('all major panels and dialogs are v1.6 glass over painted background', () {
     final shell = File('lib/src/app.dart').readAsStringSync();
     final shared =
         File('lib/src/brand/vela_watercolor_chrome.dart').readAsStringSync();
@@ -60,11 +60,11 @@ void main() {
     final toast = File('lib/src/brand/vela_glass_toast.dart')
         .readAsStringSync();
     expect(shell, contains('VelaThemeRuntime.active.dark'));
-    expect(shared, contains("'assets/oil/ui/oil_canvas.webp'"));
-    expect(shared, contains('painter: oil ? null : _VelaInkStroke('));
-    expect(shared, contains('c.drawPath(stroke, impasto)'));
+    expect(shared, contains('sigmaX: 9, sigmaY: 9'));
+    expect(shared, contains('t.surface.withValues(alpha: .50)'));
+    expect(shared, isNot(contains('Image.asset(asset')));
     expect(stellar, contains('VelaWatercolorSurface('));
     expect(importing, contains('child: VelaWatercolorSurface('));
-    expect(toast, contains('color:paint.accent'));
+    expect(toast, contains('ImageFilter.blur(sigmaX: 18, sigmaY: 18)'));
   });
 }
