@@ -460,7 +460,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
           final used = uploaded != null && downloaded != null
               ? uploaded + downloaded : null;
           final percent = total != null && total > 0 && used != null
-              ? (used / total).clamp(0.0, 1.0).toDouble() : null;
+              ? ((total - used) / total).clamp(0.0, 1.0).toDouble() : null;
           return SingleChildScrollView(
             child: Center(child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 875),
@@ -595,7 +595,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                   Text(
                     used == null || total == null
                         ? '流量配额未提供'
-                        : '${_humanBytes(used)} / ${_humanBytes(total)}',
+                        : '剩余 ${_humanBytes((total - used).clamp(0, total))} / ${_humanBytes(total)}',
                     maxLines: 1, style: TextStyle(color: t.text,
                       fontWeight: FontWeight.w600, fontSize: 16)),
                   const SizedBox(height: 10),
@@ -609,7 +609,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                   const SizedBox(height: 9),
                   StellarLabel(percent == null
                     ? '套餐未返回用量数据'
-                    : '已用 ${(percent * 100).toStringAsFixed(1)}%'),
+                    : '剩余 ${(percent * 100).toStringAsFixed(1)}% · 已用 ${(100 - percent * 100).toStringAsFixed(1)}%'),
                 ],
               )),
             Positioned(left: 20, bottom: 16, right: 18,
