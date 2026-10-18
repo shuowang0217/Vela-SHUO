@@ -15,32 +15,26 @@ SOURCE = ROOT / "assets/oil/oil_map_clean.webp"
 OUT = ROOT / "assets/oil/ui"
 OUT.mkdir(parents=True, exist_ok=True)
 C = (246, 230, 196)
-D = (115, 82, 55)
+D = (194, 163, 130)
 H = (255, 253, 225)
 
 def canvas(size, seed):
-    r = random.Random(seed)
+    # The former randomly cropped map included dark land/sky and introduced
+    # hundreds of evenly spaced horizontal hatches (woodgrain, not oil paint).
+    # Sample a proven text-free thick cloud and preserve its palette-knife
+    # luminance ridges as genuine warm ivory pigment.
     src = Image.open(SOURCE).convert("RGB")
-    w, h = size
-    # Use genuine thick painted clouds in the reference, rather than a
-    # procedural line drawing or an unprocessed map screenshot.
-    cloud = src.crop((300, 70, 1120, 575))
-    original = ImageOps.fit(cloud, size, method=Image.Resampling.LANCZOS)
-    color = Image.new("RGB", size, C)
-    img = Image.blend(original, color, .74).convert("RGBA")
-    draw = ImageDraw.Draw(img, "RGBA")
-    for i in range(w*h//65):
-        x, y = r.randrange(w), r.randrange(h)
-        base = r.choice([(255,252,228,54), (255,255,246,62),
-                         (176,137,94,29),(214,177,123,53),
-                         (239,213,170,80)])
-        dx, dy = r.randrange(8,28),r.randrange(-4,5)
-        width = r.randrange(2,7)
-        draw.line((x,y,x+dx,y+dy),fill=base,width=width)
-        if r.random() < .5:
-            draw.line((x+2,y-1,x+dx-4,y+dy-1),
-                      fill=(255,255,252,65),width=2)
-    return img
+    cloud = src.crop((798, 545, 1190, 755))
+    original = ImageOps.fit(cloud, size,
+                            method=Image.Resampling.LANCZOS).convert("L")
+    original = ImageEnhance.Contrast(original).enhance(1.33)
+    pigment = ImageOps.colorize(
+        original,
+        black=(174, 150, 126), mid=(242, 219, 180),
+        white=(255, 249, 224),
+        blackpoint=30, whitepoint=239, midpoint=120)
+    return ImageEnhance.Sharpness(pigment).enhance(1.26).convert("RGBA")
+
 
 def tile():
     im = canvas((384,384), 39011)
@@ -94,7 +88,6 @@ def plaque(name,size,seed,radius,round_button=False,dark_button=False):
         alpha=mask_plaque(w,h,radius,seed)
     # Carved deep shadow under lighter paint, with an embossed rim.
     expanded=alpha.filter(ImageFilter.MaxFilter(13))
-    contracted=alpha.filter(ImageFilter.MinFilter(13))
     inner=Image.new("RGBA",size,(0,0,0,0))
     dark=Image.new("RGBA",size,(*D,255));dark.putalpha(expanded)
     inner.alpha_composite(dark)
@@ -104,12 +97,9 @@ def plaque(name,size,seed,radius,round_button=False,dark_button=False):
     if round_button:
         d.ellipse((24,22,w-24,h-24),
                   outline=(255,254,229,215),width=5)
-        d.arc((15,15,w-15,h-15),180,345,fill=(148,99,57,152),width=5)
     else:
         d.rounded_rectangle((18,15,w-18,h-16),radius=radius,
                             outline=(255,255,237,200),width=6)
-        d.arc((21,18,w-20,h-20),190,342,
-              fill=(151,109,72,140),width=5)
     # Organic little edge heaps catch light. No straight ornamental lines.
     for j in range(int((w+h)*.18)):
         x=rng.randrange(12,w-12); y=rng.randrange(10,h-10)
@@ -123,6 +113,14 @@ def main():
     if not SOURCE.is_file():
         raise SystemExit("Approved oil art is required to build painted Vela UI")
     tile()
+    # The previous cloud_beijing.png had literal BEIJING lettering painted
+    # into the moving sprite. Never ship text as a moving cloud again.
+    # Mirror the text-free northern cloud to make a distinct clean layer.
+    north = Image.open(ROOT / "assets/oil/clouds/cloud_north.png").convert("RGBA")
+    clean = ImageOps.mirror(north).resize((444, 211),
+        Image.Resampling.LANCZOS)
+    clean.save(ROOT / "assets/oil/clouds/cloud_beijing_clean.png",
+        "PNG", optimize=True)
     plaque("connection_plaque.png",(860,234),39012,58)
     plaque("speed_plaque.png",(740,230),39013,56)
     plaque("paint_medallion.png",(200,200),39014,92,True)
