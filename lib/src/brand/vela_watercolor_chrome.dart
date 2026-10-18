@@ -6,7 +6,7 @@ import '../theme/vela_palettes.dart';
 
 /// Real painterly plaques cut from the same impasto material as Vela's map.
 /// Raster assets carry irregular paint edges; content remains real Flutter UI.
-enum VelaOilReliefShape { connection, speed, medallion, power }
+enum VelaOilReliefShape { connection, speed, medallion, book, compass, helm, power }
 
 class VelaOilReliefSurface extends StatelessWidget {
   const VelaOilReliefSurface({
@@ -26,6 +26,9 @@ class VelaOilReliefSurface extends StatelessWidget {
     VelaOilReliefShape.speed => 'assets/oil/ui/speed_plaque.png',
     VelaOilReliefShape.medallion =>
       'assets/oil/ui/paint_medallion.png',
+    VelaOilReliefShape.book => 'assets/oil/ui/oil_nav_book.png',
+    VelaOilReliefShape.compass => 'assets/oil/ui/oil_nav_compass.png',
+    VelaOilReliefShape.helm => 'assets/oil/ui/oil_nav_helm.png',
     VelaOilReliefShape.power => 'assets/oil/ui/power_medallion.png',
   };
 
@@ -59,7 +62,7 @@ class VelaOilReliefSurface extends StatelessWidget {
         Positioned.fill(child: IgnorePointer(child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(
-                shape == VelaOilReliefShape.medallion ? 50 : 22),
+                shape != VelaOilReliefShape.connection && shape != VelaOilReliefShape.speed ? 50 : 22),
             border: Border.all(
                 color: tone.accent.withValues(alpha: .42), width: 1.8),
           ),
