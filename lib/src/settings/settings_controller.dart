@@ -17,33 +17,83 @@ abstract class VelaPalettePreferenceStore {
   Future<void> removePalette();
 }
 
-class VelaSharedPreferencesStore implements VelaPreferenceStore, VelaPalettePreferenceStore {
+class VelaSharedPreferencesStore
+    implements VelaPreferenceStore, VelaPalettePreferenceStore {
   VelaSharedPreferencesStore();
 
-  // Defer native plugin initialization until the first actual disk access.
-  // Constructing an inactive UI controller must work in widget tests too.
+  // SharedPreferencesAsync on Android defaults to DataStore, while the
+  // older Flutter preferences API writes to Android SharedPreferences.
+  // Read both stores to migrate existing selections across app revisions.
+  // A successful write to either store is enough to retain the preference.
   late final SharedPreferencesAsync _preferences = SharedPreferencesAsync();
   static const String themeKey = 'vela.shuo.theme.v1';
   static const String paletteKey = 'vela.shuo.palette.v1';
 
-  @override
-  Future<String?> readPalette() => _preferences.getString(paletteKey);
+  Future<String?> _read(String key) async {
+    // The legacy Android backend is the primary restart-safe store.
+    // Existing DataStore values are copied into it only when absent.
+    try {
+      final legacy = await SharedPreferences.getInstance();
+      final saved = legacy.getString(key);
+      if (saved != null) return saved;
+    } catch (_) {
+      // Legacy platform implementation may be absent (desktop/tests).
+    }
+    final saved = await _preferences.getString(key);
+    if (saved != null) {
+      try {
+        await (await SharedPreferences.getInstance()).setString(key, saved);
+      } catch (_) {
+        // Async DataStore remains authoritative if migration is unavailable.
+      }
+    }
+    return saved;
+  }
+
+  Future<void> _write(String key, String value) async {
+    var success = false;
+    // Explicitly use the Android SharedPreferences backend as well as
+    // DataStore: user selections survive process termination and upgrades.
+    try {
+      final legacy = await SharedPreferences.getInstance();
+      success = await legacy.setString(key, value);
+    } catch (_) {
+      // Try the other backend even if this one fails.
+    }
+    try {
+      await _preferences.setString(key, value);
+      success = true;
+    } catch (_) {
+      // A successfully committed legacy write is sufficient.
+    }
+    if (!success) throw StateError('Preference storage unavailable');
+  }
+
+  Future<void> _remove(String key) async {
+    var success = false;
+    try {
+      final legacy = await SharedPreferences.getInstance();
+      success = await legacy.remove(key);
+    } catch (_) {}
+    try {
+      await _preferences.remove(key);
+      success = true;
+    } catch (_) {}
+    if (!success) throw StateError('Preference storage unavailable');
+  }
 
   @override
-  Future<void> writePalette(String value) => _preferences.setString(paletteKey, value);
-
+  Future<String?> readPalette() => _read(paletteKey);
   @override
-  Future<void> removePalette() => _preferences.remove(paletteKey);
-
+  Future<void> writePalette(String value) => _write(paletteKey, value);
   @override
-  Future<String?> readTheme() => _preferences.getString(themeKey);
-
+  Future<void> removePalette() => _remove(paletteKey);
   @override
-  Future<void> writeTheme(String value) =>
-      _preferences.setString(themeKey, value);
-
+  Future<String?> readTheme() => _read(themeKey);
   @override
-  Future<void> removeTheme() => _preferences.remove(themeKey);
+  Future<void> writeTheme(String value) => _write(themeKey, value);
+  @override
+  Future<void> removeTheme() => _remove(themeKey);
 }
 
 /// Local UI preferences, independent of the future proxy core.
@@ -95,11 +145,7 @@ class SettingsController extends ChangeNotifier {
       // Includes malformed value types and permissions/I/O failures.
       _themeMode = ThemeMode.dark;
       _diagnostics?.record(VelaDiagnosticEvent.settingsReadFailed);
-      try {
-        await _store.removeTheme().timeout(ioTimeout);
-      } catch (_) {
-        // Storage may be unreadable; the application remains usable.
-      }
+      // Never erase a saved theme on a transient Android I/O error.
     }
     if (_store is VelaPalettePreferenceStore) {
       final paletteStore = _store as VelaPalettePreferenceStore;
@@ -134,15 +180,24 @@ class SettingsController extends ChangeNotifier {
     // Save mode and palette in the same serialized queue.
     final selectedMode = _themeMode.name;
     _writes = _writes.then((_) async {
+      // A failed theme write must never prevent the palette from saving.
+      // Prioritize the user's selected color before the light/dark mode.
+      var failed = false;
+      if (_store case final VelaPalettePreferenceStore store) {
+        try {
+          await store.writePalette(paletteId).timeout(ioTimeout);
+        } catch (_) {
+          failed = true;
+        }
+      }
       try {
         await _store.writeTheme(selectedMode).timeout(ioTimeout);
-        if (_store case final VelaPalettePreferenceStore store) {
-          await store.writePalette(paletteId).timeout(ioTimeout);
-        }
-        _diagnostics?.record(VelaDiagnosticEvent.settingsSaved);
       } catch (_) {
-        _diagnostics?.record(VelaDiagnosticEvent.settingsWriteFailed);
+        failed = true;
       }
+      _diagnostics?.record(failed
+          ? VelaDiagnosticEvent.settingsWriteFailed
+          : VelaDiagnosticEvent.settingsSaved);
     });
     await _writes;
   }
