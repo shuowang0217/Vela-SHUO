@@ -132,7 +132,9 @@ class VelaMaritimeRoute {
     // Ocean-grid path must preserve its land-tested vertices.
     if (VelaOceanGrid.instance.ready ||
         (from.dx > 105 && to.dx < 20) ||
-        (to.dx > 105 && from.dx < 20)) return points;
+        (to.dx > 105 && from.dx < 20)) {
+      return points;
+    }
     return _smooth(points);
   }
 
