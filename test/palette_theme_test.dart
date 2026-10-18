@@ -103,6 +103,31 @@ void main() {
     restored.dispose();
   });
 
+  test('v2 palette wins over stale v1 after restart', () async {
+    SharedPreferences.setMockInitialValues({
+      'flutter.vela.shuo.palette.v1': 'ocean',
+      'flutter.vela.shuo.palette.v2': 'peach',
+    });
+    final restored = SettingsController();
+    await restored.load();
+    expect(restored.paletteId, 'peach');
+    restored.dispose();
+  });
+
+  test('old Android preference palette migrates into v2', () async {
+    SharedPreferences.setMockInitialValues({
+      'flutter.vela.shuo.palette.v1': 'lavender',
+    });
+    final first = SettingsController();
+    await first.load();
+    expect(first.paletteId, 'lavender');
+    first.dispose();
+    final next = SettingsController();
+    await next.load();
+    expect(next.paletteId, 'lavender');
+    next.dispose();
+  });
+
   test('invalid palette key restores only that key', () async {
     final store = _PaletteStore()..palette = 'invalid-user-palette';
     final settings = SettingsController(store: store);
