@@ -4,6 +4,67 @@ import 'package:flutter/material.dart';
 
 import '../theme/vela_palettes.dart';
 
+/// Real painterly plaques cut from the same impasto material as Vela's map.
+/// Raster assets carry irregular paint edges; content remains real Flutter UI.
+enum VelaOilReliefShape { connection, speed, medallion }
+
+class VelaOilReliefSurface extends StatelessWidget {
+  const VelaOilReliefSurface({
+    super.key, required this.child, required this.shape,
+    this.padding = EdgeInsets.zero, this.selected = false,
+  });
+  final Widget child;
+  final VelaOilReliefShape shape;
+  final EdgeInsetsGeometry padding;
+  final bool selected;
+
+  String get _asset => switch (shape) {
+    VelaOilReliefShape.connection =>
+      'assets/oil/ui/connection_plaque.png',
+    VelaOilReliefShape.speed => 'assets/oil/ui/speed_plaque.png',
+    VelaOilReliefShape.medallion =>
+      'assets/oil/ui/paint_medallion.png',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    if (!VelaThemeRuntime.oilPreview) {
+      return VelaWatercolorSurface(
+        selected: selected, padding: padding,
+        radius: shape == VelaOilReliefShape.medallion ? 30 : 24,
+        child: child,
+      );
+    }
+    final tone = VelaThemeRuntime.active;
+    // The image is NOT a screenshot of the UI: it contains no fixed text,
+    // routes, or buttons. All status, speeds and actions stay interactive.
+    return Stack(fit: StackFit.passthrough, children: [
+      Positioned.fill(child: IgnorePointer(
+        child: ColorFiltered(
+          colorFilter: ColorFilter.mode(
+            Color.lerp(Colors.white,
+              tone.dark ? tone.accentSoft : tone.surface,
+              tone.dark ? .29 : .21)!,
+            BlendMode.modulate),
+          child: Image.asset(_asset, fit: BoxFit.fill,
+            filterQuality: FilterQuality.high,
+            excludeFromSemantics: true),
+        ),
+      )),
+      Padding(padding: padding, child: child),
+      if (selected)
+        Positioned.fill(child: IgnorePointer(child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(
+                shape == VelaOilReliefShape.medallion ? 50 : 22),
+            border: Border.all(
+                color: tone.accent.withValues(alpha: .42), width: 1.8),
+          ),
+        ))),
+    ]);
+  }
+}
+
 /// One material for every Vela screen: translucent watercolor paper and an
 /// imperfect pen line. Palette selection only changes the tint/ink colors.
 class VelaWatercolorSurface extends StatelessWidget {
@@ -49,7 +110,7 @@ class VelaWatercolorSurface extends StatelessWidget {
         // Reuse the ACTUAL approved impasto map painting as an image material:
         // this is no longer a flat glass card with decorative lines.
         image: oil ? DecorationImage(
-          image: const AssetImage('assets/oil/oil_map_clean.webp'),
+          image: const AssetImage('assets/oil/ui/oil_canvas.webp'),
           fit: BoxFit.cover,
           alignment: Alignment.center,
           opacity: t.dark ? .56 : .46,
