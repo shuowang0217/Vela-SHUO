@@ -30,7 +30,7 @@ import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
 import 'package:vela_shuo/src/home/vela_voyage_speed.dart';
 import 'package:vela_shuo/src/home/vela_voyage_connection_label.dart';
-import 'package:vela_shuo/src/brand/vela_sail_mark.dart';
+import 'package:vela_shuo/src/brand/vela_selected_identity.dart';
 import 'package:vela_shuo/src/brand/vela_watercolor_chrome.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
@@ -504,7 +504,7 @@ class VelaBrandLogo extends StatelessWidget {
         child: child,
       ),
     ),
-    child: VelaSailMark(size: size),
+    child: VelaSelectedIcon(size: size),
   );
 }
 
@@ -625,18 +625,17 @@ class _DesktopHome extends StatelessWidget {
       return Stack(children: [
         Positioned(
           left: narrow ? 20 : 32, top: narrow ? 16 : 25,
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const VelaSailMark(size: 37),
-            const SizedBox(width: 9),
-            Column(crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min, children: [
-              Text('VELA', style: TextStyle(color: _foreground,
-                fontWeight: FontWeight.w800, fontSize: narrow ? 25 : 30,
-                letterSpacing: 2.8)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              VelaSelectedWordmark(
+                width: narrow ? 175 : 215,
+                height: narrow ? 74 : 94),
               Text(velaBrandTagline, style: TextStyle(
                 color: _muted, fontSize: 9, letterSpacing: .9)),
-            ]),
-          ]),
+            ],
+          ),
         ),
         Positioned(
           right: narrow ? 16 : 29, top: narrow ? 15 : 22,
@@ -859,7 +858,7 @@ class _VoyageHomeShortcut extends StatelessWidget {
               padding: const EdgeInsets.symmetric(
                 horizontal: 15, vertical: 8),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const VelaSailMark(size: 27),
+                const VelaSelectedIcon(size: 27),
                 const SizedBox(width: 7),
                 Text('VELA  /  HOME', style: TextStyle(
                   fontFamily: 'Georgia', letterSpacing: 1.3,
@@ -1049,15 +1048,11 @@ class _MobileHome extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(
                   horizontal: 15, vertical: 9),
                 child: Row(children: [
-                  const VelaSailMark(size: 39),
-                  const SizedBox(width: 12),
                   Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('VELA', style: TextStyle(color: _foreground,
-                        fontFamily: 'Georgia', fontSize: 24,
-                        fontWeight: FontWeight.w800, letterSpacing: 2.3)),
-                      Text('航海油画  ·  v1.8.10', style: TextStyle(
+                      const VelaSelectedWordmark(width: 153, height: 76),
+                      Text('航海油画  ·  v1.8.11', style: TextStyle(
                         color: _blue, fontSize: 10,
                         letterSpacing: 1.1, fontWeight: FontWeight.w700)),
                       Text(velaBrandTagline, style: TextStyle(
@@ -1070,14 +1065,10 @@ class _MobileHome extends StatelessWidget {
                 ]),
               )
             : Row(children: [
-                const VelaSailMark(size: 40),
-                const SizedBox(width: 9),
                 Expanded(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('VELA', style: TextStyle(color: _foreground,
-                        fontSize: 26, fontWeight: FontWeight.w800,
-                        letterSpacing: 2.5)),
+                    const VelaSelectedWordmark(width: 195, height: 91),
                     Text(velaBrandTagline, style: TextStyle(
                         color: _muted, fontSize: 9)),
                   ],
