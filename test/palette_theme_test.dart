@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/app.dart';
@@ -126,6 +127,74 @@ void main() {
     await next.load();
     expect(next.paletteId, 'lavender');
     next.dispose();
+  });
+
+  test('Android native preference commit outlives controller restart', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final store = <String, String>{};
+    const channel = MethodChannel('vela_shuo/ui_preferences');
+    final messenger = TestDefaultBinaryMessengerBinding.instance
+        .defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      switch (call.method) {
+        case 'readPalette':
+          return store['palette'];
+        case 'readTheme':
+          return store['theme'];
+        case 'writePalette':
+          store['palette'] = (call.arguments as Map)['value'] as String;
+          return true;
+        case 'writeTheme':
+          store['theme'] = (call.arguments as Map)['value'] as String;
+          return true;
+        case 'removePalette':
+          store.remove('palette');
+          return true;
+        case 'removeTheme':
+          store.remove('theme');
+          return true;
+        default:
+          throw PlatformException(code: 'UNSUPPORTED');
+      }
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    SharedPreferences.setMockInitialValues({
+      'flutter.vela.shuo.palette.v1': 'ocean',
+      'flutter.vela.shuo.palette.v2': 'peach',
+    });
+    final first = SettingsController(
+        store: VelaSharedPreferencesStore(useAndroidNative: true));
+    await first.load();
+    await first.setPalette('mint');
+    expect(first.lastPaletteSaveSucceeded, isTrue);
+    expect(store['palette'], 'mint');
+    first.dispose();
+
+    final restarted = SettingsController(
+        store: VelaSharedPreferencesStore(useAndroidNative: true));
+    await restarted.load();
+    expect(restarted.paletteId, 'mint');
+    restarted.dispose();
+  });
+
+  test('failed native disk commit is never reported as saved', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const channel = MethodChannel('vela_shuo/ui_preferences');
+    final messenger = TestDefaultBinaryMessengerBinding.instance
+        .defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'readPalette' ||
+          call.method == 'readTheme') return null;
+      throw PlatformException(code: 'STORAGE');
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    SharedPreferences.setMockInitialValues({});
+    final controller = SettingsController(
+        store: VelaSharedPreferencesStore(useAndroidNative: true));
+    await controller.load();
+    await controller.setPalette('rose');
+    expect(controller.lastPaletteSaveSucceeded, isFalse);
+    controller.dispose();
   });
 
   test('invalid palette key restores only that key', () async {
