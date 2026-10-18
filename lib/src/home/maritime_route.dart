@@ -61,6 +61,88 @@ class VelaMaritimeRoute {
     return result;
   }
 
+  /// Painted sea corridor, separate from node city coordinates. Starting
+  /// from Beijing requires a short conceptual transfer to Tianjin's coast;
+  /// the VISIBLE sailing track begins offshore, never across the capital.
+  /// For Tokyo, the last paint mark sits in Tokyo Bay, not inland at the node.
+  /// These are illustrative sea lanes, not charts for marine navigation.
+  List<Offset> get oceanWaypoints {
+    final china = from.dx >= 110 && from.dx < 125 &&
+        from.dy >= 29 && from.dy <= 43;
+    final japan = to.dx >= 135 && to.dx <= 142 &&
+        to.dy >= 33 && to.dy <= 37.5;
+    if (china && japan) {
+      return const [
+        Offset(117.90, 38.84), // Tianjin harbor mouth / Bohai Gulf
+        Offset(120.60, 38.05), // central Bohai Strait
+        Offset(122.80, 36.20), // Yellow Sea offshore
+        Offset(125.65, 34.00), // southwest of Korea
+        Offset(129.20, 31.90), // open East China Sea
+        Offset(133.30, 32.05), // Pacific south of Shikoku
+        Offset(137.35, 33.85), // Pacific south of Honshu
+        Offset(139.73, 35.23), // Tokyo Bay harbor approach
+      ];
+    }
+    return waypoints;
+  }
+
+  List<Offset> get oceanSamples => _smooth(oceanWaypoints);
+
+  /// An arc-length parameterization prevents the painted ship from changing
+  /// speed at irregularly spaced navigation control points.
+  Offset oceanPointAt(double fraction) {
+    final points = oceanSamples;
+    if (points.length < 2) return from;
+    final progress = fraction.clamp(0.0, 1.0);
+    if (progress <= 0) return points.first;
+    if (progress >= 1) return points.last;
+    var length = 0.0;
+    for (var i = 1; i < points.length; i++) {
+      length += (points[i] - points[i - 1]).distance;
+    }
+    var remaining = length * progress;
+    for (var i = 1; i < points.length; i++) {
+      final segment = (points[i] - points[i - 1]).distance;
+      if (remaining <= segment) {
+        return Offset.lerp(points[i - 1], points[i],
+            segment <= 0 ? 0.0 : remaining / segment)!;
+      }
+      remaining -= segment;
+    }
+    return points.last;
+  }
+
+  /// Continuous quadratic Bézier segments. A boat location is read back from
+  /// the SAME rendered PathMetric, so it can never drift off this stroke.
+  static Path smoothPath(List<Offset> coords,
+      Offset Function(Offset) project) {
+    if (coords.isEmpty) return Path();
+    final first = project(coords.first);
+    final path = Path()..moveTo(first.dx, first.dy);
+    if (coords.length == 1) return path;
+    for (var i = 1; i < coords.length - 1; i++) {
+      final control = project(coords[i]);
+      final ahead = project(coords[i + 1]);
+      final midway = Offset.lerp(control, ahead, .5)!;
+      path.quadraticBezierTo(control.dx, control.dy,
+          midway.dx, midway.dy);
+    }
+    final end = project(coords.last);
+    path.lineTo(end.dx, end.dy);
+    return path;
+  }
+
+  Path oceanPath(Offset Function(Offset) project, {double until = 1}) {
+    final full = smoothPath(oceanSamples, project);
+    if (until >= 1) return full;
+    final partial = Path();
+    for (final metric in full.computeMetrics()) {
+      partial.addPath(metric.extractPath(0,
+          metric.length * until.clamp(0.0, 1.0)), Offset.zero);
+    }
+    return partial;
+  }
+
   static double _shortestDelta(double a, double b) =>
       (b - a + 540) % 360 - 180;
 
