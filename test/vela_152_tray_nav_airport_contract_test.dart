@@ -16,7 +16,7 @@ void main() {
     expect(tray, isNot(contains("Vela v1.3.0")));
     expect(icons, contains('ImageOps.grayscale'));
     expect(icons, contains('assets/brand/vela_selected_icon.png'));
-    expect(icons, contains('gray.putalpha(image.getchannel(\"A\"))'));
+    expect(icons, contains('gray.putalpha(image.getchannel("A"))'));
   });
 
   test('dock toggles to Home on second click, for all function modules', () {
