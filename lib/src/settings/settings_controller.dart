@@ -239,7 +239,7 @@ class SettingsController extends ChangeNotifier {
 
   Future<void> setPalette(String paletteId) async {
     if (!VelaPalette.containsId(paletteId)) return;
-    if (_paletteId == paletteId) return;
+    if (_paletteId == paletteId && _lastPaletteSaveSucceeded) return;
     _paletteId = paletteId;
     _themeMode = VelaPalette.byId(paletteId).prefersDark
         ? ThemeMode.dark : ThemeMode.light;
