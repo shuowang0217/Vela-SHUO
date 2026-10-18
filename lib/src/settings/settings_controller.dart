@@ -21,63 +21,84 @@ class VelaSharedPreferencesStore
     implements VelaPreferenceStore, VelaPalettePreferenceStore {
   VelaSharedPreferencesStore();
 
-  // SharedPreferencesAsync on Android defaults to DataStore, while the
-  // older Flutter preferences API writes to Android SharedPreferences.
-  // Read both stores to migrate existing selections across app revisions.
-  // A successful write to either store is enough to retain the preference.
+  // One authoritative v2 key is used on every restart. The previous
+  // implementation read legacy Android preferences BEFORE DataStore, so a
+  // stale v1 value could override the user's newest selected palette.
+  // Read v1 only once to migrate; do not consult it after v2 exists.
   late final SharedPreferencesAsync _preferences = SharedPreferencesAsync();
   static const String themeKey = 'vela.shuo.theme.v1';
-  static const String paletteKey = 'vela.shuo.palette.v1';
+  static const String paletteKey = 'vela.shuo.palette.v2';
+  static const String legacyPaletteKey = 'vela.shuo.palette.v1';
+
+  Future<String?> _getAsync(String key) async {
+    try {
+      return await _preferences.getString(key);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> _getLegacy(String key) async {
+    try {
+      return (await SharedPreferences.getInstance()).getString(key);
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<String?> _read(String key) async {
-    // The legacy Android backend is the primary restart-safe store.
-    // Existing DataStore values are copied into it only when absent.
-    try {
-      final legacy = await SharedPreferences.getInstance();
-      final saved = legacy.getString(key);
-      if (saved != null) return saved;
-    } catch (_) {
-      // Legacy platform implementation may be absent (desktop/tests).
-    }
-    final saved = await _preferences.getString(key);
-    if (saved != null) {
+    // DataStore is authoritative; Android SharedPreferences is a backup.
+    final current = await _getAsync(key);
+    if (current != null) return current;
+    final backup = await _getLegacy(key);
+    if (backup != null) return backup;
+    if (key != paletteKey) return null;
+
+    // Migrate the old palette key, preferring a non-default choice when the
+    // two old Android backends disagree.
+    final oldAsync = await _getAsync(legacyPaletteKey);
+    final oldLegacy = await _getLegacy(legacyPaletteKey);
+    final selected = oldAsync != null &&
+            oldAsync != VelaPalette.defaultId
+        ? oldAsync
+        : oldLegacy != null && oldLegacy != VelaPalette.defaultId
+            ? oldLegacy
+            : oldAsync ?? oldLegacy;
+    if (selected != null) {
       try {
-        await (await SharedPreferences.getInstance()).setString(key, saved);
+        await _write(paletteKey, selected);
       } catch (_) {
-        // Async DataStore remains authoritative if migration is unavailable.
+        // Still display the saved choice even if a migration write fails.
       }
     }
-    return saved;
+    return selected;
   }
 
   Future<void> _write(String key, String value) async {
-    var success = false;
-    // Explicitly use the Android SharedPreferences backend as well as
-    // DataStore: user selections survive process termination and upgrades.
-    try {
-      final legacy = await SharedPreferences.getInstance();
-      success = await legacy.setString(key, value);
-    } catch (_) {
-      // Try the other backend even if this one fails.
-    }
+    var asyncSaved = false;
+    var legacySaved = false;
     try {
       await _preferences.setString(key, value);
-      success = true;
-    } catch (_) {
-      // A successfully committed legacy write is sufficient.
+      asyncSaved = await _preferences.getString(key) == value;
+    } catch (_) {}
+    try {
+      final legacy = await SharedPreferences.getInstance();
+      legacySaved = await legacy.setString(key, value);
+    } catch (_) {}
+    if (!asyncSaved && !legacySaved) {
+      throw StateError('Preference storage unavailable');
     }
-    if (!success) throw StateError('Preference storage unavailable');
   }
 
   Future<void> _remove(String key) async {
     var success = false;
     try {
-      final legacy = await SharedPreferences.getInstance();
-      success = await legacy.remove(key);
-    } catch (_) {}
-    try {
       await _preferences.remove(key);
       success = true;
+    } catch (_) {}
+    try {
+      final legacy = await SharedPreferences.getInstance();
+      success = await legacy.remove(key) || success;
     } catch (_) {}
     if (!success) throw StateError('Preference storage unavailable');
   }
