@@ -206,7 +206,7 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
   Offset get _currentBoatLocation {
     final fraction = Curves.easeInOutCubic.transform(_sail.value);
     return VelaMaritimeRoute(from: _routeFrom, to: _routeTo)
-        .pointAt(fraction);
+        .oceanPointAt(fraction);
   }
 
   void _sync() {
@@ -719,7 +719,7 @@ class _VelaRouteSheenState extends State<VelaRouteSheen>
 
   void _refresh() {
     _points = widget.connected && (widget.to - widget.from).distance > .01
-        ? VelaMaritimeRoute(from: widget.from, to: widget.to).samples
+        ? VelaMaritimeRoute(from: widget.from, to: widget.to).oceanSamples
         : const <Offset>[];
   }
 
@@ -799,12 +799,8 @@ class _VelaSilkRoutePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (samples.length < 2) return;
-    final path = Path();
-    for (var k = 0; k < samples.length; k++) {
-      final p = camera.projectAlongArtwork(from, samples[k]);
-      if (k == 0) { path.moveTo(p.dx, p.dy); }
-      else { path.lineTo(p.dx, p.dy); }
-    }
+    final path = VelaMaritimeRoute.smoothPath(
+      samples, (point) => camera.projectAlongArtwork(from, point));
     for (final metric in path.computeMetrics()) {
       if (metric.length == 0) continue;
       final start = (phase - .16).clamp(0.0, 1.0) * metric.length;
@@ -951,33 +947,59 @@ class _WorldRoutePainter extends CustomPainter {
     if (!active || (from - to).distance < .01) return;
     final route = VelaMaritimeRoute(from: from, to: to);
     Offset geoProject(Offset geo) => camera.projectAlongArtwork(from, geo);
-    canvas.drawPath(route.path(geoProject), Paint()
-      ..style = PaintingStyle.stroke ..strokeWidth = 2.8
-      ..color = const Color(0xA4B9DFFF));
-    final traveled = route.path(geoProject, until: progress);
+    final routePath = route.oceanPath(geoProject);
+    final traveled = route.oceanPath(geoProject, until: progress);
+    // Hand-painted nautical chart line: warm gold below, pale silk highlights.
+    // Every moving shimmer and the sail use this exact same curved path.
+    canvas.drawPath(routePath, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.3
+      ..strokeCap = StrokeCap.round
+      ..color = (dark ? const Color(0xFFC39C68) :
+          const Color(0xFF8D5F32)).withValues(alpha: .78));
+    canvas.drawPath(routePath, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFF9DFAD).withValues(alpha: .88));
     canvas.drawPath(traveled, Paint()
-      ..style = PaintingStyle.stroke ..strokeWidth = 13
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 11)
-      ..color = const Color(0xB06FCBFF));
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 7.0
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4)
+      ..color = const Color(0xFFB9D6EB).withValues(alpha: .30));
     canvas.drawPath(traveled, Paint()
-      ..style = PaintingStyle.stroke ..strokeWidth = 4.0
-      ..strokeCap = StrokeCap.round ..color = const Color(0xFFE6BB76));
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.6
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFEFC78A));
+    final metrics = routePath.computeMetrics().toList();
+    if (metrics.isEmpty) return;
+    final metric = metrics.first;
+    final origin = metric.getTangentForOffset(0)?.position ??
+        geoProject(route.oceanWaypoints.first);
+    final destination = metric.getTangentForOffset(metric.length)?.position ??
+        geoProject(route.oceanWaypoints.last);
     if (connected) {
-      final origin = camera.projectArtwork(from);
-      final destination = camera.projectAlongArtwork(from, to);
       _marker(canvas, origin, VelaAtlasInk.englishLabel(originLabel),
         const Color(0xFFE3B777), showLabel: true,
         toLeft: (destination - origin).distance < 170);
       _marker(canvas, destination, VelaAtlasInk.englishLabel(label),
         const Color(0xFF84D0FF), showLabel: true, above: true);
     }
-    final boat = geoProject(route.pointAt(progress));
-    canvas.drawCircle(boat, 25, Paint()
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)
-      ..color = const Color(0x6685D4FF));
+    final tangent = metric.getTangentForOffset(
+      metric.length * progress.clamp(0.0, 1.0));
+    if (tangent == null) return;
+    final boat = tangent.position;
+    // Compact carved-ink silhouette; the previous 25 px blurred blue halo
+    // made the middle of the painted coastline look out of focus.
+    canvas.drawOval(Rect.fromCenter(center: boat + const Offset(0, 14),
+      width: 45, height: 9), Paint()
+      ..color = const Color(0xFF0C2B48).withValues(alpha: .25)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
     canvas.save();
-    canvas.translate(boat.dx - 23, boat.dy - 23);
-    const VelaSailPainter().paint(canvas, const Size(46, 46));
+    canvas.translate(boat.dx - 22, boat.dy - 22);
+    const VelaSailPainter().paint(canvas, const Size(44, 44));
     canvas.restore();
   }
 
