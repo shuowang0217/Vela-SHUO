@@ -286,9 +286,17 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
             // the approved blue/gold impasto composition.
             if (VelaThemeRuntime.oilPreview)
               Positioned.fill(child: IgnorePointer(
-                child: Image.asset('assets/oil/oil_map_clean.webp',
-                  fit: BoxFit.cover, filterQuality: FilterQuality.high,
-                  gaplessPlayback: true))),
+                child: Stack(fit: StackFit.expand, children: [
+                  Image.asset('assets/oil/oil_map_clean.webp',
+                    fit: BoxFit.cover, filterQuality: FilterQuality.high,
+                    gaplessPlayback: true),
+                  AnimatedOpacity(
+                    opacity: dark ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 850),
+                    child: Image.asset('assets/oil/oil_map_night.webp',
+                      fit: BoxFit.cover, filterQuality: FilterQuality.high,
+                      gaplessPlayback: true)),
+                ]))),
             if (!VelaThemeRuntime.oilPreview && compactAndroid)
               ImageFiltered(
                 // The oil preview stays sharp on portrait Android.
