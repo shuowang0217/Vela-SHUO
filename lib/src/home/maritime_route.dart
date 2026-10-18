@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'ocean_grid.dart';
 
 /// An illustrative sea-going route across actual geographic waypoints,
 /// projected by the same 2:1 world map camera as the cities and coastlines.
@@ -67,6 +68,11 @@ class VelaMaritimeRoute {
   /// For Tokyo, the last paint mark sits in Tokyo Bay, not inland at the node.
   /// These are illustrative sea lanes, not charts for marine navigation.
   List<Offset> get oceanWaypoints {
+    final grid = VelaOceanGrid.instance;
+    if (grid.ready) {
+      final seaRoute = grid.route(from, to);
+      if (seaRoute.length >= 2) return seaRoute;
+    }
     final china = from.dx >= 110 && from.dx < 125 &&
         from.dy >= 29 && from.dy <= 43;
     final japan = to.dx >= 135 && to.dx <= 142 &&
@@ -86,7 +92,12 @@ class VelaMaritimeRoute {
     return waypoints;
   }
 
-  List<Offset> get oceanSamples => _smooth(oceanWaypoints);
+  List<Offset> get oceanSamples {
+    final points = oceanWaypoints;
+    // Ocean-grid path must preserve its land-tested vertices.
+    if (VelaOceanGrid.instance.ready) return points;
+    return _smooth(points);
+  }
 
   /// An arc-length parameterization prevents the painted ship from changing
   /// speed at irregularly spaced navigation control points.
@@ -132,8 +143,23 @@ class VelaMaritimeRoute {
     return path;
   }
 
+  static Path _linearPath(List<Offset> points,
+      Offset Function(Offset) project) {
+    final path = Path();
+    if (points.isEmpty) return path;
+    final first = project(points.first);
+    path.moveTo(first.dx, first.dy);
+    for (final point in points.skip(1)) {
+      final p = project(point);
+      path.lineTo(p.dx, p.dy);
+    }
+    return path;
+  }
+
   Path oceanPath(Offset Function(Offset) project, {double until = 1}) {
-    final full = smoothPath(oceanSamples, project);
+    final points = oceanSamples;
+    final full = VelaOceanGrid.instance.ready
+        ? _linearPath(points, project) : smoothPath(points, project);
     if (until >= 1) return full;
     final partial = Path();
     for (final metric in full.computeMetrics()) {
