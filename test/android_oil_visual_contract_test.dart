@@ -8,7 +8,7 @@ void main() {
   test('Android oil homepage has its own painted header and controls', () {
     final source = File('lib/src/app.dart').readAsStringSync();
     expect(source, contains("ValueKey('mobile_oil_masthead')"));
-    expect(source, contains('航海油画  ·  v1.8.11'));
+    expect(source, contains('航海油画  ·  v1.8.12'));
     expect(source, contains("ValueKey('mobile_oil_status')"));
     expect(source, contains('sigmaX: 10'));
   });
