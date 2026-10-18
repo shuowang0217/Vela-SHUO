@@ -678,18 +678,23 @@ class _DesktopHome extends StatelessWidget {
                       onPressed: () => _openRouting(context),
                     ),
                   const SizedBox(width: 5),
-                  IconButton.filled(
-                    key: const ValueKey('immersive_power_button'),
-                    tooltip: busy ? '正在连接' :
-                        connected ? '安全断开' : '连接',
-                    onPressed: busy ? null : () => _toggle(context),
-                    icon: Icon(connected
-                        ? Icons.power_settings_new_rounded
-                        : Icons.sailing_rounded, size: 24),
-                    style: IconButton.styleFrom(
-                      backgroundColor: _blue.withValues(alpha: .87),
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(48, 48)),
+                  VelaOilReliefSurface(
+                    shape: VelaOilReliefShape.power,
+                    radius: 40, padding: EdgeInsets.zero,
+                    child: IconButton.filled(
+                      key: const ValueKey('immersive_power_button'),
+                      tooltip: busy ? '正在连接' :
+                          connected ? '安全断开' : '连接',
+                      onPressed: busy ? null : () => _toggle(context),
+                      icon: Icon(connected
+                          ? Icons.power_settings_new_rounded
+                          : Icons.sailing_rounded, size: 27),
+                      style: IconButton.styleFrom(
+                        backgroundColor: VelaThemeRuntime.oilPreview
+                            ? Colors.transparent : _blue.withValues(alpha: .87),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(58, 58)),
+                    ),
                   ),
                 ]),
               ),
@@ -1007,6 +1012,9 @@ class _MobileHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
+      final wide = VelaThemeRuntime.oilPreview &&
+          constraints.maxWidth >= 790 &&
+          constraints.maxWidth > constraints.maxHeight * 1.14;
       final vpn = androidVpn;
       final connected = vpn?.connected ??
           connection?.connected ?? demo.isConnected;
@@ -1023,8 +1031,11 @@ class _MobileHome extends StatelessWidget {
       );
       return Stack(children: [
         Positioned(
-          top: 12, left: 14, right: 14,
-          child: VelaThemeRuntime.oilPreview
+          top: wide ? 24 : 12,
+          left: wide ? 31 : 14,
+          right: wide ? null : 14,
+          width: wide ? 295 : null,
+          child: VelaThemeRuntime.oilPreview && !wide
             ? VelaWatercolorSurface(
                 key: const ValueKey('mobile_oil_masthead'),
                 radius: 20,
@@ -1070,8 +1081,10 @@ class _MobileHome extends StatelessWidget {
               ]),
         ),
         Positioned(
-          top: VelaThemeRuntime.oilPreview ? 104 : 90,
-          left: 14, right: 14,
+          top: wide ? 23 : (VelaThemeRuntime.oilPreview ? 104 : 90),
+          left: wide ? null : 14,
+          right: wide ? 28 : 14,
+          width: wide ? 376 : null,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: BackdropFilter(
@@ -1116,24 +1129,24 @@ class _MobileHome extends StatelessWidget {
                       icon: const Icon(Icons.alt_route_rounded),
                       iconSize: 21, color: _blue,
                       onPressed: () => _openRouting(context)),
-                  IconButton.filled(
-                    key: ValueKey(vpn != null
-                        ? 'android_vpn_button' : 'mobile_connect_button'),
-                    tooltip: busy ? '正在连接' :
-                        connected ? '断开航线' : '启航连接',
-                    onPressed: busy ? null : () => _toggle(context),
-                    icon: Icon(connected
-                        ? Icons.power_settings_new_rounded
-                        : Icons.sailing_rounded, size: 24),
-                    style: IconButton.styleFrom(
-                      backgroundColor: _blue.withValues(alpha: .95),
-                      foregroundColor: VelaThemeRuntime.oilPreview
-                          ? (VelaThemeRuntime.active.dark
-                              ? const Color(0xFF1E1B17) : Colors.white)
-                          : Colors.white,
-                      side: VelaThemeRuntime.oilPreview
-                          ? BorderSide(color: _line, width: 1.5) : null,
-                      minimumSize: const Size(48, 48)),
+                  VelaOilReliefSurface(
+                    shape: VelaOilReliefShape.power,
+                    radius: 40, padding: EdgeInsets.zero,
+                    child: IconButton.filled(
+                      key: ValueKey(vpn != null
+                          ? 'android_vpn_button' : 'mobile_connect_button'),
+                      tooltip: busy ? '正在连接' :
+                          connected ? '断开航线' : '启航连接',
+                      onPressed: busy ? null : () => _toggle(context),
+                      icon: Icon(connected
+                          ? Icons.power_settings_new_rounded
+                          : Icons.sailing_rounded, size: 26),
+                      style: IconButton.styleFrom(
+                        backgroundColor: VelaThemeRuntime.oilPreview
+                            ? Colors.transparent : _blue.withValues(alpha: .95),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(56, 56)),
+                    ),
                   ),
                 ]),
               ),
@@ -1150,7 +1163,7 @@ class _MobileHome extends StatelessWidget {
                   style: const TextStyle(fontSize: 11,
                       color: Color(0xFFE78986))))),
         Positioned(
-          left: 14, bottom: 90,
+          left: wide ? 29 : 14, bottom: wide ? 26 : 90,
           child: _VoyageRatePanel(
             traffic: traffic, active: vpn?.connected ??
                 connection?.connected ?? false),
