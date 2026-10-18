@@ -17,9 +17,9 @@ void main() {
     final atlas = File('lib/src/home/world_atlas.dart').readAsStringSync();
     final pipeline = File('scripts/prepare_oil_atlas.py').readAsStringSync();
     expect(atlas, contains('VelaThemeRuntime.oilPreview ? 0 : 16'));
-    expect(pipeline, contains('ImageFilter.ModeFilter(size=7)'));
-    expect(pipeline, contains('for i in range(42000)'));
-    expect(pipeline, contains('base.paste(edge, (width - 1, 0))'));
+    expect(pipeline, contains('ImageFilter.ModeFilter(7)'));
+    expect(pipeline, contains('for i in range(102000)'));
+    expect(pipeline, contains('base.paste(base.crop((0,0,1,h)),(w-1,0))'));
   });
 
   testWidgets('portrait cloud sprites are all partly visible and detached',
