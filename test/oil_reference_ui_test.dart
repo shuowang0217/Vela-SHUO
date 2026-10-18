@@ -76,7 +76,7 @@ void main() {
     final ui=File('lib/src/brand/vela_watercolor_chrome.dart')
         .readAsStringSync();
     expect(ui,contains('BackdropFilter('));
-    expect(ui,contains('t.surface.withValues(alpha: .50)'));
+    expect(ui,contains('t.surface.withValues(alpha: .42)'));
     expect(ui,isNot(contains('Image.asset(asset')));
   });
 }
