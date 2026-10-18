@@ -6,7 +6,7 @@ import 'package:vela_shuo/src/home/world_atlas.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 
 void main() {
-  testWidgets('all desktop pages share four detached watercolor buttons',
+  testWidgets('all desktop pages share four functional painted oil medallions',
       (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1440, 900);
@@ -21,7 +21,7 @@ void main() {
       expect(find.byKey(ValueKey('nav_$target')), findsOneWidget);
       final surface = find.ancestor(
         of: find.byKey(ValueKey('nav_$target')),
-        matching: find.byType(VelaWatercolorSurface));
+        matching: find.byType(VelaOilReliefSurface));
       expect(surface, findsOneWidget);
     }
 
