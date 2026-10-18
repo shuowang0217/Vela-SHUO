@@ -8,6 +8,7 @@ import '../brand/vela_sail_mark.dart';
 import '../theme/vela_palettes.dart';
 import 'demo_connection.dart';
 import 'maritime_route.dart';
+import 'ocean_grid.dart';
 import 'vela_oil_scene.dart';
 
 /// Camera for a precisely georeferenced 2:1 equirectangular world map.
@@ -206,6 +207,9 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
       }
     });
     widget.demo.addListener(_sync);
+    VelaOceanGrid.instance.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
     _sync();
   }
 
@@ -417,6 +421,7 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
               homebound: _homebound, dark: dark,
             ), child: const SizedBox.expand()),
             VelaRouteSheen(camera: camera, from: _routeFrom, to: _routeTo,
+              routingReady: VelaOceanGrid.instance.ready,
               connected: widget.demo.phase == VelaPhase.connected,
               dark: dark),
           ]));
@@ -723,7 +728,9 @@ class VelaRouteSheen extends StatefulWidget {
   const VelaRouteSheen({
     super.key, required this.camera, required this.from,
     required this.to, required this.connected, required this.dark,
+    this.routingReady = false,
   });
+  final bool routingReady;
   final VelaWorldCamera camera;
   final Offset from;
   final Offset to;
@@ -775,6 +782,7 @@ class _VelaRouteSheenState extends State<VelaRouteSheen>
   void didUpdateWidget(covariant VelaRouteSheen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.connected != widget.connected ||
+        oldWidget.routingReady != widget.routingReady ||
         oldWidget.from != widget.from || oldWidget.to != widget.to) {
       _refresh();
       if (!widget.connected) _progress.value = 0;
@@ -822,8 +830,8 @@ class _VelaSilkRoutePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (samples.length < 2) return;
-    final path = VelaMaritimeRoute.smoothPath(
-      samples, (point) => camera.projectSeaLane(
+    final route = VelaMaritimeRoute(from: from, to: samples.last);
+    final path = route.oceanPath((point) => camera.projectSeaLane(
         from, samples.last, point));
     for (final metric in path.computeMetrics()) {
       if (metric.length == 0) continue;
