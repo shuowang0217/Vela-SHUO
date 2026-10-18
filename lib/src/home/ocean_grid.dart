@@ -135,7 +135,9 @@ class VelaOceanGrid {
         // Do not slip between two touching land cells at a diagonal.
         if (d[0] != 0 && d[1] != 0 &&
             (!_isWater(_index(nx, y)) ||
-             !_isWater(_index(x, ny)))) continue;
+             !_isWater(_index(x, ny)))) {
+          continue;
+        }
         final latitude = _geo(current).dy * math.pi / 180;
         final cost = math.sqrt(math.pow(d[0] * math.cos(latitude), 2) +
             d[1] * d[1].toDouble()) * step;
@@ -190,7 +192,9 @@ class _OceanHeap {
     while (pos * 2 + 1 < _data.length) {
       var child = pos * 2 + 1;
       if (child + 1 < _data.length &&
-          _data[child + 1].score < _data[child].score) child++;
+          _data[child + 1].score < _data[child].score) {
+        child++;
+      }
       if (last.score <= _data[child].score) {
         break;
       }
