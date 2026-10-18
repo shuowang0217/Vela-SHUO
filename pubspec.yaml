@@ -1,7 +1,7 @@
 name: vela_shuo
 description: Vela cross-platform network client.
 publish_to: none
-version: 1.8.5+39
+version: 1.8.6+40
 
 environment:
   sdk: '>=3.9.0 <4.0.0'
@@ -43,6 +43,7 @@ flutter:
     - assets/oil/ui/paint_medallion.png
     - assets/oil/ui/power_medallion.png
     - assets/oil/clouds/cloud_beijing.png
+    - assets/oil/clouds/cloud_beijing_clean.png
     - assets/oil/clouds/cloud_east.png
     - assets/oil/clouds/cloud_equator.png
     - assets/oil/clouds/cloud_north.png
