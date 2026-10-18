@@ -1,69 +1,74 @@
 #!/usr/bin/env python3
-"""Vela 1.8 geographic oil atlas: painted from the original seamless 2:1 map.
+"""Thick palette-knife Vela day/night atlases on the real world 2:1 map.
 
-The source is the existing Vela geographic watercolor atlas, NOT the approved
-flattened UI screenshot, which cannot be projected to actual node locations.
-Consequently real route and sail coordinates remain pixel-aligned worldwide.
-No floating cloud assets are baked into these backgrounds.
-Requires Pillow (already installed by each CI build job).
+A real-world route requires real coordinates: unlike a flattened screenshot,
+these are the same georeferenced pixels used by route and ship projections.
+Oil reference provides pigment relief; moving clouds stay separate PNG layers.
 """
 from pathlib import Path
-from PIL import Image, ImageEnhance, ImageFilter, ImageDraw
-import math, random
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageChops, ImageOps
+import random, math
 
-ROOT = Path(__file__).resolve().parents[1]
-ASSETS = ROOT / "assets"
-DEST = ASSETS / "oil"
-DEST.mkdir(parents=True, exist_ok=True)
+ROOT=Path(__file__).resolve().parents[1]
+ASSETS=ROOT/"assets"
+DEST=ASSETS/"oil"
+DEST.mkdir(parents=True,exist_ok=True)
+REFERENCE=DEST/"oil_map_clean.webp"
 
-def render(source: Path, target: Path, *, night: bool) -> None:
-    original = Image.open(source).convert("RGB")
-    width, height = original.size
-    if width != height * 2:
-        raise ValueError("Vela oil map must preserve the 2:1 georeferenced grid")
-    # Dense pigmented impasto brushwork, preserving the real 2:1 map grid.
-    opaque_paint = original.filter(ImageFilter.ModeFilter(size=7))
-    base = Image.blend(original, opaque_paint, .48)
-    base = ImageEnhance.Color(base).enhance(1.15 if night else 1.28)
-    base = ImageEnhance.Contrast(base).enhance(1.10)
-    overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay, "RGBA")
-    r = random.Random(180236 if night else 180235)
-    pixels = base.load()
-    for i in range(42000):
-        x = r.randrange(width)
-        y = r.randrange(height)
-        length = r.randrange(7, 26)
-        dy = r.randrange(-4, 5)
-        pigment = pixels[x, y]
-        delta = r.randrange(-20, 21)
-        pigment = tuple(max(0, min(255, channel + delta))
-                        for channel in pigment)
-        color = (*pigment, r.randrange(54, 116))
-        stroke = r.randrange(2, 6)
-        draw.line((x, y, x + length, y + dy),
-                  fill=color, width=stroke, joint="curve")
-        if x + length >= width:
-            draw.line((x - width, y, x + length - width, y + dy),
-                      fill=color, width=stroke)
-    for i in range(8000):
-        x = r.randrange(width)
-        y = r.randrange(height)
-        pigment = pixels[x, y]
-        delta = r.choice((-36, 26))
-        pigment = tuple(max(0, min(255, channel + delta))
-                        for channel in pigment)
-        draw.line((x, y, x + r.randrange(7, 16),
-                   y + r.randrange(-2, 3)),
-                  fill=(*pigment, 89), width=2)
-    base = Image.alpha_composite(base.convert("RGBA"), overlay).convert("RGB")
-    # The repeated geographic tile must not show a hard seam.
-    edge = base.crop((0, 0, 1, height))
-    base.paste(edge, (width - 1, 0))
-    base.save(target, "WEBP", quality=94, method=6)
-    print(f"{target.name}: {width}x{height}, {target.stat().st_size} bytes")
+def render(source,target,*,night):
+    original=Image.open(source).convert("RGB")
+    w,h=original.size
+    if w != h*2:
+        raise ValueError("Oil atlas must keep original 2:1 coordinate grid")
+    # Oil-painted colour fields, not a watercolour atlas with faint lines.
+    base=Image.blend(original,original.filter(ImageFilter.ModeFilter(7)),.56)
+    base=ImageEnhance.Color(base).enhance(1.20 if night else 1.43)
+    base=ImageEnhance.Contrast(base).enhance(1.12 if night else 1.19)
+    base=ImageEnhance.Sharpness(base).enhance(1.45)
+    # The original approved impasto painting contributes tactile elevation.
+    # Only its small-scale luminance relief is transferred; no fake continents,
+    # static clouds, UI or geographic labels enter the georeferenced atlas.
+    approved=Image.open(REFERENCE).convert("L").resize(
+        (w,h),Image.Resampling.LANCZOS)
+    relieved=ImageChops.difference(
+        approved,approved.filter(ImageFilter.GaussianBlur(8)))
+    relieved=ImageEnhance.Contrast(relieved).enhance(1.65)
+    relief=ImageOps.colorize(relieved,black=(0,0,0),white=(245,232,212))
+    base=Image.blend(base,ImageChops.add(base,relief,scale=1.0,offset=0),.20)
+    strokes=Image.new("RGBA",(w,h),(0,0,0,0))
+    draw=ImageDraw.Draw(strokes,"RGBA")
+    pixels=base.load()
+    rng=random.Random(185037 if night else 185036)
+    # Wide, irregular, overlapping palette-knife paint dabs.
+    # Water curls mostly horizontally while land follows the same atlas.
+    for i in range(102000):
+        x=rng.randrange(w);y=rng.randrange(h)
+        pixel=pixels[x,y]
+        bright=sum(pixel)/3
+        blue=pixel[2]>pixel[0]*1.12 and pixel[2]>pixel[1]*.96
+        length=rng.randrange(9,38) if blue else rng.randrange(7,29)
+        dy=rng.randrange(-4,5) if blue else rng.randrange(-8,9)
+        width=rng.randrange(2,8)
+        delta=rng.randrange(-25,28)
+        color=tuple(max(0,min(255,v+delta)) for v in pixel)
+        a=rng.randrange(78,166)
+        draw.line((x,y,x+length,y+dy),fill=(*color,a),
+                  width=width,joint="curve")
+        if rng.random()<.43:
+            highlight=tuple(min(255,int(c*.65+255*.35)) for c in color)
+            draw.line((x+1,y-2,x+length*.75,y+dy-2),
+                      fill=(*highlight,rng.randrange(65,139)),
+                      width=rng.randrange(1,3))
+        # Use repeated pigment across both ends to hide map wrap seam.
+        if x+length >= w:
+            draw.line((x-w,y,x+length-w,y+dy),
+                      fill=(*color,a),width=width)
+    base=Image.alpha_composite(base.convert("RGBA"),strokes).convert("RGB")
+    base.paste(base.crop((0,0,1,h)),(w-1,0))
+    base.save(target,"WEBP",quality=95,method=6)
+    print("impasto georeferenced atlas:",target.name,w,h,target.stat().st_size)
 
-render(ASSETS / "world" / "watercolor_day.webp",
-       DEST / "oil_atlas_day.webp", night=False)
-render(ASSETS / "world" / "watercolor_night.webp",
-       DEST / "oil_atlas_night.webp", night=True)
+render(ASSETS/"world"/"watercolor_day.webp",
+       DEST/"oil_atlas_day.webp",night=False)
+render(ASSETS/"world"/"watercolor_night.webp",
+       DEST/"oil_atlas_night.webp",night=True)
