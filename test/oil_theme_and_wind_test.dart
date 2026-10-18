@@ -60,7 +60,8 @@ void main() {
     final toast = File('lib/src/brand/vela_glass_toast.dart')
         .readAsStringSync();
     expect(shell, contains('VelaThemeRuntime.active.dark'));
-    expect(shared, contains("AssetImage('assets/oil/ui/oil_canvas.webp')"));
+    expect(shared, contains("'assets/oil/ui/oil_canvas.webp'"));
+    expect(shared, contains('painter: oil ? null : _VelaInkStroke('));
     expect(shared, contains('c.drawPath(stroke, impasto)'));
     expect(stellar, contains('VelaWatercolorSurface('));
     expect(importing, contains('child: VelaWatercolorSurface('));
