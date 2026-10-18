@@ -8,9 +8,9 @@ void main() {
   test('Android oil homepage has its own painted header and controls', () {
     final source = File('lib/src/app.dart').readAsStringSync();
     expect(source, contains("ValueKey('mobile_oil_masthead')"));
-    expect(source, contains('航海油画  ·  v1.8.8'));
+    expect(source, contains('航海油画  ·  v1.8.9'));
     expect(source, contains("ValueKey('mobile_oil_status')"));
-    expect(source, contains('VelaThemeRuntime.oilPreview ? 0 : 10'));
+    expect(source, contains('sigmaX: 10'));
   });
 
   test('georeferenced Android oil map is crisp instead of blurred', () {
