@@ -67,35 +67,72 @@ class VelaMaritimeRoute {
   /// the VISIBLE sailing track begins offshore, never across the capital.
   /// For Tokyo, the last paint mark sits in Tokyo Bay, not inland at the node.
   /// These are illustrative sea lanes, not charts for marine navigation.
+  // Reuse the v1.6 maritime corridor for East Asia <-> Western Europe.
+  // Unlike the node city coordinates, these endpoints are offshore.
+  // The old mainland-crossing straight-line fallback must never paint.
+  static const _eastWestSeaLane = <Offset>[
+    Offset(120.6, 35.1), // Yellow Sea
+    Offset(123.0, 22.0), // Taiwan Strait approach
+    Offset(117.0, 12.0), // South China Sea
+    Offset(103.5, 1.6),  // Singapore / Malacca
+    Offset(85.0, 3.0),   // Bay of Bengal
+    Offset(58.0, 13.0),  // Arabian Sea
+    Offset(43.0, 13.0),  // Gulf of Aden
+    Offset(33.0, 28.0),  // Red Sea / Suez
+    Offset(31.0, 32.0),  // Mediterranean
+    Offset(16.0, 35.5),
+    Offset(-6.0, 36.0),  // Gibraltar
+    Offset(-4.0, 48.5),  // English Channel
+  ];
+
   List<Offset> get oceanWaypoints {
+    final asiaFrom = from.dx >= 105 && from.dx <= 150 &&
+        from.dy >= 15 && from.dy <= 47;
+    final asiaTo = to.dx >= 105 && to.dx <= 150 &&
+        to.dy >= 15 && to.dy <= 47;
+    final europeFrom = from.dx >= -12 && from.dx <= 20 &&
+        from.dy >= 43 && from.dy <= 62;
+    final europeTo = to.dx >= -12 && to.dx <= 20 &&
+        to.dy >= 43 && to.dy <= 62;
+
+    // Explicit v1.6 sea lane takes precedence over any failed grid
+    // lookup. Never connect its ends straight through the continent.
+    if (asiaFrom && europeTo) {
+      return _eastWestSeaLane;
+    }
+    if (europeFrom && asiaTo) {
+      return _eastWestSeaLane.reversed.toList(growable: false);
+    }
+
     final grid = VelaOceanGrid.instance;
     if (grid.ready) {
       final seaRoute = grid.route(from, to);
-      if (seaRoute.length >= 2) return seaRoute;
+      // Fail closed: no route is preferable to a false land crossing.
+      return seaRoute.length >= 2 ? seaRoute : const <Offset>[];
     }
+
+    // Preserve the earlier China/Tokyo visual sea lane while assets load.
     final china = from.dx >= 110 && from.dx < 125 &&
         from.dy >= 29 && from.dy <= 43;
     final japan = to.dx >= 135 && to.dx <= 142 &&
         to.dy >= 33 && to.dy <= 37.5;
     if (china && japan) {
       return const [
-        Offset(117.90, 38.84), // Tianjin harbor mouth / Bohai Gulf
-        Offset(120.60, 38.05), // central Bohai Strait
-        Offset(122.80, 36.20), // Yellow Sea offshore
-        Offset(125.65, 34.00), // southwest of Korea
-        Offset(129.20, 31.90), // open East China Sea
-        Offset(133.30, 32.05), // Pacific south of Shikoku
-        Offset(137.35, 33.85), // Pacific south of Honshu
-        Offset(139.73, 35.23), // Tokyo Bay harbor approach
+        Offset(117.90, 38.84), Offset(120.60, 38.05),
+        Offset(122.80, 36.20), Offset(125.65, 34.00),
+        Offset(129.20, 31.90), Offset(133.30, 32.05),
+        Offset(137.35, 33.85), Offset(139.73, 35.23),
       ];
     }
-    return waypoints;
+    return const <Offset>[];
   }
 
   List<Offset> get oceanSamples {
     final points = oceanWaypoints;
     // Ocean-grid path must preserve its land-tested vertices.
-    if (VelaOceanGrid.instance.ready) return points;
+    if (VelaOceanGrid.instance.ready ||
+        (from.dx > 105 && to.dx < 20) ||
+        (to.dx > 105 && from.dx < 20)) return points;
     return _smooth(points);
   }
 
@@ -158,7 +195,9 @@ class VelaMaritimeRoute {
 
   Path oceanPath(Offset Function(Offset) project, {double until = 1}) {
     final points = oceanSamples;
-    final full = VelaOceanGrid.instance.ready
+    final full = VelaOceanGrid.instance.ready ||
+            (from.dx > 105 && to.dx < 20) ||
+            (to.dx > 105 && from.dx < 20)
         ? _linearPath(points, project) : smoothPath(points, project);
     if (until >= 1) return full;
     final partial = Path();
