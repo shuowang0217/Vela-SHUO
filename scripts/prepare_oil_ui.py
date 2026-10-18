@@ -121,6 +121,13 @@ def main():
         Image.Resampling.LANCZOS)
     clean.save(ROOT / "assets/oil/clouds/cloud_beijing_clean.png",
         "PNG", optimize=True)
+    # The southeast source also contains three cut-off circular HUD controls
+    # at its lower edge. Make a second clean independent brushwork sprite.
+    east = Image.open(ROOT / "assets/oil/clouds/cloud_east.png").convert("RGBA")
+    southeast = ImageOps.mirror(east).resize((421, 180),
+        Image.Resampling.LANCZOS)
+    southeast.save(ROOT / "assets/oil/clouds/cloud_southeast_clean.png",
+        "PNG", optimize=True)
     plaque("connection_plaque.png",(860,234),39012,58)
     plaque("speed_plaque.png",(740,230),39013,56)
     plaque("paint_medallion.png",(200,200),39014,92,True)
