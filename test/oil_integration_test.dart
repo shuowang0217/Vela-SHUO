@@ -31,9 +31,9 @@ void main() {
     final toast = File('lib/src/brand/vela_glass_toast.dart')
         .readAsStringSync();
     final app = File('lib/src/app.dart').readAsStringSync();
-    expect(common, contains("'assets/oil/ui/oil_canvas.webp'"));
-    expect(common, contains("'assets/oil/ui/oil_canvas_night.webp'"));
-    expect(common, contains('painter: oil ? null : _VelaInkStroke('));
+    expect(common, contains('sigmaX: 9, sigmaY: 9'));
+    expect(common, contains('t.surface.withValues(alpha: .50)'));
+    expect(common, isNot(contains('DecorationImage(')));
     expect(toast, contains('VelaWatercolorSurface'));
     expect(app, contains('popupMenuTheme: PopupMenuThemeData'));
     expect(app, contains('bottomSheetTheme: BottomSheetThemeData'));
