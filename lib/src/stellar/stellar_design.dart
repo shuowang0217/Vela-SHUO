@@ -28,8 +28,8 @@ class StellarPanel extends StatelessWidget {
     borderRadius: BorderRadius.circular(radius),
     child: BackdropFilter(
       filter: ImageFilter.blur(
-        sigmaX: VelaThemeRuntime.oilPreview ? 0 : 9,
-        sigmaY: VelaThemeRuntime.oilPreview ? 0 : 9),
+        sigmaX: 9,
+        sigmaY: 9),
       child: VelaWatercolorSurface(
         padding: padding ?? const EdgeInsets.all(15),
         radius: radius, selected: selected, child: child),
@@ -58,38 +58,17 @@ class StellarAction extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool filled;
   @override
-  Widget build(BuildContext context) {
-    final oil = VelaThemeRuntime.oilPreview;
-    final t = VelaThemeRuntime.active;
-    final Widget button = filled
-        ? FilledButton.icon(
-            onPressed: onPressed,
-            icon: Icon(icon, size: 18),
-            label: Text(label),
-            style: oil ? FilledButton.styleFrom(
-              foregroundColor: t.text,
-              backgroundColor: Colors.transparent,
-              disabledBackgroundColor: Colors.transparent,
-              elevation: 0) : null,
-          )
-        : OutlinedButton.icon(
-            onPressed: onPressed,
-            icon: Icon(icon, size: 18),
-            label: Text(label),
-            style: oil ? OutlinedButton.styleFrom(
-              foregroundColor: t.text,
-              backgroundColor: Colors.transparent,
-              side: BorderSide.none) : null,
-          );
-    return oil
-        ? VelaWatercolorSurface(
-            selected: filled,
-            radius: 14,
-            padding: EdgeInsets.zero,
-            child: button,
-          )
-        : button;
-  }
+  Widget build(BuildContext context) => filled
+      ? FilledButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 18),
+          label: Text(label),
+        )
+      : OutlinedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 18),
+          label: Text(label),
+        );
 }
 
 class StellarSectionHeading extends StatelessWidget {
