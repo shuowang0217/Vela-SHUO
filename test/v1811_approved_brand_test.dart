@@ -42,6 +42,6 @@ void main() {
     expect(night,contains('oil_map_night.webp'));
     final clouds=File('lib/src/home/vela_oil_scene.dart')
         .readAsStringSync();
-    expect(clouds,contains('night_${cloud.file}.png'));
+    expect(clouds,contains(r'night_${cloud.file}.png'));
   });
 }
