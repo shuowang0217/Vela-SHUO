@@ -29,7 +29,7 @@ void main() {
     expect(panel, contains('t.surface.withValues(alpha: .50)'));
     expect(panel, isNot(contains('oil_canvas_night.webp')));
     final map = File('lib/src/home/world_atlas.dart').readAsStringSync();
-    expect(map, contains("Image.asset('assets/oil/oil_map_night.webp'"));
+    expect(map, contains("asset: 'assets/oil/oil_map_night.webp'"));
     expect(map, contains('opacity: dark ? 1.0 : 0.0'));
     final clouds = File('lib/src/home/vela_oil_scene.dart')
         .readAsStringSync();
