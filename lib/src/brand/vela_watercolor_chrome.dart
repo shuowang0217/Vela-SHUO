@@ -20,7 +20,7 @@ class VelaOilReliefSurface extends StatelessWidget {
   final bool selected;
   final double radius;
 
-  String get _asset => switch (shape) {
+  String get _file => switch (shape) {
     VelaOilReliefShape.connection =>
       'assets/oil/ui/connection_plaque.png',
     VelaOilReliefShape.speed => 'assets/oil/ui/speed_plaque.png',
@@ -38,6 +38,7 @@ class VelaOilReliefSurface extends StatelessWidget {
       );
     }
     final tone = VelaThemeRuntime.active;
+    final asset = tone.dark ? _file.replaceFirst('/ui/', '/ui/night_') : _file;
     // The image is NOT a screenshot of the UI: it contains no fixed text,
     // routes, or buttons. All status, speeds and actions stay interactive.
     return Stack(fit: StackFit.passthrough, children: [
@@ -48,7 +49,7 @@ class VelaOilReliefSurface extends StatelessWidget {
               tone.dark ? tone.accentSoft : tone.surface,
               tone.dark ? .29 : .21)!,
             BlendMode.modulate),
-          child: Image.asset(_asset, fit: BoxFit.fill,
+          child: Image.asset(asset, fit: BoxFit.fill,
             filterQuality: FilterQuality.high,
             excludeFromSemantics: true),
         ),
@@ -112,12 +113,16 @@ class VelaWatercolorSurface extends StatelessWidget {
         // Reuse the ACTUAL approved impasto map painting as an image material:
         // this is no longer a flat glass card with decorative lines.
         image: oil ? DecorationImage(
-          image: const AssetImage('assets/oil/ui/oil_canvas.webp'),
+          image: DecorationImage(
+          image: AssetImage(t.dark
+              ? 'assets/oil/ui/oil_canvas_night.webp'
+              : 'assets/oil/ui/oil_canvas.webp'),
           fit: BoxFit.cover,
           alignment: Alignment.center,
-          opacity: t.dark ? .56 : .46,
+          opacity: .91,
           colorFilter: ColorFilter.mode(
-            t.surface, BlendMode.modulate),
+            Color.lerp(Colors.white, t.surface, t.dark ? .13 : .18)!,
+            BlendMode.modulate),
         ) : null,
         border: Border.all(color: selected || hovered
             ? t.accent.withValues(alpha: .78)
@@ -131,7 +136,8 @@ class VelaWatercolorSurface extends StatelessWidget {
         )],
       ),
       child: CustomPaint(
-        painter: _VelaInkStroke(
+        // Oil cards display actual paint IMAGE only; no hatch strokes.
+        painter: oil ? null : _VelaInkStroke(
           t.dark ? t.accentSoft : t.text, t.accent, t.line, radius, oil),
         child: Padding(padding: padding, child: child),
       ),
