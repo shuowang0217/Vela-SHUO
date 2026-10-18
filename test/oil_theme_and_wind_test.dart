@@ -60,8 +60,8 @@ void main() {
     final toast = File('lib/src/brand/vela_glass_toast.dart')
         .readAsStringSync();
     expect(shell, contains('VelaThemeRuntime.active.dark'));
-    expect(shared, contains('Deterministic little impasto strokes'));
-    expect(shared, contains('bristle.strokeWidth = 1.6'));
+    expect(shared, contains('actual impasto map painting as an image material'));
+    expect(shared, contains('c.drawPath(stroke, impasto)'));
     expect(stellar, contains('VelaWatercolorSurface('));
     expect(importing, contains('child: VelaWatercolorSurface('));
     expect(toast, contains('color:paint.accent'));
