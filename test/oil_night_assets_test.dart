@@ -26,7 +26,7 @@ void main() {
     final panel = File('lib/src/brand/vela_watercolor_chrome.dart')
         .readAsStringSync();
     expect(panel, contains('ImageFilter.blur(sigmaX: 9, sigmaY: 9)'));
-    expect(panel, contains('t.surface.withValues(alpha: .50)'));
+    expect(panel, contains('t.surface.withValues(alpha: .42)'));
     expect(panel, isNot(contains('oil_canvas_night.webp')));
     final map = File('lib/src/home/world_atlas.dart').readAsStringSync();
     expect(map, contains("asset: 'assets/oil/oil_map_night.webp'"));
