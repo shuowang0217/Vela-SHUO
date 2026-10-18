@@ -969,7 +969,7 @@ class _MobileHome extends StatelessWidget {
           routingController != null &&
           !await routingController.synchronize(sub.activeProfileId)) {
         if (context.mounted) {
-          VelaGlassToast.show(context, '规则模式尚未被 FlClash 核心确认，VPN 未启动');
+          VelaGlassToast.show(context, '规则模式尚未被 代理核心确认，VPN 未启动');
         }
         return;
       }
@@ -1338,8 +1338,8 @@ class _SettingsPage extends StatelessWidget {
             applicationLegalese: '© Vela',
             children: [
               Text(Platform.isAndroid
-                  ? 'FlClash / Mihomo 原生 VPN；支持正式签名覆盖升级。'
-                  : 'FlClash / Mihomo 系统代理；更新前请安全退出。'),
+                  ? 'Mihomo 原生 VPN；支持正式签名覆盖升级。'
+                  : 'Mihomo 系统代理；更新前请安全退出。'),
             ],
           ),
         ),
