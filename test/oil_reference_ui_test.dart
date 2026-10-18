@@ -40,8 +40,8 @@ void main() {
     final source=File('lib/src/app.dart').readAsStringSync();
     final map=File('lib/src/home/world_atlas.dart').readAsStringSync();
     final clouds=File('lib/src/home/vela_oil_scene.dart').readAsStringSync();
-    expect(map,contains("Image.asset('assets/oil/oil_map_clean.webp'"));
-    expect(map,contains("Image.asset('assets/oil/oil_map_night.webp'"));
+    expect(map,contains("asset: 'assets/oil/oil_map_clean.webp'"));
+    expect(map,contains("asset: 'assets/oil/oil_map_night.webp'"));
     expect(clouds,contains("'assets/oil/clouds/night_"));
     expect(File('assets/oil/oil_map_night.webp').existsSync(),isTrue);
     for (final cloud in [
