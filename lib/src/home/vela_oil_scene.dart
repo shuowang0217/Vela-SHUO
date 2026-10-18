@@ -40,7 +40,7 @@ class VelaOilScene extends StatefulWidget {
       seed:.55,amplitude:Offset(45,13),opacity:.95),
     VelaOilCloudSpec(file:'cloud_equator',bounds:Rect.fromLTWH(734,496,543,302),
       seed:.72,amplitude:Offset(62,18),opacity:.96),
-    VelaOilCloudSpec(file:'cloud_southeast',bounds:Rect.fromLTWH(1251,692,421,180),
+    VelaOilCloudSpec(file:'cloud_southeast_clean',bounds:Rect.fromLTWH(1251,692,421,180),
       seed:.88,amplitude:Offset(43,10),opacity:.94),
   ];
   @override
