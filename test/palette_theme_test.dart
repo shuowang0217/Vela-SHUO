@@ -126,9 +126,7 @@ void main() {
     final nextDecoration = nextBox.decoration as BoxDecoration;
     expect((nextDecoration.gradient! as LinearGradient).colors.first,
         isNot(previousPigment));
-    expect(nextDecoration.image, isNotNull);
-    expect((nextDecoration.image!.image as AssetImage).assetName,
-        'assets/oil/ui/oil_canvas.webp');
+    expect(nextDecoration.image, isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     settings.dispose();
   });
