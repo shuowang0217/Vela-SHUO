@@ -30,7 +30,7 @@ class VelaOilScene extends StatefulWidget {
   static const backgroundAsset = 'assets/oil/oil_map_clean.webp';
 
   static const clouds = <VelaOilCloudSpec>[
-    VelaOilCloudSpec(file:'cloud_beijing',bounds:Rect.fromLTWH(218,165,444,211),
+    VelaOilCloudSpec(file:'cloud_beijing_clean',bounds:Rect.fromLTWH(218,165,444,211),
       seed:.03,amplitude:Offset(49,12),opacity:.96),
     VelaOilCloudSpec(file:'cloud_north',bounds:Rect.fromLTWH(626,16,396,214),
       seed:.19,amplitude:Offset(53,16),opacity:.94),
