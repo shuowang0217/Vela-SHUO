@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/app.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
@@ -8,6 +9,7 @@ import 'package:vela_shuo/src/brand/vela_watercolor_chrome.dart';
 class _PaletteStore implements VelaPreferenceStore, VelaPalettePreferenceStore {
   String? theme = 'dark';
   String? palette;
+  bool rejectThemeWrites = false;
   final List<String> saved = [];
 
   @override
@@ -15,6 +17,7 @@ class _PaletteStore implements VelaPreferenceStore, VelaPalettePreferenceStore {
 
   @override
   Future<void> writeTheme(String value) async {
+    if (rejectThemeWrites) throw StateError('theme write failed');
     theme = value;
     saved.add('mode:$value');
   }
@@ -69,6 +72,34 @@ void main() {
     expect(restored.themeMode, ThemeMode.light);
 
     settings.dispose();
+    restored.dispose();
+  });
+
+  test('palette survives restart even when theme write fails', () async {
+    final store = _PaletteStore()..rejectThemeWrites = true;
+    final settings = SettingsController(store: store);
+    await settings.load();
+    await settings.setPalette('mint');
+    expect(store.palette, 'mint');
+    settings.dispose();
+    final restored = SettingsController(store: store);
+    await restored.load();
+    expect(restored.paletteId, 'mint');
+    restored.dispose();
+  });
+
+  test('on-device preference backend reopens saved palette', () async {
+    SharedPreferences.setMockInitialValues({});
+    final first = SettingsController();
+    await first.load();
+    await first.setPalette('lavender');
+    await first.flush();
+    first.dispose();
+
+    final restored = SettingsController();
+    await restored.load();
+    expect(restored.paletteId, 'lavender');
+    expect(restored.themeMode, ThemeMode.dark);
     restored.dispose();
   });
 
