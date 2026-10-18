@@ -16,7 +16,8 @@ void main() {
     await tester.pumpWidget(VelaShuoApp(settings: SettingsController()));
     await tester.pumpAndSettle();
     expect(find.byType(VelaWorldAtlas), findsOneWidget);
-    expect(find.byType(VelaVoyageGlyph), findsNWidgets(4));
+    expect(find.byType(VelaVoyageGlyph), findsNothing);
+    expect(find.byType(VelaOilReliefSurface), findsAtLeastNWidgets(4));
     for (final target in [1, 4, 2, 3]) {
       expect(find.byKey(ValueKey('nav_$target')), findsOneWidget);
       final surface = find.ancestor(
@@ -30,7 +31,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(VelaWorldAtlas), findsOneWidget);
       expect(find.byKey(const ValueKey('nav_0')), findsOneWidget);
-      expect(find.byType(VelaVoyageGlyph), findsNWidgets(4));
+      expect(find.byType(VelaVoyageGlyph), findsNothing);
+    expect(find.byType(VelaOilReliefSurface), findsAtLeastNWidgets(4));
       // Tapping the currently selected module a second time returns Home.
       await tester.tap(find.byKey(ValueKey('nav_$target')));
       await tester.pumpAndSettle();
