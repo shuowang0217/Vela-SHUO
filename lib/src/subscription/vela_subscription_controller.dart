@@ -820,12 +820,12 @@ class VelaSubscriptionController extends ChangeNotifier {
           const FlClashAndroidTransport(),
         ).validateProxies([Map<String, Object?>.from(entry.proxy)]);
         if (result.length != 1 || result.single.isNotEmpty) {
-          _error = 'FlClash 内核不支持此节点配置，请检查协议参数';
+          _error = '代理内核不支持此节点配置，请检查协议参数';
           _notify();
           return false;
         }
       } catch (_) {
-        _error = 'FlClash 内核校验失败，请检查 VPN 内核安装';
+        _error = '代理内核校验失败，请检查 VPN 内核安装';
         _notify();
         return false;
       }
