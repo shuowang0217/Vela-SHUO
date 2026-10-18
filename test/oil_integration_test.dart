@@ -12,7 +12,7 @@ void main() {
     expect(source, contains('oil_atlas_day.webp'));
     expect(source, contains('oil_atlas_night.webp'));
     expect(File('scripts/prepare_oil_atlas.py').existsSync(), isTrue);
-    expect(source, contains('camera.projectAlongArtwork(from, geo)'));
+    expect(source, contains('camera.projectSeaLane(from, to, geo)'));
     expect(source, contains('const VelaOilScene()'));
     expect(source, contains("Image.asset('assets/oil/oil_map_clean.webp'"));
     // Only the pure painted MAP image is used; HUD elements remain live.
