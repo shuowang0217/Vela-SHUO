@@ -48,6 +48,7 @@ flutter:
     - assets/oil/clouds/cloud_equator.png
     - assets/oil/clouds/cloud_north.png
     - assets/oil/clouds/cloud_southeast.png
+    - assets/oil/clouds/cloud_southeast_clean.png
     - assets/oil/clouds/cloud_southwest.png
     - assets/maps/world_110m.json
     - assets/earth/earth_day.jpg
