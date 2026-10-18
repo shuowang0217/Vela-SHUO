@@ -113,7 +113,6 @@ class VelaWatercolorSurface extends StatelessWidget {
         // Reuse the ACTUAL approved impasto map painting as an image material:
         // this is no longer a flat glass card with decorative lines.
         image: oil ? DecorationImage(
-          image: DecorationImage(
           image: AssetImage(t.dark
               ? 'assets/oil/ui/oil_canvas_night.webp'
               : 'assets/oil/ui/oil_canvas.webp'),
