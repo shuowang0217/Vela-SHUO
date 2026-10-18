@@ -37,6 +37,13 @@ void main() {
 
   test('both responsive homes wire all four painted components', () {
     final source=File('lib/src/app.dart').readAsStringSync();
+    final map=File('lib/src/home/world_atlas.dart').readAsStringSync();
+    final clouds=File('lib/src/home/vela_oil_scene.dart').readAsStringSync();
+    expect(map,contains("Image.asset('assets/oil/oil_map_clean.webp'"));
+    expect(clouds,contains("file:'cloud_beijing_clean'"));
+    expect(clouds, isNot(contains("file:'cloud_beijing',")));
+    expect(File('assets/oil/clouds/cloud_beijing_clean.png').existsSync(),
+        isTrue);
     expect(source,contains('shape: VelaOilReliefShape.connection'));
     expect(source,contains('shape: VelaOilReliefShape.speed'));
     expect(source,contains('shape: VelaOilReliefShape.medallion'));

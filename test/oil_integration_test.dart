@@ -14,9 +14,9 @@ void main() {
     expect(File('scripts/prepare_oil_atlas.py').existsSync(), isTrue);
     expect(source, contains('camera.projectAlongArtwork(from, geo)'));
     expect(source, contains('const VelaOilScene()'));
-    expect(source, contains('const VelaOilImpasto()'));
-    // Never draw the reference screenshot as a fixed non-geographic map.
-    expect(source, isNot(contains('Image.asset(VelaOilScene.backgroundAsset')));
+    expect(source, contains("Image.asset('assets/oil/oil_map_clean.webp'"));
+    // Only the pure painted MAP image is used; HUD elements remain live.
+    expect(source, contains('oilIllustration: VelaThemeRuntime.oilPreview'));
     const camera = VelaWorldCamera(size: Size(1400, 800),
       longitude: 116.4, latitude: 39.9);
     final beijing = camera.projectArtwork(VelaWorldCamera.beijing);
