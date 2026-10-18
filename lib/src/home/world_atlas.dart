@@ -38,35 +38,56 @@ class VelaWorldCamera {
   double get artworkDy =>
       artworkLatitudeCorrection / 180 * worldHeight;
 
-  Offset projectArtwork(Offset geographicPoint) {
-    if (oilIllustration) {
-      // The reference shows Beijing around 34% of width and Tokyo near 49%.
-      // Geographic inputs remain REAL longitude and latitude; this is only
-      // an artist-facing screen transform for the stylized, non-georeferenced
-      // wallpaper, not a claim that the art is a surveyed physical map.
-      final longitudeDelta = shortestDelta(beijing.dx, geographicPoint.dx);
-      final panDelta = shortestDelta(beijing.dx, longitude);
-      return Offset(
-        size.width * (.344 + (longitudeDelta - panDelta) * .00615),
-        size.height * (.315 + (beijing.dy - geographicPoint.dy +
-            latitude - beijing.dy) * .0027),
-      );
-    }
-    return project(geographicPoint) - Offset(artworkDx, artworkDy);
+  /// The oil canvas is a stylized panorama, not a map projection.
+  /// Calibrated marks in the clean approved 1672x941 painting:
+  /// Beijing = (592, 290), Tokyo = (806, 298).
+  /// Use the *same* canvas fit and projection for route, labels and ship.
+  static const oilImageSize = Size(1672, 941);
+  static const oilBeijing = Offset(592, 290);
+  static const oilTokyo = Offset(806, 298);
+
+  Offset get oilImageOrigin {
+    final scale = math.max(size.width / oilImageSize.width,
+        size.height / oilImageSize.height);
+    return Offset(
+      (size.width - oilImageSize.width * scale) / 2,
+      (size.height - oilImageSize.height * scale) / 2,
+    );
   }
 
-  Offset projectAlongArtwork(Offset origin, Offset destination) {
-    if (oilIllustration) {
-      final longitudeDelta=shortestDelta(beijing.dx,origin.dx) +
-          shortestDelta(origin.dx,destination.dx);
-      final panDelta=shortestDelta(beijing.dx,longitude);
-      return Offset(
-        size.width * (.344 + (longitudeDelta - panDelta) * .00615),
-        size.height * (.315 + (latitude - destination.dy) * .0027),
-      );
-    }
-    return projectAlong(origin, destination) - Offset(artworkDx, artworkDy);
+  double get oilImageScale => math.max(
+      size.width / oilImageSize.width,
+      size.height / oilImageSize.height);
+
+  Offset oilCanvasPosition(Offset geographicPoint) {
+    final dx = shortestDelta(beijing.dx, geographicPoint.dx);
+    final dy = beijing.dy - geographicPoint.dy;
+    // The hand-painted globe is deliberately distorted. Its Beijing/Tokyo
+    // corridor is surveyed from pixel landmarks; other longitudes spread
+    // progressively toward the world's visible western/eastern edges.
+    final x = dx >= 0
+        ? (dx <= 23.29
+            ? oilBeijing.dx +
+                dx * (oilTokyo.dx - oilBeijing.dx) / 23.29
+            : oilTokyo.dx + (dx - 23.29) * 5.55)
+        : oilBeijing.dx + dx * 4.0;
+    final y = oilBeijing.dy + dy * 2.0 +
+        (dx > 0 && dx < 38 ? 8 * math.sin(math.pi * dx / 38) : 0);
+    return Offset(x, y);
   }
+
+  Offset projectArtwork(Offset geographicPoint) {
+    if (!oilIllustration) {
+      return project(geographicPoint) - Offset(artworkDx, artworkDy);
+    }
+    return oilImageOrigin +
+        oilCanvasPosition(geographicPoint) * oilImageScale;
+  }
+
+  // One projection, no alternate origin-relative formula. Previously the
+  // route painter and city markers disagreed after selecting another node.
+  Offset projectAlongArtwork(Offset origin, Offset destination) =>
+      projectArtwork(destination);
 
   static double shortestDelta(double from, double to) =>
       (to - from + 540) % 360 - 180;
