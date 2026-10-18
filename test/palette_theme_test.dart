@@ -184,7 +184,9 @@ void main() {
         .defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(channel, (call) async {
       if (call.method == 'readPalette' ||
-          call.method == 'readTheme') return null;
+          call.method == 'readTheme') {
+        return null;
+      }
       throw PlatformException(code: 'STORAGE');
     });
     addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
