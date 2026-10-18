@@ -270,12 +270,6 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
     _pan.forward(from: 0);
   }
 
-  Offset get _currentBoatLocation {
-    final fraction = Curves.easeInOutCubic.transform(_sail.value);
-    return VelaMaritimeRoute(from: _routeFrom, to: _routeTo)
-        .oceanPointAt(fraction);
-  }
-
   void _sync() {
     if (!mounted) return;
     final phase = widget.demo.phase;
