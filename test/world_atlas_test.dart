@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/home/demo_connection.dart';
@@ -143,4 +144,23 @@ void main() {
     expect(point.dx, inInclusiveRange(450, 650));
     expect(point.dy, greaterThan(0));
   });
+  test('Android oil portrait shows wider panorama with aligned camera', () {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      const size = Size(390, 844);
+      const camera = VelaWorldCamera(
+        size: size, longitude: 116.4, latitude: 39.9,
+        oilIllustration: true);
+      final oldCoverScale = math.max(size.width / 1672, size.height / 941);
+      expect(camera.oilImageScale, closeTo(oldCoverScale * .66, .0001));
+      expect(camera.oilImageOrigin.dx,
+          closeTo((size.width - 1672 * camera.oilImageScale) / 2, .001));
+      expect(camera.oilImageOrigin.dy,
+          closeTo((size.height - 941 * camera.oilImageScale) / 2, .001));
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+
 }
