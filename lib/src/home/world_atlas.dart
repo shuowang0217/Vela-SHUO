@@ -17,7 +17,7 @@ class VelaWorldCamera {
   const VelaWorldCamera({required this.size, required this.longitude,
     required this.latitude,
     this.portraitWidthScale = portraitHeightScale,
-    this.oilIllustration = false});
+    this.oilIllustration = false, this.focusOil = false});
   final Size size;
   final double longitude;
   final double latitude;
@@ -25,6 +25,7 @@ class VelaWorldCamera {
   // Illustrated Vela oil world is a hand-drawn panorama, not a 2:1
   // geographic raster. Anchor the voyage locally to painted city positions.
   final bool oilIllustration;
+  final bool focusOil;
   static const beijing = Offset(116.4, 39.9);
 
   // The artist-drawn watercolor texture is shifted relative to a strict
@@ -47,12 +48,7 @@ class VelaWorldCamera {
   static const oilBeijing = Offset(592, 290);
   static const oilTokyo = Offset(806, 298);
 
-  // Sampled against the actual oil-map artwork rather than a generic
-  // longitude projection. Beijing sits on the painted mainland, NOT
-  // in the Pacific at the screen centre.
-  static const oilChinaLandmark = Offset(420, 145);
-  Offset get oilChinaMarker =>
-      oilImageOrigin + oilChinaLandmark * oilImageScale;
+
 
   // Portrait phones need a wider view of the painted world. Preserve the
   // original landscape zoom while reducing the portrait crop by 34%.
@@ -70,8 +66,17 @@ class VelaWorldCamera {
   // longitude/latitude drives the bitmap, all route points and city pins.
   // Image and geographic overlays therefore travel together when a user
   // changes the connected node, including across the date line.
-  Offset get oilImageOrigin => Offset(size.width / 2, size.height / 2) -
-      oilCanvasPosition(Offset(longitude, latitude)) * oilImageScale;
+  Offset get oilImageOrigin {
+    // Idle landscape uses the exact same BoxFit.cover fit as the bitmap.
+    if (!focusOil && !compactOilPortrait) {
+      return Offset(
+        (size.width - oilImageSize.width * oilImageScale) / 2,
+        (size.height - oilImageSize.height * oilImageScale) / 2);
+    }
+    // Active voyages pan the bitmap together with its annotations.
+    return Offset(size.width / 2, size.height / 2) -
+        oilCanvasPosition(Offset(longitude, latitude)) * oilImageScale;
+  }
 
   Offset oilCanvasPosition(Offset geographicPoint) {
     final dx = shortestDelta(beijing.dx, geographicPoint.dx);
@@ -355,19 +360,20 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
           final size = Size(bounds.maxWidth, bounds.maxHeight);
           final compactAndroid = defaultTargetPlatform ==
               TargetPlatform.android && size.height > size.width * 1.25;
+          final active = _returning || (
+              widget.demo.phase != VelaPhase.idle &&
+              widget.demo.phase != VelaPhase.error);
           final camera = VelaWorldCamera(
             size: size,
             longitude: _focusLongitude, latitude: _focusLatitude,
             oilIllustration: VelaThemeRuntime.oilPreview,
+            focusOil: active,
             portraitWidthScale: compactAndroid
                 ? VelaWorldCamera.androidCompactScale
                 : VelaWorldCamera.portraitHeightScale);
           final coverCamera = compactAndroid ? VelaWorldCamera(
             size: size, longitude: _focusLongitude,
             latitude: _focusLatitude) : camera;
-          final active = _returning || (
-              widget.demo.phase != VelaPhase.idle &&
-              widget.demo.phase != VelaPhase.error);
           return ClipRect(child: Stack(fit: StackFit.expand, children: [
             const ColoredBox(color: Color(0xFF071929)),
             // Render the USER-APPROVED thick-oil artwork itself.
@@ -482,7 +488,7 @@ class _OilMapLayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!camera.compactOilPortrait) {
+    if (!camera.compactOilPortrait && !camera.focusOil) {
       return Image.asset(asset, fit: BoxFit.cover,
           filterQuality: FilterQuality.high, gaplessPlayback: true);
     }
@@ -1056,9 +1062,7 @@ class _WorldRoutePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (!connected) {
-      _marker(canvas, camera.oilIllustration
-            ? camera.oilChinaMarker
-            : camera.projectArtwork(VelaWorldCamera.beijing),
+      _marker(canvas, camera.projectArtwork(VelaWorldCamera.beijing),
         'CHINA', const Color(0xFFE3B777), showLabel: true);
     }
     if (!active || (from - to).distance < .01) return;
