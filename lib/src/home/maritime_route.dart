@@ -149,8 +149,9 @@ class VelaMaritimeRoute {
   /// Rounded geographic sailing corridor. Chaikin corner cutting converges
   /// to a continuous quadratic B-spline, avoiding the occasional cusp that a
   /// Catmull-Rom spline can produce at unevenly spaced ocean waypoints.
-  List<Offset> get samples {
-    final raw = waypoints;
+  List<Offset> get samples => _smooth(waypoints);
+
+  List<Offset> _smooth(List<Offset> raw) {
     if (raw.length < 2) return raw;
     var points = <Offset>[raw.first];
     // Unwrap the international date line before geometry operations.
