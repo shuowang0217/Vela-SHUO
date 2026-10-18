@@ -8,7 +8,7 @@ void main() {
   testWidgets('all seven home control roles are translucent frosted glass',
       (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
-    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    try {
     for (final role in VelaOilReliefShape.values) {
       await tester.pumpWidget(MaterialApp(home: Scaffold(
         body: VelaOilReliefSurface(
@@ -28,6 +28,9 @@ void main() {
       }
     }
     await tester.pumpWidget(const SizedBox.shrink());
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   test('v1.6 styling returns without changing the oil day/night map', () {
