@@ -18,7 +18,7 @@ class VelaUpdateInfo {
 class VelaUpdateService {
   const VelaUpdateService();
 
-  static const String currentVersion = '1.8.11';
+  static const String currentVersion = '1.8.12';
   static final Uri _releaseApi = Uri.https(
       'api.github.com', '/repos/shuowang0217/Vela-SHUO/releases/latest');
 
