@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/brand/vela_watercolor_chrome.dart';
-import 'package:vela_shuo/src/theme/vela_palettes.dart';
 
 void main() {
   testWidgets('Android returns to v1.6 50% translucent glass',
