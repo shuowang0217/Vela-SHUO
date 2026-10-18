@@ -128,7 +128,7 @@ void main() {
         isNot(previousPigment));
     expect(nextDecoration.image, isNotNull);
     expect((nextDecoration.image!.image as AssetImage).assetName,
-        'assets/oil/oil_map_clean.webp');
+        'assets/oil/ui/oil_canvas.webp');
     await tester.pumpWidget(const SizedBox.shrink());
     settings.dispose();
   });
