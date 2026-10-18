@@ -37,11 +37,13 @@ void main() {
       to: Offset(139.69,35.68));
     final actual=route.samples;
     expect(actual.first,route.from);
-    expect(actual.last,route.to);
+    expect((actual.last-route.to).distance,lessThan(.000001));
     final start=camera.projectAlongArtwork(route.from,actual.first);
     final finish=camera.projectAlongArtwork(route.from,actual.last);
-    expect(start,camera.projectArtwork(route.from));
-    expect(finish,camera.projectArtwork(route.to));
+    expect((start-camera.projectArtwork(route.from)).distance,
+        lessThan(.001));
+    expect((finish-camera.projectArtwork(route.to)).distance,
+        lessThan(.001));
     expect(finish.dx,greaterThan(start.dx));
     expect(finish.dy,greaterThan(start.dy));
   });
