@@ -12,11 +12,13 @@ class VelaOilReliefSurface extends StatelessWidget {
   const VelaOilReliefSurface({
     super.key, required this.child, required this.shape,
     this.padding = EdgeInsets.zero, this.selected = false,
+    this.radius = 22,
   });
   final Widget child;
   final VelaOilReliefShape shape;
   final EdgeInsetsGeometry padding;
   final bool selected;
+  final double radius;
 
   String get _asset => switch (shape) {
     VelaOilReliefShape.connection =>
@@ -31,8 +33,7 @@ class VelaOilReliefSurface extends StatelessWidget {
     if (!VelaThemeRuntime.oilPreview) {
       return VelaWatercolorSurface(
         selected: selected, padding: padding,
-        radius: shape == VelaOilReliefShape.medallion ? 30 : 24,
-        child: child,
+        radius: radius, child: child,
       );
     }
     final tone = VelaThemeRuntime.active;
