@@ -1042,28 +1042,26 @@ class _MobileHome extends StatelessWidget {
           right: wide ? null : 14,
           width: wide ? 295 : null,
           child: VelaThemeRuntime.oilPreview && !wide
-            ? VelaWatercolorSurface(
-                key: const ValueKey('mobile_oil_masthead'),
-                radius: 20,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 15, vertical: 9),
-                child: Row(children: [
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const VelaSelectedWordmark(width: 153, height: 76),
-                      Text('航海油画  ·  v1.8.13', style: TextStyle(
-                        color: _blue, fontSize: 10,
-                        letterSpacing: 1.1, fontWeight: FontWeight.w700)),
-                      Text(velaBrandTagline, style: TextStyle(
-                        color: _muted, fontSize: 9)),
-                    ],
-                  )),
-                  if (vpn != null)
-                    Icon(Icons.shield_outlined, size: 20,
-                      color: connected ? _mint : _blue),
-                ]),
-              )
+            ? Row(key: const ValueKey('mobile_oil_masthead'),
+                children: [
+                // Restore v1.6's compact, unboxed masthead hierarchy.
+                const VelaSelectedWordmark(width: 136, height: 58),
+                const SizedBox(width: 10),
+                Expanded(child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('航海油画  ·  v1.8.14', style: TextStyle(
+                      color: _blue, fontSize: 10,
+                      letterSpacing: 1.0, fontWeight: FontWeight.w700)),
+                    Text(velaBrandTagline, style: TextStyle(
+                      color: _muted, fontSize: 9)),
+                  ],
+                )),
+                if (vpn != null)
+                  Icon(Icons.shield_outlined, size: 18,
+                    color: connected ? _mint : _blue),
+              ])
             : Row(children: [
                 Expanded(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1079,10 +1077,9 @@ class _MobileHome extends StatelessWidget {
               ]),
         ),
         Positioned(
-          // Keep the masthead unobstructed on portrait Android.
-          // The status card sits immediately ABOVE the speed card.
-          top: wide ? 23 : null,
-          bottom: wide ? null : 181,
+          // v1.6 layout: compact brand top, connection directly beneath,
+          // speed above the bottom navigation dock.
+          top: wide ? 23 : 90,
           left: wide ? null : 14,
           right: wide ? 28 : 14,
           width: wide ? 356 : null,
@@ -1154,8 +1151,7 @@ class _MobileHome extends StatelessWidget {
           ),
         ),
         if (vpn?.error != null)
-          Positioned(top: wide ? 178 : null,
-            bottom: wide ? null : 297,
+          Positioned(top: wide ? 178 : 198,
             left: 18, right: 18,
             child: VelaWatercolorSurface(
               padding: const EdgeInsets.symmetric(
