@@ -21,7 +21,8 @@ void main() {
     expect(find.text('航速 · 下载'), findsOneWidget);
     expect(find.byKey(const ValueKey('mobile_connect_button')), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
-    expect(find.byType(VelaVoyageGlyph), findsNWidgets(4));
+    expect(find.byType(VelaVoyageGlyph), findsNothing);
+    expect(find.byType(VelaOilReliefSurface), findsAtLeastNWidgets(4));
     for (final i in [1, 4, 2, 3]) {
       expect(find.byKey(ValueKey('nav_$i')), findsOneWidget);
     }
@@ -45,7 +46,8 @@ void main() {
     await tester.pump();
     expect(find.byKey(const ValueKey('mobile_connect_button')), findsOneWidget);
     expect(find.byKey(const ValueKey('voyage_speed_panel')), findsOneWidget);
-    expect(find.byType(VelaVoyageGlyph), findsNWidgets(4));
+    expect(find.byType(VelaVoyageGlyph), findsNothing);
+    expect(find.byType(VelaOilReliefSurface), findsAtLeastNWidgets(4));
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }
