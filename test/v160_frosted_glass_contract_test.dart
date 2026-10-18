@@ -47,6 +47,6 @@ void main() {
     expect(toast, contains('sigmaX: 18, sigmaY: 18'));
     expect(app, contains('VelaVoyageGlyph('));
     expect(atlas, contains('oil_map_night.webp'));
-    expect(clouds, contains('night_${cloud.file}.png'));
+    expect(clouds, contains(r'night_${cloud.file}.png'));
   });
 }
