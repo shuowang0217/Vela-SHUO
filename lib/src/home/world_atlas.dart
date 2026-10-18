@@ -287,7 +287,7 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
             if (VelaThemeRuntime.oilPreview)
               Positioned.fill(child: IgnorePointer(
                 child: Image.asset('assets/oil/oil_map_clean.webp',
-                  fit: BoxFit.fill, filterQuality: FilterQuality.high,
+                  fit: BoxFit.cover, filterQuality: FilterQuality.high,
                   gaplessPlayback: true))),
             if (!VelaThemeRuntime.oilPreview && compactAndroid)
               ImageFiltered(
