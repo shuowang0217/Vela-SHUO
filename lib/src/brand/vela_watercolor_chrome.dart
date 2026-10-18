@@ -46,6 +46,16 @@ class VelaWatercolorSurface extends StatelessWidget {
                 ],
           stops: const [0, .58, 1],
         ),
+        // Reuse the ACTUAL approved impasto map painting as an image material:
+        // this is no longer a flat glass card with decorative lines.
+        image: oil ? DecorationImage(
+          image: const AssetImage('assets/oil/oil_map_clean.webp'),
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          opacity: t.dark ? .56 : .46,
+          colorFilter: ColorFilter.mode(
+            t.surface, BlendMode.modulate),
+        ) : null,
         border: Border.all(color: selected || hovered
             ? t.accent.withValues(alpha: .78)
             : t.line.withValues(alpha: oil ? .75 : (t.dark ? .86 : .78)),
@@ -69,9 +79,7 @@ class VelaWatercolorSurface extends StatelessWidget {
 class _VelaInkStroke extends CustomPainter {
   const _VelaInkStroke(
     this.ink, this.pigment, this.edge, this.radius, this.oil);
-  final Color ink;
-  final Color pigment;
-  final Color edge;
+  final Color ink, pigment, edge;
   final double radius;
   final bool oil;
 
@@ -81,59 +89,54 @@ class _VelaInkStroke extends CustomPainter {
     c.save();
     c.clipRRect(RRect.fromRectAndRadius(
       Offset.zero & size, Radius.circular(radius)));
-    final p = Paint()
-      ..color = ink.withValues(alpha: .15)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = .85
-      ..strokeCap = StrokeCap.round;
-    final path = Path()
-      ..moveTo(radius + 5, 3.8)
-      ..quadraticBezierTo(size.width * .42, 3.1,
-          size.width - radius - 5, 4.3);
-    c.drawPath(path, p);
-    c.drawLine(Offset(14, size.height - 4.3),
-        Offset(math.min(size.width - 16, size.width * .4),
-            size.height - 3.7), p);
 
     if (oil) {
-      // Deterministic little impasto strokes, far denser and more tactile
-      // than the former near-invisible crosshatch. Shared by every screen.
-      final bristle = Paint()
-        ..strokeCap = StrokeCap.round
-        ..style = PaintingStyle.stroke;
-      for (var y = 6.0; y < size.height - 3; y += 13) {
-        for (var x = 7.0; x < size.width - 4; x += 19) {
-          final salt = ((x.toInt() * 37 ^ y.toInt() * 43) & 63) / 63.0;
-          final dx = 5.0 + salt * 10.0;
-          bristle.color = (salt < .50 ? pigment : ink)
-              .withValues(alpha: .14 + salt * .13);
-          bristle.strokeWidth = 1.6 + salt * 2.2;
-          c.drawLine(Offset(x + salt * 4, y + 1),
-              Offset(x + dx, y - 1.8 + salt * 3.8), bristle);
-          if (salt > .70) {
-            bristle.color = edge.withValues(alpha: .24);
-            bristle.strokeWidth = .9 + salt;
-            c.drawLine(Offset(x + 1, y + 4),
-              Offset(x + dx * .7, y + 3), bristle);
-          }
+      // Broad palette-coloured PAINT DABS over the real reference image.
+      // Organic patches and ridges replace the previous uniform line grid.
+      final impasto = Paint()..style = PaintingStyle.fill;
+      for (var y = -5.0; y < size.height + 15; y += 23) {
+        for (var x = -7.0; x < size.width + 18; x += 34) {
+          final n = ((x.toInt() * 41 ^ y.toInt() * 71) & 127) / 127;
+          final dx = 11.0 + n * 26;
+          final dy = 4.0 + n * 6;
+          impasto.color = Color.lerp(
+            n < .45 ? pigment : edge, pigment,
+            .25 + n * .32)!.withValues(alpha: .12 + n * .18);
+          final stroke = Path()
+            ..moveTo(x, y)
+            ..quadraticBezierTo(x + dx * .36, y - dy * .65,
+                x + dx, y - dy * .36)
+            ..quadraticBezierTo(x + dx * 1.04, y + dy * .18,
+                x + dx * .81, y + dy * .46)
+            ..quadraticBezierTo(x + dx * .28, y + dy * .76,
+                x - 1.5, y + dy * .35)
+            ..close();
+          c.drawPath(stroke, impasto);
+          impasto.color = Colors.white.withValues(alpha: .09 + n * .14);
+          c.drawPath(Path()
+            ..moveTo(x + 2, y)
+            ..quadraticBezierTo(x + dx * .50, y - dy * .80,
+                x + dx * .87, y - dy * .30)
+            ..quadraticBezierTo(x + dx * .43, y - dy * .12,
+                x + 2, y)
+            ..close(), impasto);
         }
       }
       final rim = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..color = edge.withValues(alpha: .62)
-        ..strokeWidth = 1.7;
+        ..strokeWidth = 2
+        ..color = edge.withValues(alpha: .70);
       c.drawRRect(RRect.fromRectAndRadius(
         Rect.fromLTWH(2, 2, size.width - 4, size.height - 4),
         Radius.circular(math.max(0, radius - 2))), rim);
-      final highlight = Paint()
-        ..color = pigment.withValues(alpha: .47)
+    } else {
+      final line = Paint()
+        ..color = ink.withValues(alpha: .13)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2;
-      c.drawArc(
-        Rect.fromLTWH(7, 7, math.max(1, size.width - 14),
-          math.max(1, size.height - 14)),
-        math.pi * .96, math.pi * .22, false, highlight);
+        ..strokeWidth = .75
+        ..strokeCap = StrokeCap.round;
+      c.drawLine(Offset(radius + 5, 3.8),
+          Offset(size.width - radius - 5, 4.3), line);
     }
     c.restore();
   }
