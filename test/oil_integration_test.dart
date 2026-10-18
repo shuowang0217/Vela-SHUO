@@ -32,7 +32,7 @@ void main() {
         .readAsStringSync();
     final app = File('lib/src/app.dart').readAsStringSync();
     expect(common, contains('sigmaX: 9, sigmaY: 9'));
-    expect(common, contains('t.surface.withValues(alpha: .50)'));
+    expect(common, contains('t.surface.withValues(alpha: .42)'));
     expect(common, isNot(contains('DecorationImage(')));
     expect(toast, contains('BackdropFilter('));
     expect(app, contains('popupMenuTheme: PopupMenuThemeData'));
