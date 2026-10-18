@@ -9,7 +9,6 @@ import '../theme/vela_palettes.dart';
 import 'demo_connection.dart';
 import 'maritime_route.dart';
 import 'vela_oil_scene.dart';
-import 'vela_oil_impasto.dart';
 
 /// Camera for a precisely georeferenced 2:1 equirectangular world map.
 @immutable
