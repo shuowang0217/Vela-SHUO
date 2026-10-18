@@ -640,7 +640,7 @@ class _DesktopHome extends StatelessWidget {
         ),
         Positioned(
           right: narrow ? 16 : 29, top: narrow ? 15 : 22,
-          width: narrow ? 302 : 356,
+          width: narrow ? 302 : 442,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(28),
             child: BackdropFilter(
@@ -650,7 +650,7 @@ class _DesktopHome extends StatelessWidget {
                 shape: VelaOilReliefShape.connection,
                 key: const ValueKey('immersive_connection'),
                 radius: 28,
-                padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+                padding: const EdgeInsets.fromLTRB(20, 13, 12, 13),
                 child: Row(children: [
                   Icon(Icons.circle, size: 9,
                     color: busy ? _blue : connected ? _mint : _muted),
@@ -722,6 +722,9 @@ class _VoyageRatePanel extends StatelessWidget {
         active ? traffic?.uploadBytesPerSecond : null);
     final download = VelaVoyageSpeed.format(
         active ? traffic?.downloadBytesPerSecond : null);
+    final screen = MediaQuery.sizeOf(context);
+    final wide = VelaThemeRuntime.oilPreview &&
+        screen.width >= 790 && screen.width > screen.height * 1.12;
     return ClipRRect(
       borderRadius: BorderRadius.circular(19),
       child: BackdropFilter(
@@ -729,7 +732,7 @@ class _VoyageRatePanel extends StatelessWidget {
                 sigmaY: VelaThemeRuntime.oilPreview ? 0 : 10),
         child: SizedBox(
           key: const ValueKey('voyage_speed_panel'),
-          width: 283, height: 79,
+          width: wide ? 416 : 283, height: wide ? 102 : 79,
           child: VelaOilReliefSurface(
             shape: VelaOilReliefShape.speed,
             radius: 19,
@@ -1084,7 +1087,7 @@ class _MobileHome extends StatelessWidget {
           top: wide ? 23 : (VelaThemeRuntime.oilPreview ? 104 : 90),
           left: wide ? null : 14,
           right: wide ? 28 : 14,
-          width: wide ? 376 : null,
+          width: wide ? 442 : null,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: BackdropFilter(
