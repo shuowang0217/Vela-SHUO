@@ -1,7 +1,7 @@
 name: vela_shuo
 description: Vela cross-platform network client.
 publish_to: none
-version: 1.8.6+40
+version: 1.8.7+41
 
 environment:
   sdk: '>=3.9.0 <4.0.0'
@@ -35,21 +35,33 @@ flutter:
   uses-material-design: true
   assets:
     - assets/oil/oil_map_clean.webp
+    - assets/oil/oil_map_night.webp
     - assets/oil/oil_atlas_day.webp
     - assets/oil/oil_atlas_night.webp
     - assets/oil/ui/oil_canvas.webp
+    - assets/oil/ui/oil_canvas_night.webp
     - assets/oil/ui/connection_plaque.png
+    - assets/oil/ui/night_connection_plaque.png
     - assets/oil/ui/speed_plaque.png
+    - assets/oil/ui/night_speed_plaque.png
     - assets/oil/ui/paint_medallion.png
+    - assets/oil/ui/night_paint_medallion.png
     - assets/oil/ui/power_medallion.png
+    - assets/oil/ui/night_power_medallion.png
     - assets/oil/clouds/cloud_beijing.png
     - assets/oil/clouds/cloud_beijing_clean.png
+    - assets/oil/clouds/night_cloud_beijing_clean.png
     - assets/oil/clouds/cloud_east.png
+    - assets/oil/clouds/night_cloud_east.png
     - assets/oil/clouds/cloud_equator.png
+    - assets/oil/clouds/night_cloud_equator.png
     - assets/oil/clouds/cloud_north.png
+    - assets/oil/clouds/night_cloud_north.png
     - assets/oil/clouds/cloud_southeast.png
     - assets/oil/clouds/cloud_southeast_clean.png
+    - assets/oil/clouds/night_cloud_southeast_clean.png
     - assets/oil/clouds/cloud_southwest.png
+    - assets/oil/clouds/night_cloud_southwest.png
     - assets/maps/world_110m.json
     - assets/earth/earth_day.jpg
     - assets/earth/earth_night_lights.png
