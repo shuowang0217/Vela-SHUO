@@ -428,8 +428,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   };
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
+  Widget build(BuildContext context) => AnimatedBuilder(
+    // Palette preferences notify the MaterialApp, but direct runtime-pigment
+    // consumers inside the shell must also rebuild without resetting VPN state.
+    animation: widget.settings,
+    builder: (context, _) => LayoutBuilder(
+      builder: (context, constraints) {
       final desktop = constraints.maxWidth >= 820;
       return Scaffold(
         backgroundColor: Colors.transparent,
@@ -468,7 +472,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         ]),
 
       );
-    },
+      },
+    ),
   );
 }
 
@@ -1031,7 +1036,7 @@ class _MobileHome extends StatelessWidget {
                       Text('VELA', style: TextStyle(color: _foreground,
                         fontFamily: 'Georgia', fontSize: 24,
                         fontWeight: FontWeight.w800, letterSpacing: 2.3)),
-                      Text('航海油画  ·  v1.8.3', style: TextStyle(
+                      Text('航海油画  ·  v1.8.4', style: TextStyle(
                         color: _blue, fontSize: 10,
                         letterSpacing: 1.1, fontWeight: FontWeight.w700)),
                       Text(velaBrandTagline, style: TextStyle(
