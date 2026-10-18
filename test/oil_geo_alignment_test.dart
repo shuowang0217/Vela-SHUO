@@ -10,11 +10,25 @@ void main() {
       oilIllustration: true,
     );
     expect(camera.projectArtwork(VelaWorldCamera.beijing),
-        const Offset(836, 470.5));
+        const Offset(592, 290));
     final tokyo = camera.projectArtwork(const Offset(139.69, 35.68));
-    expect((tokyo - const Offset(1050, 478.5)).distance, lessThan(.1));
+    expect((tokyo - const Offset(806, 298)).distance, lessThan(.1));
     expect(camera.projectAlongArtwork(VelaWorldCamera.beijing,
         const Offset(139.69, 35.68)), tokyo);
+  });
+
+  test('wide idle China pin uses the same cover transform as its map', () {
+    const camera = VelaWorldCamera(
+      size: Size(1279, 1536), longitude: 116.4, latitude: 39.9,
+      oilIllustration: true);
+    final scale = camera.oilImageScale;
+    final coverLeft = (1279 - 1672 * scale) / 2;
+    final coverTop = (1536 - 941 * scale) / 2;
+    expect(camera.oilImageOrigin, Offset(coverLeft, coverTop));
+    expect(camera.projectArtwork(VelaWorldCamera.beijing),
+        Offset(coverLeft + 592 * scale, coverTop + 290 * scale));
+    expect(camera.projectArtwork(VelaWorldCamera.beijing).dx,
+        lessThan(1279 / 2));
   });
 
   test('v1.6-like focus centers every selected node on oil panorama', () {
@@ -26,7 +40,7 @@ void main() {
     ]) {
       final camera = VelaWorldCamera(
         size: const Size(390, 844), longitude: node.dx,
-        latitude: node.dy, oilIllustration: true);
+        latitude: node.dy, oilIllustration: true, focusOil: true);
       expect((camera.projectArtwork(node) -
           const Offset(195, 422)).distance, lessThan(.001));
     }
