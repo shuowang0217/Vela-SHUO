@@ -34,7 +34,7 @@ void main() {
     expect(common, contains('sigmaX: 9, sigmaY: 9'));
     expect(common, contains('t.surface.withValues(alpha: .50)'));
     expect(common, isNot(contains('DecorationImage(')));
-    expect(toast, contains('VelaWatercolorSurface'));
+    expect(toast, contains('BackdropFilter('));
     expect(app, contains('popupMenuTheme: PopupMenuThemeData'));
     expect(app, contains('bottomSheetTheme: BottomSheetThemeData'));
     expect(app, contains("ValueKey('immersive_connection')"));
