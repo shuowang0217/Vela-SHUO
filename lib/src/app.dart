@@ -1052,7 +1052,7 @@ class _MobileHome extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const VelaSelectedWordmark(width: 153, height: 76),
-                      Text('航海油画  ·  v1.8.11', style: TextStyle(
+                      Text('航海油画  ·  v1.8.12', style: TextStyle(
                         color: _blue, fontSize: 10,
                         letterSpacing: 1.1, fontWeight: FontWeight.w700)),
                       Text(velaBrandTagline, style: TextStyle(
@@ -1079,7 +1079,10 @@ class _MobileHome extends StatelessWidget {
               ]),
         ),
         Positioned(
-          top: wide ? 23 : (VelaThemeRuntime.oilPreview ? 104 : 90),
+          // Keep the masthead unobstructed on portrait Android.
+          // The status card sits immediately ABOVE the speed card.
+          top: wide ? 23 : null,
+          bottom: wide ? null : 181,
           left: wide ? null : 14,
           right: wide ? 28 : 14,
           width: wide ? 356 : null,
@@ -1151,7 +1154,9 @@ class _MobileHome extends StatelessWidget {
           ),
         ),
         if (vpn?.error != null)
-          Positioned(top: 178, left: 18, right: 18,
+          Positioned(top: wide ? 178 : null,
+            bottom: wide ? null : 297,
+            left: 18, right: 18,
             child: VelaWatercolorSurface(
               padding: const EdgeInsets.symmetric(
                   horizontal: 12, vertical: 8),
