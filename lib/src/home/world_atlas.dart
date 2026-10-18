@@ -115,16 +115,24 @@ class VelaWorldCamera {
         Offset(321, 666), Offset(289, 625), Offset(266, 550),
         Offset(241, 476), Offset(210, 410), Offset(151, 315),
       ];
-      var nearest = 0;
       var best = double.infinity;
-      for (var i = 0; i < sea.length; i++) {
-        final distance = (sea[i] - geo).distanceSquared;
+      var chosen = paintedSea.first;
+      for (var i = 0; i < sea.length - 1; i++) {
+        final a = sea[i];
+        final b = sea[i + 1];
+        final delta = b - a;
+        final length = delta.distanceSquared;
+        final t = length == 0 ? 0.0 :
+            (((geo - a).dx * delta.dx + (geo - a).dy * delta.dy) /
+                length).clamp(0.0, 1.0).toDouble();
+        final at = Offset.lerp(a, b, t)!;
+        final distance = (at - geo).distanceSquared;
         if (distance < best) {
           best = distance;
-          nearest = i;
+          chosen = Offset.lerp(paintedSea[i], paintedSea[i + 1], t)!;
         }
       }
-      return oilImageOrigin + paintedSea[nearest] * oilImageScale;
+      return oilImageOrigin + chosen * oilImageScale;
     }
     if (!oilIllustration ||
         origin.dx < 110 || origin.dx > 125 ||
