@@ -70,10 +70,13 @@ def mask_plaque(w,h,radius,seed):
             d.ellipse((x-k//2,y-k//2,x+k//2,y+k//2),fill=255)
     return m.filter(ImageFilter.GaussianBlur(.7))
 
-def plaque(name,size,seed,radius,round_button=False):
+def plaque(name,size,seed,radius,round_button=False,dark_button=False):
     w,h=size
     rng=random.Random(seed)
     material=canvas(size,seed)
+    if dark_button:
+        material=ImageOps.colorize(ImageOps.grayscale(material),
+            black=(12,28,59),white=(57,92,155)).convert("RGBA")
     alpha=Image.new("L",size,0)
     if round_button:
         d=ImageDraw.Draw(alpha)
@@ -123,9 +126,10 @@ def main():
     plaque("connection_plaque.png",(860,234),39012,58)
     plaque("speed_plaque.png",(740,230),39013,56)
     plaque("paint_medallion.png",(200,200),39014,92,True)
+    plaque("power_medallion.png",(200,200),39015,92,True,True)
     # Always verify the alpha-supported material is not blank.
     for filename in ("connection_plaque.png","speed_plaque.png",
-                     "paint_medallion.png"):
+                     "paint_medallion.png","power_medallion.png"):
         im=Image.open(OUT/filename)
         assert im.mode=="RGBA" and im.getextrema()[3][0]==0
         assert im.getextrema()[3][1]>=250
