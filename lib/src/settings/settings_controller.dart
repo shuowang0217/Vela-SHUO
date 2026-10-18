@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../diagnostics/vela_diagnostics.dart';
@@ -19,7 +21,32 @@ abstract class VelaPalettePreferenceStore {
 
 class VelaSharedPreferencesStore
     implements VelaPreferenceStore, VelaPalettePreferenceStore {
-  VelaSharedPreferencesStore();
+  VelaSharedPreferencesStore({bool? useAndroidNative})
+      : _useAndroidNative = useAndroidNative ?? Platform.isAndroid;
+
+  final bool _useAndroidNative;
+  static const MethodChannel _native =
+      MethodChannel('vela_shuo/ui_preferences');
+
+  Future<String?> _readNative(String method) async {
+    return _native.invokeMethod<String>(method);
+  }
+
+  Future<void> _writeNative(String method, String value) async {
+    final saved = await _native.invokeMethod<bool>(
+        method, <String, String>{'value': value});
+    if (saved != true) {
+      throw StateError('Native preference write failed');
+    }
+  }
+
+  Future<void> _removeNative(String method) async {
+    final removed = await _native.invokeMethod<bool>(method);
+    if (removed != true) {
+      throw StateError('Native preference removal failed');
+    }
+  }
+
 
   // One authoritative v2 key is used on every restart. The previous
   // implementation read legacy Android preferences BEFORE DataStore, so a
@@ -47,7 +74,13 @@ class VelaSharedPreferencesStore
   }
 
   Future<String?> _read(String key) async {
-    // DataStore is authoritative; Android SharedPreferences is a backup.
+    if (_useAndroidNative) {
+      // Native disk commit is the single source of truth on Android.
+      // A null value allows one-time migration from older Flutter stores.
+      final native = await _readNative(
+          key == paletteKey ? 'readPalette' : 'readTheme');
+      if (native != null) return native;
+    }
     final current = await _getAsync(key);
     if (current != null) return current;
     final backup = await _getLegacy(key);
@@ -75,6 +108,13 @@ class VelaSharedPreferencesStore
   }
 
   Future<void> _write(String key, String value) async {
+    if (_useAndroidNative) {
+      await _writeNative(
+          key == paletteKey ? 'writePalette' : 'writeTheme', value);
+      // Do not depend on a second asynchronous plugin write. The native
+      // result is returned only after commit() and readback succeed.
+      return;
+    }
     var asyncSaved = false;
     var legacySaved = false;
     try {
@@ -91,6 +131,10 @@ class VelaSharedPreferencesStore
   }
 
   Future<void> _remove(String key) async {
+    if (_useAndroidNative) {
+      await _removeNative(key == paletteKey ? 'removePalette' : 'removeTheme');
+      return;
+    }
     var success = false;
     try {
       await _preferences.remove(key);
@@ -136,6 +180,8 @@ class SettingsController extends ChangeNotifier {
   String get paletteId => _paletteId;
   VelaPalette get palette => VelaPalette.byId(_paletteId);
   Future<void> _writes = Future<void>.value();
+  bool _lastPaletteSaveSucceeded = true;
+  bool get lastPaletteSaveSucceeded => _lastPaletteSaveSucceeded;
 
   ThemeMode get themeMode => _themeMode;
 
@@ -198,6 +244,7 @@ class SettingsController extends ChangeNotifier {
     _themeMode = VelaPalette.byId(paletteId).prefersDark
         ? ThemeMode.dark : ThemeMode.light;
     notifyListeners();
+    _lastPaletteSaveSucceeded = false;
     // Save mode and palette in the same serialized queue.
     final selectedMode = _themeMode.name;
     _writes = _writes.then((_) async {
@@ -207,8 +254,10 @@ class SettingsController extends ChangeNotifier {
       if (_store case final VelaPalettePreferenceStore store) {
         try {
           await store.writePalette(paletteId).timeout(ioTimeout);
+          _lastPaletteSaveSucceeded = true;
         } catch (_) {
           failed = true;
+          _lastPaletteSaveSucceeded = false;
         }
       }
       try {
