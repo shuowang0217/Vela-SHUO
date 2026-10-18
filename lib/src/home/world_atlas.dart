@@ -47,18 +47,21 @@ class VelaWorldCamera {
   static const oilBeijing = Offset(592, 290);
   static const oilTokyo = Offset(806, 298);
 
-  Offset get oilImageOrigin {
-    final scale = math.max(size.width / oilImageSize.width,
-        size.height / oilImageSize.height);
-    return Offset(
-      (size.width - oilImageSize.width * scale) / 2,
-      (size.height - oilImageSize.height * scale) / 2,
-    );
-  }
+  // Portrait phones need a wider view of the painted world. Preserve the
+  // original landscape zoom while reducing the portrait crop by 22%.
+  // All route markers use this same scale and origin.
+  bool get compactOilPortrait => oilIllustration &&
+      defaultTargetPlatform == TargetPlatform.android &&
+      size.height > size.width * 1.25;
 
   double get oilImageScale => math.max(
       size.width / oilImageSize.width,
-      size.height / oilImageSize.height);
+      size.height / oilImageSize.height) *
+      (compactOilPortrait ? .78 : 1.0);
+
+  Offset get oilImageOrigin => Offset(
+      (size.width - oilImageSize.width * oilImageScale) / 2,
+      (size.height - oilImageSize.height * oilImageScale) / 2);
 
   Offset oilCanvasPosition(Offset geographicPoint) {
     final dx = shortestDelta(beijing.dx, geographicPoint.dx);
@@ -364,15 +367,13 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
             if (VelaThemeRuntime.oilPreview)
               Positioned.fill(child: IgnorePointer(
                 child: Stack(fit: StackFit.expand, children: [
-                  Image.asset('assets/oil/oil_map_clean.webp',
-                    fit: BoxFit.cover, filterQuality: FilterQuality.high,
-                    gaplessPlayback: true),
+                  _OilMapLayer(camera: camera,
+                      asset: 'assets/oil/oil_map_clean.webp'),
                   AnimatedOpacity(
                     opacity: dark ? 1.0 : 0.0,
                     duration: const Duration(milliseconds: 850),
-                    child: Image.asset('assets/oil/oil_map_night.webp',
-                      fit: BoxFit.cover, filterQuality: FilterQuality.high,
-                      gaplessPlayback: true)),
+                    child: _OilMapLayer(camera: camera,
+                        asset: 'assets/oil/oil_map_night.webp')),
                 ]))),
             if (!VelaThemeRuntime.oilPreview && compactAndroid)
               ImageFiltered(
@@ -460,6 +461,48 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
 
 
 
+
+/// The outer painting stays full-bleed; the feathered portrait painting
+/// reveals more of the original panorama without blank strips or stretching.
+/// Geographic overlays use VelaWorldCamera.oilImageScale / oilImageOrigin.
+class _OilMapLayer extends StatelessWidget {
+  const _OilMapLayer({required this.camera, required this.asset});
+  final VelaWorldCamera camera;
+  final String asset;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!camera.compactOilPortrait) {
+      return Image.asset(asset, fit: BoxFit.cover,
+          filterQuality: FilterQuality.high, gaplessPlayback: true);
+    }
+    final scale = camera.oilImageScale;
+    final origin = camera.oilImageOrigin;
+    return ClipRect(child: Stack(fit: StackFit.expand, children: [
+      ImageFiltered(
+        imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Image.asset(asset, fit: BoxFit.cover,
+            filterQuality: FilterQuality.medium, gaplessPlayback: true),
+      ),
+      Positioned(
+        left: origin.dx, top: origin.dy,
+        width: VelaWorldCamera.oilImageSize.width * scale,
+        height: VelaWorldCamera.oilImageSize.height * scale,
+        child: ShaderMask(
+          shaderCallback: (rect) => const LinearGradient(
+            begin: Alignment.topCenter, end: Alignment.bottomCenter,
+            colors: [Colors.transparent, Colors.white,
+              Colors.white, Colors.transparent],
+            stops: [0, .10, .90, 1],
+          ).createShader(rect),
+          blendMode: BlendMode.dstIn,
+          child: Image.asset(asset, fit: BoxFit.fill,
+              filterQuality: FilterQuality.high, gaplessPlayback: true),
+        ),
+      ),
+    ]));
+  }
+}
 
 class VelaWeatherCadence {
   const VelaWeatherCadence._();
