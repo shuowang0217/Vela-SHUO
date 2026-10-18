@@ -47,6 +47,13 @@ class VelaWorldCamera {
   static const oilBeijing = Offset(592, 290);
   static const oilTokyo = Offset(806, 298);
 
+  // Sampled against the actual oil-map artwork rather than a generic
+  // longitude projection. Beijing sits on the painted mainland, NOT
+  // in the Pacific at the screen centre.
+  static const oilChinaLandmark = Offset(420, 145);
+  Offset get oilChinaMarker =>
+      oilImageOrigin + oilChinaLandmark * oilImageScale;
+
   // Portrait phones need a wider view of the painted world. Preserve the
   // original landscape zoom while reducing the portrait crop by 34%.
   // All route markers use this same scale and origin.
@@ -483,7 +490,7 @@ class _OilMapLayer extends StatelessWidget {
     final origin = camera.oilImageOrigin;
     return ClipRect(child: Stack(fit: StackFit.expand, children: [
       ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        imageFilter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
         child: Image.asset(asset, fit: BoxFit.cover,
             filterQuality: FilterQuality.medium, gaplessPlayback: true),
       ),
@@ -492,12 +499,15 @@ class _OilMapLayer extends StatelessWidget {
         width: VelaWorldCamera.oilImageSize.width * scale,
         height: VelaWorldCamera.oilImageSize.height * scale,
         child: ShaderMask(
-          // The focused image can extend past any viewport edge. Feather
-          // all four borders into the existing soft full-bleed backdrop.
-          shaderCallback: (rect) => const RadialGradient(
-            radius: .82,
-            colors: [Colors.white, Colors.white, Colors.transparent],
-            stops: [0, .72, 1],
+          // Fade a broad section of the bitmap's north/south edges into
+          // the backdrop; a narrow radial mask previously exposed a hard
+          // horizontal strip when the portrait atlas was zoomed out.
+          shaderCallback: (rect) => const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.transparent, Colors.white,
+              Colors.white, Colors.transparent],
+            stops: [0, .30, .70, 1],
           ).createShader(rect),
           blendMode: BlendMode.dstIn,
           child: Image.asset(asset, fit: BoxFit.fill,
@@ -1046,7 +1056,9 @@ class _WorldRoutePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (!connected) {
-      _marker(canvas, camera.projectArtwork(VelaWorldCamera.beijing),
+      _marker(canvas, camera.oilIllustration
+            ? camera.oilChinaMarker
+            : camera.projectArtwork(VelaWorldCamera.beijing),
         'CHINA', const Color(0xFFE3B777), showLabel: true);
     }
     if (!active || (from - to).distance < .01) return;
