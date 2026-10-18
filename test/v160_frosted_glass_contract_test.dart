@@ -24,7 +24,7 @@ void main() {
       expect(decoration.image, isNull);
       final gradient = decoration.gradient! as LinearGradient;
       for (final color in gradient.colors) {
-        expect(color.a, closeTo(.50, .01));
+        expect(color.a, closeTo(.42, .01));
       }
     }
     await tester.pumpWidget(const SizedBox.shrink());
@@ -43,7 +43,7 @@ void main() {
     final app=File('lib/src/app.dart').readAsStringSync();
     final atlas=File('lib/src/home/world_atlas.dart').readAsStringSync();
     final clouds=File('lib/src/home/vela_oil_scene.dart').readAsStringSync();
-    expect(material, contains('t.surface.withValues(alpha: .50)'));
+    expect(material, contains('t.surface.withValues(alpha: .42)'));
     expect(material, contains('sigmaX: 9, sigmaY: 9'));
     expect(material, isNot(contains('Image.asset(asset')));
     expect(stellar, contains('sigmaX: 9'));
