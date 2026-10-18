@@ -184,14 +184,14 @@ class VelaThemeRuntime {
             pigment.computeLuminance() > .30 ? .48 : .09)!;
     if (dark) {
       return VelaThemeTokens(
-        background: Color.lerp(const Color(0xFF27221E), pigment, .16)!,
-        surface: Color.lerp(const Color(0xFF403327), pigment, .14)!,
-        raised: Color.lerp(const Color(0xFF57412C), pigment, .16)!,
-        line: Color.lerp(const Color(0xFFA38560), pigment, .28)!,
+        background: Color.lerp(const Color(0xFF0A1734), pigment, .14)!,
+        surface: Color.lerp(const Color(0xFF1D294C), pigment, .12)!,
+        raised: Color.lerp(const Color(0xFF32416D), pigment, .13)!,
+        line: Color.lerp(const Color(0xFF798FB5), pigment, .19)!,
         accent: accent,
         accentSoft: Color.lerp(accent, Colors.white, .34)!,
-        text: const Color(0xFFFFF0D9),
-        muted: const Color(0xFFD5C2A8),
+        text: const Color(0xFFF6F2E6),
+        muted: const Color(0xFFD4D9EC),
         dark: true,
       );
     }
