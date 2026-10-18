@@ -120,12 +120,12 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
     ),
     iconTheme: IconThemeData(color: t.accent, size: 21),
     cardTheme: CardThemeData(elevation: VelaThemeRuntime.oilPreview ? 3 : 0,
-      color: t.surface.withValues(alpha: .96), shape: shape),
+      color: t.surface.withValues(alpha: .74), shape: shape),
     listTileTheme: ListTileThemeData(
       iconColor: t.accent, textColor: t.text,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13))),
     inputDecorationTheme: InputDecorationTheme(
-      filled: true, fillColor: t.raised.withValues(alpha: .96),
+      filled: true, fillColor: t.raised.withValues(alpha: .58),
       hintStyle: TextStyle(color: t.muted),
       prefixIconColor: t.accent,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(15),
@@ -154,21 +154,21 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
       shape: shape,
       labelStyle: TextStyle(color: t.text)),
     dialogTheme: DialogThemeData(
-      backgroundColor: t.surface,
-      elevation: VelaThemeRuntime.oilPreview ? 12 : 0,
+      backgroundColor: t.surface.withValues(alpha: .74),
+      elevation: 0,
       shape: shape),
     popupMenuTheme: PopupMenuThemeData(
-      color: t.surface,
-      elevation: VelaThemeRuntime.oilPreview ? 12 : 2,
+      color: t.surface.withValues(alpha: .78),
+      elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17),
         side: BorderSide(color: t.line.withValues(alpha: .75)))),
     bottomSheetTheme: BottomSheetThemeData(
-      backgroundColor: t.surface,
-      modalBackgroundColor: t.surface,
+      backgroundColor: t.surface.withValues(alpha: .73),
+      modalBackgroundColor: t.surface.withValues(alpha: .73),
       shape: RoundedRectangleBorder(borderRadius: const BorderRadius.vertical(
           top: Radius.circular(23)), side: BorderSide(color: t.line))),
     snackBarTheme: SnackBarThemeData(
-      backgroundColor: t.surface,
+      backgroundColor: t.surface.withValues(alpha: .81),
       contentTextStyle: TextStyle(color: t.text),
       behavior: SnackBarBehavior.floating),
     dividerTheme: DividerThemeData(
@@ -640,17 +640,17 @@ class _DesktopHome extends StatelessWidget {
         ),
         Positioned(
           right: narrow ? 16 : 29, top: narrow ? 15 : 22,
-          width: narrow ? 302 : 442,
+          width: narrow ? 302 : 356,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(28),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: VelaThemeRuntime.oilPreview ? 0 : 10,
-                sigmaY: VelaThemeRuntime.oilPreview ? 0 : 10),
+              filter: ImageFilter.blur(sigmaX: 10,
+                sigmaY: 10),
               child: VelaOilReliefSurface(
                 shape: VelaOilReliefShape.connection,
                 key: const ValueKey('immersive_connection'),
                 radius: 28,
-                padding: EdgeInsets.fromLTRB(20, narrow ? 18 : 31, 12, narrow ? 18 : 31),
+                padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
                 child: Row(children: [
                   Icon(Icons.circle, size: 9,
                     color: busy ? _blue : connected ? _mint : _muted),
@@ -660,7 +660,7 @@ class _DesktopHome extends StatelessWidget {
                     children: [
                       Text(state, overflow: TextOverflow.ellipsis,
                         style: TextStyle(color: _foreground,
-                          fontSize: 16, fontWeight: FontWeight.w700)),
+                          fontSize: 13, fontWeight: FontWeight.w700)),
                       if (connected) Text(
                         VelaSessionTime.format(connection?.connectedDuration),
                         key: const ValueKey('desktop_connection_uptime'),
@@ -686,16 +686,13 @@ class _DesktopHome extends StatelessWidget {
                       tooltip: busy ? '正在连接' :
                           connected ? '安全断开' : '连接',
                       onPressed: busy ? null : () => _toggle(context),
-                      icon: VelaThemeRuntime.oilPreview
-                          ? const SizedBox(width: 28, height: 28)
-                          : Icon(connected
-                              ? Icons.power_settings_new_rounded
-                              : Icons.sailing_rounded, size: 27),
+                      icon: Icon(connected
+                          ? Icons.power_settings_new_rounded
+                          : Icons.sailing_rounded, size: 24),
                       style: IconButton.styleFrom(
-                        backgroundColor: VelaThemeRuntime.oilPreview
-                            ? Colors.transparent : _blue.withValues(alpha: .87),
+                        backgroundColor: _blue.withValues(alpha: .87),
                         foregroundColor: Colors.white,
-                        minimumSize: const Size(58, 58)),
+                        minimumSize: const Size(48, 48)),
                     ),
                   ),
                 ]),
@@ -730,11 +727,11 @@ class _VoyageRatePanel extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(19),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: VelaThemeRuntime.oilPreview ? 0 : 10,
-                sigmaY: VelaThemeRuntime.oilPreview ? 0 : 10),
+        filter: ImageFilter.blur(sigmaX: 10,
+                sigmaY: 10),
         child: SizedBox(
           key: const ValueKey('voyage_speed_panel'),
-          width: wide ? 416 : 283, height: wide ? 124 : 92,
+          width: 283, height: 79,
           child: VelaOilReliefSurface(
             shape: VelaOilReliefShape.speed,
             radius: 19,
@@ -775,21 +772,21 @@ class _VoyageRate extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Row(children: [
-        Icon(icon, color: _blue, size: wide ? 19 : 14),
+        Icon(icon, color: _blue, size: 14),
         const SizedBox(width: 4),
         Flexible(child: Text(label, maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: _muted, fontSize: wide ? 15 : 11))),
+          style: TextStyle(color: _muted, fontSize: 11))),
       ]),
       const SizedBox(height: 4),
       FittedBox(fit: BoxFit.scaleDown,
         alignment: Alignment.centerLeft,
         child: Text.rich(TextSpan(children: [
           TextSpan(text: number, style: TextStyle(
-            color: _foreground, fontSize: wide ? 28 : 20,
+            color: _foreground, fontSize: 20,
             fontWeight: FontWeight.w700)),
           TextSpan(text: unit.isEmpty ? '' : ' $unit',
-            style: TextStyle(color: _muted, fontSize: wide ? 14 : 10)),
+            style: TextStyle(color: _muted, fontSize: 10)),
         ]))),
     ],
   );
@@ -816,7 +813,7 @@ class _VoyageDock extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(17),
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: VelaThemeRuntime.oilPreview ? 0 : 9, sigmaY: VelaThemeRuntime.oilPreview ? 0 : 9),
+                filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
                 child: VelaOilReliefSurface(
                   shape: switch (target) {
                     1 => VelaOilReliefShape.medallion,
@@ -827,21 +824,17 @@ class _VoyageDock extends StatelessWidget {
                   },
                   selected: selected == target,
                   padding: EdgeInsets.zero,
-                  radius: 36,
+                  radius: 17,
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
                       key: ValueKey('nav_$target'),
                       onTap: () => onNavigate(target),
                       borderRadius: BorderRadius.circular(17),
-                      child: SizedBox(width: 61, height: 61,
-                        child: VelaThemeRuntime.oilPreview
-                          // The actual reference image already contains the
-                          // icon. This transparent InkWell handles the action.
-                          ? const SizedBox.expand()
-                          : Center(child: VelaVoyageGlyph(
-                              symbol: symbol, size: 26,
-                              active: selected == target))),
+                      child: SizedBox(width: 49, height: 49,
+                        child: Center(child: VelaVoyageGlyph(
+                          symbol: symbol, size: 26,
+                          active: selected == target))),
                     ),
                   ),
                 ),
@@ -860,7 +853,7 @@ class _VoyageHomeShortcut extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(18),
     child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: VelaThemeRuntime.oilPreview ? 0 : 9, sigmaY: VelaThemeRuntime.oilPreview ? 0 : 9),
+      filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
       child: VelaWatercolorSurface(
         radius: 18, padding: EdgeInsets.zero,
         child: Material(color: Colors.transparent,
@@ -928,7 +921,7 @@ class _GlassCardState extends State<_GlassCard> {
     child: ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: VelaThemeRuntime.oilPreview ? 0 : 9, sigmaY: VelaThemeRuntime.oilPreview ? 0 : 9),
+        filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
         child: VelaWatercolorSurface(
           hovered: _hover, padding: const EdgeInsets.all(18),
           child: widget.child),
@@ -1070,7 +1063,7 @@ class _MobileHome extends StatelessWidget {
                       Text('VELA', style: TextStyle(color: _foreground,
                         fontFamily: 'Georgia', fontSize: 24,
                         fontWeight: FontWeight.w800, letterSpacing: 2.3)),
-                      Text('航海油画  ·  v1.8.8', style: TextStyle(
+                      Text('航海油画  ·  v1.8.9', style: TextStyle(
                         color: _blue, fontSize: 10,
                         letterSpacing: 1.1, fontWeight: FontWeight.w700)),
                       Text(velaBrandTagline, style: TextStyle(
@@ -1104,14 +1097,14 @@ class _MobileHome extends StatelessWidget {
           top: wide ? 23 : (VelaThemeRuntime.oilPreview ? 104 : 90),
           left: wide ? null : 14,
           right: wide ? 28 : 14,
-          width: wide ? 442 : null,
+          width: wide ? 356 : null,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: BackdropFilter(
               // Oil uses opaque paint rather than blurred glass.
               filter: ImageFilter.blur(
-                sigmaX: VelaThemeRuntime.oilPreview ? 0 : 10,
-                sigmaY: VelaThemeRuntime.oilPreview ? 0 : 10),
+                sigmaX: 10,
+                sigmaY: 10),
               child: VelaOilReliefSurface(
                 shape: VelaOilReliefShape.connection,
                 key: const ValueKey('mobile_oil_status'),
@@ -1164,10 +1157,9 @@ class _MobileHome extends StatelessWidget {
                               ? Icons.power_settings_new_rounded
                               : Icons.sailing_rounded, size: 26),
                       style: IconButton.styleFrom(
-                        backgroundColor: VelaThemeRuntime.oilPreview
-                            ? Colors.transparent : _blue.withValues(alpha: .95),
+                        backgroundColor: _blue.withValues(alpha: .9),
                         foregroundColor: Colors.white,
-                        minimumSize: const Size(56, 56)),
+                        minimumSize: const Size(48, 48)),
                     ),
                   ),
                 ]),
