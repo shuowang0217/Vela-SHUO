@@ -87,6 +87,29 @@ class VelaWorldCamera {
         oilCanvasPosition(geographicPoint) * oilImageScale;
   }
 
+  /// The oil painting is intentionally NOT a geographic projection.
+  /// Its coast is stylized; dip the China-to-Tokyo maritime corridor into
+  /// the painted sea rather than tracing a geographic line across green land.
+  /// The moving sail, line, and shimmer all use this identical transform.
+  Offset projectSeaLane(Offset origin, Offset destination, Offset geo) {
+    final painted = projectAlongArtwork(origin, geo);
+    if (!oilIllustration ||
+        origin.dx < 110 || origin.dx > 125 ||
+        destination.dx < 135 || destination.dx > 142 ||
+        destination.dy < 33 || destination.dy > 38) {
+      return painted;
+    }
+    final t = ((geo.dx - 117.90) / (139.73 - 117.90))
+        .clamp(0.0, 1.0);
+    // Measured visual off-shore displacement in 1672x941 paint coordinates.
+    // Zero at Tokyo Bay, deepest over the Yellow Sea/East China Sea.
+    final arc = math.sin(math.pi * t);
+    return painted + Offset(
+      25 * arc * oilImageScale,
+      (26 * (1-t) + 76 * arc) * oilImageScale,
+    );
+  }
+
   // One projection, no alternate origin-relative formula. Previously the
   // route painter and city markers disagreed after selecting another node.
   Offset projectAlongArtwork(Offset origin, Offset destination) =>
@@ -800,7 +823,8 @@ class _VelaSilkRoutePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (samples.length < 2) return;
     final path = VelaMaritimeRoute.smoothPath(
-      samples, (point) => camera.projectAlongArtwork(from, point));
+      samples, (point) => camera.projectSeaLane(
+        from, samples.last, point));
     for (final metric in path.computeMetrics()) {
       if (metric.length == 0) continue;
       final start = (phase - .16).clamp(0.0, 1.0) * metric.length;
@@ -946,7 +970,7 @@ class _WorldRoutePainter extends CustomPainter {
     }
     if (!active || (from - to).distance < .01) return;
     final route = VelaMaritimeRoute(from: from, to: to);
-    Offset geoProject(Offset geo) => camera.projectAlongArtwork(from, geo);
+    Offset geoProject(Offset geo) => camera.projectSeaLane(from, to, geo);
     final routePath = route.oceanPath(geoProject);
     final traveled = route.oceanPath(geoProject, until: progress);
     // Hand-painted nautical chart line: warm gold below, pale silk highlights.
