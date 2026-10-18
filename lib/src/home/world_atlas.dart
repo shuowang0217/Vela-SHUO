@@ -71,8 +71,11 @@ class VelaWorldCamera {
                 dx * (oilTokyo.dx - oilBeijing.dx) / 23.29
             : oilTokyo.dx + (dx - 23.29) * 5.55)
         : oilBeijing.dx + dx * 4.0;
-    final y = oilBeijing.dy + dy * 2.0 +
-        (dx > 0 && dx < 38 ? 8 * math.sin(math.pi * dx / 38) : 0);
+    final y = oilBeijing.dy +
+        dy * ((oilTokyo.dy - oilBeijing.dy) / (beijing.dy - 35.68)) +
+        (dx > 0 && dx < 23.29
+            ? 8 * math.sin(math.pi * dx / 23.29)
+            : 0);
     return Offset(x, y);
   }
 
