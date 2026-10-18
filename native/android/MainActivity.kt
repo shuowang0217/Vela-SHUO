@@ -59,10 +59,10 @@ class MainActivity : FlutterActivity() {
                     val value = call.argument<String>("value")
                     val isPalette = call.method == "writePalette"
                     val valid = if (isPalette) {
-                        value in setOf("mint", "navy", "peach", "pink",
+                        value != null && value in setOf("mint", "navy", "peach", "pink",
                             "sand", "rose", "lavender", "ocean")
                     } else {
-                        value in setOf("light", "dark", "system")
+                        value != null && value in setOf("light", "dark", "system")
                     }
                     if (!valid) {
                         result.error("INVALID", "无效的主题设置", null)
