@@ -5,38 +5,40 @@ The source atlas reproduces three concrete user-supplied reference modules
 (connection, upload/download, and five clickable painted medallions).
 The atlas has NO live strings or fixed telemetry. Live widgets render on top.
 """
-import base64
 import hashlib
-from io import BytesIO
 from pathlib import Path
 from PIL import Image
 
 ROOT=Path(__file__).resolve().parents[1]
-SRC=ROOT/'assets/oil/ui/reference_atlas.b64'
+SRC=ROOT/'assets/oil/ui/reference_atlas.webp'
 OUT=ROOT/'assets/oil/ui'
-EXPECTED='71bae9103532d37ec33b534dd167ca0b7e797db1afca3323c8d5f3cbeda90fb6'
+EXPECTED='aa0c5123f4582042d133b66766a53fac1dcc4dc157f241fae42f00b41474ad3c'
 
 def main():
-    raw=base64.b64decode(''.join(SRC.read_text().split()),validate=True)
+    raw=SRC.read_bytes()
     if hashlib.sha256(raw).hexdigest()!=EXPECTED:
         raise ValueError('Painted HUD reference atlas corrupt')
-    atlas=Image.open(BytesIO(raw)).convert('RGBA')
-    assert atlas.size==(220,184),atlas.size
+    atlas=Image.open(SRC).convert('RGBA')
+    assert atlas.size==(176,148),atlas.size
     # Each separate image is just paint and icon art, NOT an interactive
     # screenshot. Node text, VPN state and traffic remain native Flutter.
     regions=[
-      ('connection_plaque.png',(0,0,220,72),(860,279)),
-      ('speed_plaque.png',(0,72,220,140),(740,230)),
-      ('paint_medallion.png',(0,142,39,182),(200,200)),
-      ('oil_nav_book.png',(44,142,83,182),(200,200)),
-      ('oil_nav_compass.png',(87,142,126,182),(200,200)),
-      ('oil_nav_helm.png',(131,142,170,182),(200,200)),
-      ('power_medallion.png',(174,142,213,182),(200,200)),
+      ('connection_plaque.png',(0,0,487,158),(860,279)),
+      ('speed_plaque.png',(0,161,487,311),(740,230)),
+      ('paint_medallion.png',(0,316,84,404),(200,200)),
+      ('oil_nav_book.png',(97,316,181,404),(200,200)),
+      ('oil_nav_compass.png',(194,316,278,404),(200,200)),
+      ('oil_nav_helm.png',(291,316,375,404),(200,200)),
+      ('power_medallion.png',(388,316,472,404),(200,200)),
     ]
     for name,box,size in regions:
-        image=atlas.crop(box).resize(size,Image.Resampling.LANCZOS)
+        x0,y0,x1,y1=box
+        sx,sy=atlas.width/490.,atlas.height/410.
+        area=tuple(round(v*sx) if i%2==0 else round(v*sy)
+             for i,v in enumerate(box))
+        image=atlas.crop(area).resize(size,Image.Resampling.LANCZOS)
         image.save(OUT/name,'PNG',optimize=True)
-        assert image.getchannel('A').getbbox()
+        assert image.getchannel('A').getbbox() is not None
     print('Prepared 7 user-approved thick-oil HUD image skins with alpha')
 
 if __name__=='__main__':
