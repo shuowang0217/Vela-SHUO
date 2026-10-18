@@ -1,0 +1,59 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:vela_shuo/src/brand/vela_watercolor_chrome.dart';
+import 'package:vela_shuo/src/theme/vela_palettes.dart';
+
+void main() {
+  test('approved oil artwork becomes four real transparent HUD assets', () {
+    for (final name in [
+      'connection_plaque.png', 'speed_plaque.png',
+      'paint_medallion.png', 'power_medallion.png',
+    ]) {
+      final file = File('assets/oil/ui/$name');
+      expect(file.existsSync(), isTrue, reason: name);
+      expect(file.lengthSync(), greaterThan(10000), reason: name);
+    }
+    final pigment = File('assets/oil/ui/oil_canvas.webp');
+    expect(pigment.existsSync(), isTrue);
+    expect(pigment.lengthSync(), greaterThan(5000));
+  });
+
+  testWidgets('painted plaque retains live Flutter status', (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(body: Center(
+        child: VelaOilReliefSurface(
+          shape: VelaOilReliefShape.connection,
+          child: Text('ACTIVE VPN'),
+        ),
+      )),
+    ));
+    await tester.pump();
+    expect(find.text('ACTIVE VPN'), findsOneWidget);
+    expect(find.byType(Image), findsWidgets);
+    expect(find.byType(VelaOilReliefSurface), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  test('both responsive homes wire all four painted components', () {
+    final source=File('lib/src/app.dart').readAsStringSync();
+    expect(source,contains('shape: VelaOilReliefShape.connection'));
+    expect(source,contains('shape: VelaOilReliefShape.speed'));
+    expect(source,contains('shape: VelaOilReliefShape.medallion'));
+    expect(source,contains('shape: VelaOilReliefShape.power'));
+    expect(source,contains("ValueKey('immersive_connection')"));
+    expect(source,contains("ValueKey('mobile_oil_status')"));
+  });
+
+  test('oil material tint stays sensitive to palette selection', () {
+    final mint=VelaThemeRuntime.oilTokens(
+      VelaPalette.byId('mint'), Brightness.light);
+    final navy=VelaThemeRuntime.oilTokens(
+      VelaPalette.byId('navy'),Brightness.light);
+    expect(mint.surface,isNot(navy.surface));
+    final ui=File('lib/src/brand/vela_watercolor_chrome.dart')
+        .readAsStringSync();
+    expect(ui,contains('tone.dark ? tone.accentSoft : tone.surface'));
+    expect(ui,contains('assets/oil/ui/oil_canvas.webp'));
+  });
+}
