@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:ui';
 import 'package:flutter/services.dart';
 
 /// Illustrative ocean-only routing against the bundled Natural Earth land
@@ -141,7 +140,9 @@ class VelaOceanGrid {
         final cost = math.sqrt(math.pow(d[0] * math.cos(latitude), 2) +
             d[1] * d[1].toDouble()) * step;
         final tentative = g[current]! + cost;
-        if (tentative >= (g[next] ?? double.infinity)) continue;
+        if (tentative >= (g[next] ?? double.infinity)) {
+          continue;
+        }
         g[next] = tentative;
         parent[next] = current;
         heap.add(next, tentative + _heuristic(next, goal));
@@ -190,7 +191,9 @@ class _OceanHeap {
       var child = pos * 2 + 1;
       if (child + 1 < _data.length &&
           _data[child + 1].score < _data[child].score) child++;
-      if (last.score <= _data[child].score) break;
+      if (last.score <= _data[child].score) {
+        break;
+      }
       _data[pos] = _data[child];
       pos = child;
     }
