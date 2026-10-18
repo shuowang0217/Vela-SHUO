@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'vela_watercolor_chrome.dart';
-import '../theme/vela_palettes.dart';
 
 /// One floating, translucent notice above the app, rather than a bottom
 /// Material SnackBar. Does not affect proxy/VPN state.
