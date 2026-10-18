@@ -6,7 +6,7 @@ import 'package:vela_shuo/src/home/world_atlas.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 
 void main() {
-  testWidgets('all desktop pages share four functional painted oil medallions',
+  testWidgets('all desktop pages share four functional v1.6 glass buttons',
       (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1440, 900);
@@ -16,7 +16,7 @@ void main() {
     await tester.pumpWidget(VelaShuoApp(settings: SettingsController()));
     await tester.pumpAndSettle();
     expect(find.byType(VelaWorldAtlas), findsOneWidget);
-    expect(find.byType(VelaVoyageGlyph), findsNothing);
+    expect(find.byType(VelaVoyageGlyph), findsAtLeastNWidgets(4));
     expect(find.byType(VelaOilReliefSurface), findsAtLeastNWidgets(4));
     for (final target in [1, 4, 2, 3]) {
       expect(find.byKey(ValueKey('nav_$target')), findsOneWidget);
@@ -31,7 +31,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(VelaWorldAtlas), findsOneWidget);
       expect(find.byKey(const ValueKey('nav_0')), findsOneWidget);
-      expect(find.byType(VelaVoyageGlyph), findsNothing);
+      expect(find.byType(VelaVoyageGlyph), findsAtLeastNWidgets(4));
     expect(find.byType(VelaOilReliefSurface), findsAtLeastNWidgets(4));
       // Tapping the currently selected module a second time returns Home.
       await tester.tap(find.byKey(ValueKey('nav_$target')));
