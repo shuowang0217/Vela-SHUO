@@ -87,6 +87,7 @@ class _VelaOilSceneState extends State<VelaOilScene>
       return const SizedBox.shrink();
     }
     final portrait=c.maxHeight>c.maxWidth*1.25;
+    final dark=Theme.of(context).brightness==Brightness.dark;
     final scale=math.max(c.maxWidth/VelaOilScene.referenceWidth,
         c.maxHeight/VelaOilScene.referenceHeight);
     final dx=(c.maxWidth-VelaOilScene.referenceWidth*scale)/2;
@@ -125,7 +126,8 @@ class _VelaOilSceneState extends State<VelaOilScene>
                       : scale),
                 child:Opacity(opacity:cloud.opacity,
                   child:RepaintBoundary(child:Image.asset(
-                    'assets/oil/clouds/${cloud.file}.png',
+                    dark ? 'assets/oil/clouds/night_${cloud.file}.png'
+                         : 'assets/oil/clouds/${cloud.file}.png',
                     fit:BoxFit.fill,filterQuality:FilterQuality.medium,
                     gaplessPlayback:true)),
                 ),
