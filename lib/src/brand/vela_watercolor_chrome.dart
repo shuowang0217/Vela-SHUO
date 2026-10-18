@@ -34,21 +34,21 @@ class VelaWatercolorSurface extends StatelessWidget {
           // Windows preserves its already approved desktop material.
           colors: defaultTargetPlatform == TargetPlatform.android
               ? [
-                  t.surface.withValues(alpha: .50),
-                  wash.withValues(alpha: .50),
-                  t.surface.withValues(alpha: .50),
+                  t.surface.withValues(alpha: .72),
+                  wash.withValues(alpha: .67),
+                  t.surface.withValues(alpha: .72),
                 ]
               : [
-                  t.surface.withValues(alpha: t.dark ? .82 : .88),
-                  wash.withValues(alpha: t.dark ? .69 : .78),
-                  t.surface.withValues(alpha: t.dark ? .79 : .84),
+                  t.surface.withValues(alpha: t.dark ? .88 : .93),
+                  wash.withValues(alpha: t.dark ? .81 : .88),
+                  t.surface.withValues(alpha: t.dark ? .87 : .92),
                 ],
           stops: const [0, .58, 1],
         ),
         border: Border.all(color: selected || hovered
             ? t.accent.withValues(alpha: .78)
-            : t.line.withValues(alpha: t.dark ? .86 : .78),
-          width: selected ? 1.5 : 1.05),
+            : t.line.withValues(alpha: t.dark ? .96 : .92),
+          width: selected ? 1.7 : 1.25),
         boxShadow: [BoxShadow(
           color: const Color(0xFF18384B).withValues(
             alpha: t.dark ? .20 : .095),
