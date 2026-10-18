@@ -1,75 +1,9 @@
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/vela_palettes.dart';
-
-/// Real painterly plaques cut from the same impasto material as Vela's map.
-/// Raster assets carry irregular paint edges; content remains real Flutter UI.
-enum VelaOilReliefShape { connection, speed, medallion, book, compass, helm, power }
-
-class VelaOilReliefSurface extends StatelessWidget {
-  const VelaOilReliefSurface({
-    super.key, required this.child, required this.shape,
-    this.padding = EdgeInsets.zero, this.selected = false,
-    this.radius = 22,
-  });
-  final Widget child;
-  final VelaOilReliefShape shape;
-  final EdgeInsetsGeometry padding;
-  final bool selected;
-  final double radius;
-
-  String get _file => switch (shape) {
-    VelaOilReliefShape.connection =>
-      'assets/oil/ui/connection_plaque.png',
-    VelaOilReliefShape.speed => 'assets/oil/ui/speed_plaque.png',
-    VelaOilReliefShape.medallion =>
-      'assets/oil/ui/paint_medallion.png',
-    VelaOilReliefShape.book => 'assets/oil/ui/oil_nav_book.png',
-    VelaOilReliefShape.compass => 'assets/oil/ui/oil_nav_compass.png',
-    VelaOilReliefShape.helm => 'assets/oil/ui/oil_nav_helm.png',
-    VelaOilReliefShape.power => 'assets/oil/ui/power_medallion.png',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    if (!VelaThemeRuntime.oilPreview) {
-      return VelaWatercolorSurface(
-        selected: selected, padding: padding,
-        radius: radius, child: child,
-      );
-    }
-    final tone = VelaThemeRuntime.active;
-    final asset = tone.dark ? _file.replaceFirst('/ui/', '/ui/night_') : _file;
-    // The image is NOT a screenshot of the UI: it contains no fixed text,
-    // routes, or buttons. All status, speeds and actions stay interactive.
-    return Stack(fit: StackFit.passthrough, children: [
-      Positioned.fill(child: IgnorePointer(
-        child: ColorFiltered(
-          colorFilter: ColorFilter.mode(
-            Color.lerp(Colors.white,
-              tone.dark ? tone.accentSoft : tone.surface,
-              tone.dark ? .29 : .21)!,
-            BlendMode.modulate),
-          child: Image.asset(asset, fit: BoxFit.fill,
-            filterQuality: FilterQuality.high,
-            excludeFromSemantics: true),
-        ),
-      )),
-      Padding(padding: padding, child: child),
-      if (selected)
-        Positioned.fill(child: IgnorePointer(child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(
-                shape != VelaOilReliefShape.connection && shape != VelaOilReliefShape.speed ? 50 : 22),
-            border: Border.all(
-                color: tone.accent.withValues(alpha: .42), width: 1.8),
-          ),
-        ))),
-    ]);
-  }
-}
 
 /// One material for every Vela screen: translucent watercolor paper and an
 /// imperfect pen line. Palette selection only changes the tint/ink colors.
@@ -86,21 +20,19 @@ class VelaWatercolorSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = VelaThemeRuntime.active;
-    final oil = VelaThemeRuntime.oilPreview;
-    final wash = Color.lerp(t.surface, t.accentSoft,
-        oil ? .16 : (t.dark ? .10 : .075))!;
-    return DecoratedBox(
+    final wash = Color.lerp(t.surface, t.accentSoft, t.dark ? .10 : .075)!;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+        child: DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
         gradient: LinearGradient(
           begin: Alignment.topLeft, end: Alignment.bottomRight,
           // Android floats on a genuine 50%-opaque watercolor wash;
           // Windows preserves its already approved desktop material.
-          colors: oil ? [
-                  t.raised.withValues(alpha:.96),
-                  wash.withValues(alpha:.97),
-                  t.surface.withValues(alpha:.98),
-                ] : defaultTargetPlatform == TargetPlatform.android
+          colors: defaultTargetPlatform == TargetPlatform.android
               ? [
                   t.surface.withValues(alpha: .50),
                   wash.withValues(alpha: .50),
@@ -113,109 +45,70 @@ class VelaWatercolorSurface extends StatelessWidget {
                 ],
           stops: const [0, .58, 1],
         ),
-        // Reuse the ACTUAL approved impasto map painting as an image material:
-        // this is no longer a flat glass card with decorative lines.
-        image: oil ? DecorationImage(
-          image: AssetImage(t.dark
-              ? 'assets/oil/ui/oil_canvas_night.webp'
-              : 'assets/oil/ui/oil_canvas.webp'),
-          fit: BoxFit.cover,
-          alignment: Alignment.center,
-          opacity: .91,
-          colorFilter: ColorFilter.mode(
-            Color.lerp(Colors.white, t.surface, t.dark ? .13 : .18)!,
-            BlendMode.modulate),
-        ) : null,
         border: Border.all(color: selected || hovered
             ? t.accent.withValues(alpha: .78)
-            : t.line.withValues(alpha: oil ? .75 : (t.dark ? .86 : .78)),
-          width: selected ? 1.7 : (oil ? 1.3 : 1.05)),
+            : t.line.withValues(alpha: t.dark ? .86 : .78),
+          width: selected ? 1.5 : 1.05),
         boxShadow: [BoxShadow(
-          color: (oil ? const Color(0xFF513B22) : const Color(0xFF18384B))
-              .withValues(alpha: oil ? .23 : (t.dark ? .20 : .095)),
-          blurRadius: hovered ? 20 : (oil ? 15 : 10),
-          offset: const Offset(0, 5),
+          color: const Color(0xFF18384B).withValues(
+            alpha: t.dark ? .20 : .095),
+          blurRadius: hovered ? 19 : 10,
+          offset: const Offset(0, 4),
         )],
       ),
       child: CustomPaint(
-        // Oil cards display actual paint IMAGE only; no hatch strokes.
-        painter: oil ? null : _VelaInkStroke(
-          t.dark ? t.accentSoft : t.text, t.accent, t.line, radius, oil),
+        painter: _VelaInkStroke(
+          t.dark ? t.accentSoft : t.text, radius),
         child: Padding(padding: padding, child: child),
+      ),
+        ),
       ),
     );
   }
 }
 
 class _VelaInkStroke extends CustomPainter {
-  const _VelaInkStroke(
-    this.ink, this.pigment, this.edge, this.radius, this.oil);
-  final Color ink, pigment, edge;
+  const _VelaInkStroke(this.ink, this.radius);
+  final Color ink;
   final double radius;
-  final bool oil;
 
   @override
   void paint(Canvas c, Size size) {
     if (size.width < 28 || size.height < 28) return;
-    c.save();
-    c.clipRRect(RRect.fromRectAndRadius(
-      Offset.zero & size, Radius.circular(radius)));
-
-    if (oil) {
-      // Broad palette-coloured PAINT DABS over the real reference image.
-      // Organic patches and ridges replace the previous uniform line grid.
-      final impasto = Paint()..style = PaintingStyle.fill;
-      for (var y = -5.0; y < size.height + 15; y += 23) {
-        for (var x = -7.0; x < size.width + 18; x += 34) {
-          final n = ((x.toInt() * 41 ^ y.toInt() * 71) & 127) / 127;
-          final dx = 11.0 + n * 26;
-          final dy = 4.0 + n * 6;
-          impasto.color = Color.lerp(
-            n < .45 ? pigment : edge, pigment,
-            .25 + n * .32)!.withValues(alpha: .12 + n * .18);
-          final stroke = Path()
-            ..moveTo(x, y)
-            ..quadraticBezierTo(x + dx * .36, y - dy * .65,
-                x + dx, y - dy * .36)
-            ..quadraticBezierTo(x + dx * 1.04, y + dy * .18,
-                x + dx * .81, y + dy * .46)
-            ..quadraticBezierTo(x + dx * .28, y + dy * .76,
-                x - 1.5, y + dy * .35)
-            ..close();
-          c.drawPath(stroke, impasto);
-          impasto.color = Colors.white.withValues(alpha: .09 + n * .14);
-          c.drawPath(Path()
-            ..moveTo(x + 2, y)
-            ..quadraticBezierTo(x + dx * .50, y - dy * .80,
-                x + dx * .87, y - dy * .30)
-            ..quadraticBezierTo(x + dx * .43, y - dy * .12,
-                x + 2, y)
-            ..close(), impasto);
-        }
-      }
-      final rim = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = edge.withValues(alpha: .70);
-      c.drawRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(2, 2, size.width - 4, size.height - 4),
-        Radius.circular(math.max(0, radius - 2))), rim);
-    } else {
-      final line = Paint()
-        ..color = ink.withValues(alpha: .13)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = .75
-        ..strokeCap = StrokeCap.round;
-      c.drawLine(Offset(radius + 5, 3.8),
-          Offset(size.width - radius - 5, 4.3), line);
-    }
-    c.restore();
+    final p = Paint()
+      ..color = ink.withValues(alpha: .13)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .75
+      ..strokeCap = StrokeCap.round;
+    final path = Path()
+      ..moveTo(radius + 5, 3.8)
+      ..quadraticBezierTo(size.width * .42, 3.1,
+          size.width - radius - 5, 4.3);
+    c.drawPath(path, p);
+    c.drawLine(Offset(14, size.height - 4.3),
+        Offset(math.min(size.width - 16, size.width * .4),
+            size.height - 3.7), p);
   }
-
   @override
   bool shouldRepaint(covariant _VelaInkStroke old) =>
-      old.ink != ink || old.pigment != pigment || old.edge != edge ||
-      old.radius != radius || old.oil != oil;
+    old.ink != ink || old.radius != radius;
+}
+
+/// v1.8.9: all legacy oil-plaque roles use the original v1.6 glass.
+enum VelaOilReliefShape { connection, speed, medallion, book, compass, helm, power }
+class VelaOilReliefSurface extends StatelessWidget {
+  const VelaOilReliefSurface({super.key, required this.child,
+    required this.shape, this.padding = EdgeInsets.zero,
+    this.selected = false, this.radius = 19});
+  final Widget child;
+  final VelaOilReliefShape shape;
+  final EdgeInsetsGeometry padding;
+  final bool selected;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) => VelaWatercolorSurface(
+    selected: selected, radius: radius, padding: padding, child: child);
 }
 
 /// Distinct nautical ink silhouettes, not generic Material icon shapes.
