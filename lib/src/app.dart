@@ -1052,7 +1052,7 @@ class _MobileHome extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const VelaSelectedWordmark(width: 153, height: 76),
-                      Text('航海油画  ·  v1.8.12', style: TextStyle(
+                      Text('航海油画  ·  v1.8.13', style: TextStyle(
                         color: _blue, fontSize: 10,
                         letterSpacing: 1.1, fontWeight: FontWeight.w700)),
                       Text(velaBrandTagline, style: TextStyle(
