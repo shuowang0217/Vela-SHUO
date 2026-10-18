@@ -660,7 +660,7 @@ class _DesktopHome extends StatelessWidget {
                     children: [
                       Text(state, overflow: TextOverflow.ellipsis,
                         style: TextStyle(color: _foreground,
-                          fontSize: 13, fontWeight: FontWeight.w700)),
+                          fontSize: 16, fontWeight: FontWeight.w700)),
                       if (connected) Text(
                         VelaSessionTime.format(connection?.connectedDuration),
                         key: const ValueKey('desktop_connection_uptime'),
@@ -764,29 +764,34 @@ class _VoyageRate extends StatelessWidget {
   final String unit;
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) {
+    final bounds=MediaQuery.sizeOf(context);
+    final wide=VelaThemeRuntime.oilPreview && bounds.width>=790 &&
+        bounds.width > bounds.height * 1.12;
+    return Column(
     mainAxisAlignment: MainAxisAlignment.center,
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Row(children: [
-        Icon(icon, color: _blue, size: 14),
+        Icon(icon, color: _blue, size: wide ? 19 : 14),
         const SizedBox(width: 4),
         Flexible(child: Text(label, maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: _muted, fontSize: 11))),
+          style: TextStyle(color: _muted, fontSize: wide ? 15 : 11))),
       ]),
       const SizedBox(height: 4),
       FittedBox(fit: BoxFit.scaleDown,
         alignment: Alignment.centerLeft,
         child: Text.rich(TextSpan(children: [
           TextSpan(text: number, style: TextStyle(
-            color: _foreground, fontSize: 20,
+            color: _foreground, fontSize: wide ? 28 : 20,
             fontWeight: FontWeight.w700)),
           TextSpan(text: unit.isEmpty ? '' : ' $unit',
-            style: TextStyle(color: _muted, fontSize: 10)),
+            style: TextStyle(color: _muted, fontSize: wide ? 14 : 10)),
         ]))),
     ],
   );
+  }
 }
 
 /// Four truly separate floating travel-journal buttons. No shared pill.
