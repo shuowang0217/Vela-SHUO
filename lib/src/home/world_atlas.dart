@@ -48,7 +48,7 @@ class VelaWorldCamera {
   static const oilTokyo = Offset(806, 298);
 
   // Portrait phones need a wider view of the painted world. Preserve the
-  // original landscape zoom while reducing the portrait crop by 22%.
+  // original landscape zoom while reducing the portrait crop by 34%.
   // All route markers use this same scale and origin.
   bool get compactOilPortrait => oilIllustration &&
       defaultTargetPlatform == TargetPlatform.android &&
@@ -57,7 +57,7 @@ class VelaWorldCamera {
   double get oilImageScale => math.max(
       size.width / oilImageSize.width,
       size.height / oilImageSize.height) *
-      (compactOilPortrait ? .78 : 1.0);
+      (compactOilPortrait ? .66 : 1.0);
 
   Offset get oilImageOrigin => Offset(
       (size.width - oilImageSize.width * oilImageScale) / 2,
