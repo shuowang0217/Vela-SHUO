@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vela_shuo/src/brand/vela_selected_identity.dart';
 import 'package:vela_shuo/src/app.dart';
 import 'package:vela_shuo/src/brand/vela_watercolor_chrome.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
@@ -15,7 +16,7 @@ void main() {
     await tester.pumpWidget(VelaShuoApp(settings: SettingsController()));
     await tester.pump();
     expect(find.byType(VelaWorldAtlas), findsOneWidget);
-    expect(find.text('VELA'), findsOneWidget);
+    expect(find.byType(VelaSelectedWordmark), findsOneWidget);
     expect(find.text('— SHUO —'), findsNothing);
     expect(find.text('风速 · 上传'), findsOneWidget);
     expect(find.text('航速 · 下载'), findsOneWidget);
