@@ -40,6 +40,15 @@ void main() {
     final map=File('lib/src/home/world_atlas.dart').readAsStringSync();
     final clouds=File('lib/src/home/vela_oil_scene.dart').readAsStringSync();
     expect(map,contains("Image.asset('assets/oil/oil_map_clean.webp'"));
+    expect(map,contains("Image.asset('assets/oil/oil_map_night.webp'"));
+    expect(clouds,contains("'assets/oil/clouds/night_"));
+    expect(File('assets/oil/oil_map_night.webp').existsSync(),isTrue);
+    for (final cloud in [
+      'cloud_beijing_clean','cloud_north','cloud_east',
+      'cloud_southwest','cloud_equator','cloud_southeast_clean',
+    ]) {
+      expect(File('assets/oil/clouds/night_$cloud.png').existsSync(),isTrue);
+    }
     expect(clouds,contains("file:'cloud_beijing_clean'"));
     expect(clouds, isNot(contains("file:'cloud_beijing',")));
     expect(File('assets/oil/clouds/cloud_beijing_clean.png').existsSync(),
@@ -62,5 +71,7 @@ void main() {
         .readAsStringSync();
     expect(ui,contains('tone.dark ? tone.accentSoft : tone.surface'));
     expect(ui,contains('assets/oil/ui/oil_canvas.webp'));
+    expect(ui,contains('assets/oil/ui/oil_canvas_night.webp'));
+    expect(ui,contains('painter: oil ? null : _VelaInkStroke('));
   });
 }
