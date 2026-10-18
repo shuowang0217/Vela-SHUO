@@ -44,9 +44,9 @@ def main():
     detail[y0:y1,x0:x1]=cv2.resize(donor,(x1-x0,y1-y0))
     feather=cv2.GaussianBlur(mask,(0,0),10)[:,:,None]/255.
     highpass=(detail.astype(np.float32)-
-              cv2.GaussianBlur(detail,(0,0),2).astype(np.float32))
+              cv2.GaussianBlur(detail,(0,0),8).astype(np.float32))
     fixed=np.clip(original*(1-feather)+
-                  (repaired+.55*highpass)*feather,0,255).astype(np.uint8)
+                  (repaired+1.10*highpass)*feather,0,255).astype(np.uint8)
     Image.fromarray(fixed).save(SOURCE,'WEBP',quality=96,method=6)
     print('Repaired baked radial blur in oil canvas:',width,height)
 
