@@ -154,10 +154,8 @@ void main() {
         oilIllustration: true);
       final oldCoverScale = math.max(size.width / 1672, size.height / 941);
       expect(camera.oilImageScale, closeTo(oldCoverScale * .66, .0001));
-      expect(camera.oilImageOrigin.dx,
-          closeTo((size.width - 1672 * camera.oilImageScale) / 2, .001));
-      expect(camera.oilImageOrigin.dy,
-          closeTo((size.height - 941 * camera.oilImageScale) / 2, .001));
+      expect((camera.projectArtwork(VelaWorldCamera.beijing) -
+          const Offset(195, 422)).distance, lessThan(.001));
     } finally {
       debugDefaultTargetPlatformOverride = null;
     }
