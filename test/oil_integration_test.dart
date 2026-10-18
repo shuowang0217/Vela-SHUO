@@ -31,7 +31,7 @@ void main() {
     final toast = File('lib/src/brand/vela_glass_toast.dart')
         .readAsStringSync();
     final app = File('lib/src/app.dart').readAsStringSync();
-    expect(common, contains('actual impasto map painting as an image material'));
+    expect(common, contains('AssetImage('assets/oil/oil_map_clean.webp')'));
     expect(toast, contains('VelaWatercolorSurface'));
     expect(app, contains('popupMenuTheme: PopupMenuThemeData'));
     expect(app, contains('bottomSheetTheme: BottomSheetThemeData'));
