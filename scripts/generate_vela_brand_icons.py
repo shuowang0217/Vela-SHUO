@@ -7,6 +7,7 @@ No external branding, templates or mutable network downloads are used.
 """
 from __future__ import annotations
 import argparse
+import random
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageOps
 
@@ -89,7 +90,24 @@ def paths(layer: Image.Image, inactive=False):
 
 
 def render(inactive=False):
-    bg = gradient((233, 241, 225), (131, 187, 197))
+    # Paint the native launcher/tray identity with navy, warm canvas and
+    # scattered palette-knife flecks to match the live Flutter ship.
+    bg = gradient((248, 231, 196), (56, 107, 157))
+    if not inactive:
+        rng = random.Random(180104)
+        pigment = Image.new("RGBA", bg.size, (0, 0, 0, 0))
+        blade = ImageDraw.Draw(pigment, "RGBA")
+        for _ in range(1750):
+            x = rng.randrange(SIZE)
+            y = rng.randrange(SIZE)
+            length = rng.randrange(5, 32)
+            color = rng.choice([
+                (255, 239, 194, 53), (27, 68, 126, 52),
+                (225, 176, 91, 58), (244, 247, 229, 68),
+            ])
+            blade.line((x,y,x+length,y+rng.randrange(-4,5)),
+                fill=color,width=rng.randrange(2,8))
+        bg = Image.alpha_composite(bg, pigment)
     mask = Image.new("L", (SIZE, SIZE))
     ImageDraw.Draw(mask).rounded_rectangle(
         (0, 0, SIZE - 1, SIZE - 1), radius=q(36), fill=255)
