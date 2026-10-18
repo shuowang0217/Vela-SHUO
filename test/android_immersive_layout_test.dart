@@ -51,4 +51,23 @@ void main() {
     expect(find.byType(VelaOilReliefSurface), findsAtLeastNWidgets(4));
     await tester.pumpWidget(const SizedBox.shrink());
   });
+  testWidgets('portrait status is below the masthead and above speed',
+      (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(VelaShuoApp(settings: SettingsController()));
+    await tester.pump();
+    final masthead = tester.getRect(
+        find.byKey(const ValueKey('mobile_oil_masthead')));
+    final status = tester.getRect(
+        find.byKey(const ValueKey('mobile_oil_status')));
+    final speed = tester.getRect(
+        find.byKey(const ValueKey('voyage_speed_panel')));
+    expect(status.top, greaterThan(masthead.bottom + 8));
+    expect(status.bottom, lessThan(speed.top - 8));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
 }
