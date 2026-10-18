@@ -31,7 +31,7 @@ void main() {
     ));
     await tester.pump();
     expect(find.text('ACTIVE VPN'), findsOneWidget);
-    expect(find.byType(Image), findsWidgets);
+    expect(find.byType(BackdropFilter), findsWidgets);
     expect(find.byType(VelaOilReliefSurface), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -75,9 +75,8 @@ void main() {
     expect(mint.surface,isNot(navy.surface));
     final ui=File('lib/src/brand/vela_watercolor_chrome.dart')
         .readAsStringSync();
-    expect(ui,contains('tone.dark ? tone.accentSoft : tone.surface'));
-    expect(ui,contains('assets/oil/ui/oil_canvas.webp'));
-    expect(ui,contains('assets/oil/ui/oil_canvas_night.webp'));
-    expect(ui,contains('painter: oil ? null : _VelaInkStroke('));
+    expect(ui,contains('BackdropFilter('));
+    expect(ui,contains('t.surface.withValues(alpha: .50)'));
+    expect(ui,isNot(contains('Image.asset(asset')));
   });
 }
