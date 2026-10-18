@@ -721,9 +721,6 @@ class _VoyageRatePanel extends StatelessWidget {
         active ? traffic?.uploadBytesPerSecond : null);
     final download = VelaVoyageSpeed.format(
         active ? traffic?.downloadBytesPerSecond : null);
-    final screen = MediaQuery.sizeOf(context);
-    final wide = VelaThemeRuntime.oilPreview &&
-        screen.width >= 790 && screen.width > screen.height * 1.12;
     return ClipRRect(
       borderRadius: BorderRadius.circular(19),
       child: BackdropFilter(
@@ -764,9 +761,6 @@ class _VoyageRate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bounds=MediaQuery.sizeOf(context);
-    final wide=VelaThemeRuntime.oilPreview && bounds.width>=790 &&
-        bounds.width > bounds.height * 1.12;
     return Column(
     mainAxisAlignment: MainAxisAlignment.center,
     crossAxisAlignment: CrossAxisAlignment.start,
