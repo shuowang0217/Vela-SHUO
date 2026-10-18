@@ -16,11 +16,15 @@ import 'vela_oil_impasto.dart';
 class VelaWorldCamera {
   const VelaWorldCamera({required this.size, required this.longitude,
     required this.latitude,
-    this.portraitWidthScale = portraitHeightScale});
+    this.portraitWidthScale = portraitHeightScale,
+    this.oilIllustration = false});
   final Size size;
   final double longitude;
   final double latitude;
   final double portraitWidthScale;
+  // Illustrated Vela oil world is a hand-drawn panorama, not a 2:1
+  // geographic raster. Anchor the voyage locally to painted city positions.
+  final bool oilIllustration;
   static const beijing = Offset(116.4, 39.9);
 
   // The artist-drawn watercolor texture is shifted relative to a strict
@@ -35,11 +39,35 @@ class VelaWorldCamera {
   double get artworkDy =>
       artworkLatitudeCorrection / 180 * worldHeight;
 
-  Offset projectArtwork(Offset geographicPoint) =>
-      project(geographicPoint) - Offset(artworkDx, artworkDy);
+  Offset projectArtwork(Offset geographicPoint) {
+    if (oilIllustration) {
+      // The reference shows Beijing around 34% of width and Tokyo near 49%.
+      // Geographic inputs remain REAL longitude and latitude; this is only
+      // an artist-facing screen transform for the stylized, non-georeferenced
+      // wallpaper, not a claim that the art is a surveyed physical map.
+      final longitudeDelta = shortestDelta(beijing.dx, geographicPoint.dx);
+      final panDelta = shortestDelta(beijing.dx, longitude);
+      return Offset(
+        size.width * (.344 + (longitudeDelta - panDelta) * .00615),
+        size.height * (.315 + (beijing.dy - geographicPoint.dy +
+            latitude - beijing.dy) * .0027),
+      );
+    }
+    return project(geographicPoint) - Offset(artworkDx, artworkDy);
+  }
 
-  Offset projectAlongArtwork(Offset origin, Offset destination) =>
-      projectAlong(origin, destination) - Offset(artworkDx, artworkDy);
+  Offset projectAlongArtwork(Offset origin, Offset destination) {
+    if (oilIllustration) {
+      final longitudeDelta=shortestDelta(beijing.dx,origin.dx) +
+          shortestDelta(origin.dx,destination.dx);
+      final panDelta=shortestDelta(beijing.dx,longitude);
+      return Offset(
+        size.width * (.344 + (longitudeDelta - panDelta) * .00615),
+        size.height * (.315 + (latitude - destination.dy) * .0027),
+      );
+    }
+    return projectAlong(origin, destination) - Offset(artworkDx, artworkDy);
+  }
 
   static double shortestDelta(double from, double to) =>
       (to - from + 540) % 360 - 180;
@@ -241,6 +269,7 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
           final camera = VelaWorldCamera(
             size: size,
             longitude: _focusLongitude, latitude: _focusLatitude,
+            oilIllustration: VelaThemeRuntime.oilPreview,
             portraitWidthScale: compactAndroid
                 ? VelaWorldCamera.androidCompactScale
                 : VelaWorldCamera.portraitHeightScale);
@@ -252,8 +281,16 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
               widget.demo.phase != VelaPhase.error);
           return ClipRect(child: Stack(fit: StackFit.expand, children: [
             const ColoredBox(color: Color(0xFF071929)),
-            // Oil reference beta: disable with VELA_OIL_PREVIEW=false.
-            if (compactAndroid)
+            // Render the USER-APPROVED thick-oil artwork itself.
+            // V1.8.5 mistakenly substituted a watercolor global tile then
+            // drew fake procedural dashes on top: it could never look like
+            // the approved blue/gold impasto composition.
+            if (VelaThemeRuntime.oilPreview)
+              Positioned.fill(child: IgnorePointer(
+                child: Image.asset('assets/oil/oil_map_clean.webp',
+                  fit: BoxFit.fill, filterQuality: FilterQuality.high,
+                  gaplessPlayback: true))),
+            if (!VelaThemeRuntime.oilPreview && compactAndroid)
               ImageFiltered(
                 // The oil preview stays sharp on portrait Android.
                 imageFilter: ImageFilter.blur(
@@ -272,7 +309,7 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
                         : 'assets/world/watercolor_night.webp', show: dark),
                 ]),
               ),
-            ShaderMask(
+            if (!VelaThemeRuntime.oilPreview) ShaderMask(
               shaderCallback: (rect) => (compactAndroid &&
                   !VelaThemeRuntime.oilPreview
                 ? const LinearGradient(
@@ -298,6 +335,7 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
                         : 'assets/world/watercolor_night.webp', show: dark),
               ]),
             ),
+            if (!VelaThemeRuntime.oilPreview)
             IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
@@ -309,8 +347,9 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
               ),
             ))),
             // Hand-painted moving clouds above the map, below the clear route.
-            if (const bool.fromEnvironment('VELA_OIL_PREVIEW', defaultValue: true)) ...[
-              const VelaOilImpasto(),
+            if (VelaThemeRuntime.oilPreview) ...[
+              // Pigment is already in the approved map texture.
+              // Only detached alpha clouds float above the painted world.
               const VelaOilScene(),
             ] else
               VelaAtlasWeather(camera: camera, dark: dark,
