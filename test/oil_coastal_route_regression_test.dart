@@ -56,6 +56,6 @@ void main() {
     expect('python3 scripts/repair_oil_background.py'.allMatches(workflow)
       .length,2);
     expect(workflow,contains('python scripts/repair_oil_background.py'));
-    expect(workflow,contains('versionCode=\'46\' versionName=\'1.8.12\''));
+    expect(workflow,contains('versionCode=\'47\' versionName=\'1.8.13\''));
   });
 }
