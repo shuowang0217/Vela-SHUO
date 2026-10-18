@@ -1541,7 +1541,14 @@ class _PalettePicker extends StatelessWidget {
                   child: _PaletteOption(
                     palette: palette,
                     selected: settings.paletteId == palette.id,
-                    onTap: () => settings.setPalette(palette.id),
+                    onTap: () async {
+                      await settings.setPalette(palette.id);
+                      if (context.mounted &&
+                          !settings.lastPaletteSaveSucceeded) {
+                        VelaGlassToast.show(context,
+                            '配色保存失败，请重试。当前选择尚未写入手机存储');
+                      }
+                    },
                   ),
                 ),
             ],
