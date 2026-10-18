@@ -707,7 +707,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   /// group -> member selection after native core acknowledges the change.
   Future<bool> selectGroupMember(String member) async {
     if (_closed || loading || !await backend.selectGroupMember(member)) {
-      _lastError = 'FlClash 未确认该下级策略组';
+      _lastError = '代理核心未确认该下级策略组';
       _emit();
       return false;
     }
