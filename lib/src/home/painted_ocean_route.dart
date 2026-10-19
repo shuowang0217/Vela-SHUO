@@ -17,6 +17,7 @@ class VelaPaintedOceanRoute {
   List<bool> _mainOcean = const [];
   Future<void>? _loading;
   final Map<String, List<Offset>> _cache = {};
+  final Map<String, List<Offset>> _coordinates = {};
 
   bool get ready => _cells.length == rows;
 
@@ -34,6 +35,7 @@ class VelaPaintedOceanRoute {
       _cells = cells;
       _findMainOcean();
       _cache.clear();
+      _coordinates.clear();
     } catch (_) {
       // Never draw an unverified, potentially overland fallback route.
       _cells = const [];
@@ -84,8 +86,6 @@ class VelaPaintedOceanRoute {
       ((id ~/ columns) + .5) * imageHeight / rows);
 
   int _nearest(Offset point) {
-    final cx = _wrap((point.dx / imageWidth * columns).floor());
-    final cy = (point.dy / imageHeight * rows).floor().clamp(0, rows - 1);
     var best = -1;
     var bestD = double.infinity;
     // Nearest painted seawater, never a city inland or a painted mountain.
@@ -116,10 +116,19 @@ class VelaPaintedOceanRoute {
 
   List<Offset> routePixels(Offset startPoint, Offset endPoint) {
     if (!ready) return const [];
+    final coordinateKey = '${startPoint.dx.toStringAsFixed(2)}:' 
+        '${startPoint.dy.toStringAsFixed(2)}:'
+        '${endPoint.dx.toStringAsFixed(2)}:'
+        '${endPoint.dy.toStringAsFixed(2)}';
+    final existing = _coordinates[coordinateKey];
+    if (existing != null) return existing;
     final start = _nearest(startPoint), end = _nearest(endPoint);
     if (start < 0 || end < 0) return const [];
     final key = '$start:$end';
-    if (_cache.containsKey(key)) return _cache[key]!;
+    if (_cache.containsKey(key)) {
+      _coordinates[coordinateKey] = _cache[key]!;
+      return _cache[key]!;
+    }
     final parents = List<int>.filled(columns * rows, -1);
     final scores = List<double>.filled(
         columns * rows, double.infinity);
@@ -139,6 +148,7 @@ class VelaPaintedOceanRoute {
       final x = current % columns, y = current ~/ columns;
       for (final (dx, dy) in steps) {
         final yy = y + dy, xx = _wrap(x + dx);
+        if (yy < 0 || yy >= rows) continue;
         if (!_mainOcean[_id(xx, yy)]) continue;
         if (dx != 0 && dy != 0 &&
             (!_mainOcean[_id(xx, y)] || !_mainOcean[_id(x, yy)])) continue;
@@ -153,6 +163,7 @@ class VelaPaintedOceanRoute {
     }
     if (start != end && parents[end] == -1) {
       _cache[key] = const [];
+      _coordinates[coordinateKey] = const [];
       return const [];
     }
     final ids = <int>[end];
@@ -162,6 +173,7 @@ class VelaPaintedOceanRoute {
     // Keep sea-tested vertices: smoothing the polyline would cut coastlines.
     final route = ids.reversed.map(_point).toList(growable: false);
     _cache[key] = route;
+    _coordinates[coordinateKey] = route;
     return route;
   }
 }
