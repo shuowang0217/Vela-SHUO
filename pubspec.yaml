@@ -39,6 +39,7 @@ flutter:
     - assets/brand/vela_selected_wordmark.png
     - assets/oil/oil_map_clean.webp
     - assets/oil/oil_map_night.webp
+    - assets/oil/oil_sea_grid.txt
     - assets/oil/oil_atlas_day.webp
     - assets/oil/oil_atlas_night.webp
     - assets/oil/ui/oil_canvas.webp
