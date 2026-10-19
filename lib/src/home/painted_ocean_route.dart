@@ -152,7 +152,9 @@ class VelaPaintedOceanRoute {
         }
         if (!_mainOcean[_id(xx, yy)]) continue;
         if (dx != 0 && dy != 0 &&
-            (!_mainOcean[_id(xx, y)] || !_mainOcean[_id(x, yy)])) continue;
+            (!_mainOcean[_id(xx, y)] || !_mainOcean[_id(x, yy)])) {
+          continue;
+        }
         final next = _id(xx, yy);
         if (closed[next]) continue;
         final score = scores[current] + (dx == 0 || dy == 0 ? 1 : math.sqrt2);
