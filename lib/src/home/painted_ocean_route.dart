@@ -20,17 +20,24 @@ class VelaPaintedOceanRoute {
 
   bool get ready => _cells.length == rows;
 
+  // Accept both CRLF and LF: on Windows a lone split('\n') left
+  // a carriage return on most cells, making all routes disappear.
+  static List<String> parseGrid(String text) {
+    final cells = text.trim().split(RegExp(r'\r?\n'));
+    if (cells.length != rows ||
+        cells.any((line) => line.length != columns ||
+            !RegExp(r'^[01]+$').hasMatch(line))) {
+      throw const FormatException('Invalid oil sea grid');
+    }
+    return cells;
+  }
+
   Future<void> initialize() => _loading ??= _load();
 
   Future<void> _load() async {
     try {
       final text = await rootBundle.loadString('assets/oil/oil_sea_grid.txt');
-      final cells = text.trim().split('\n');
-      if (cells.length != rows ||
-          cells.any((line) => line.length != columns ||
-              !RegExp(r'^[01]+$').hasMatch(line))) {
-        throw const FormatException('Invalid oil sea grid');
-      }
+      final cells = parseGrid(text);
       _cells = cells;
       _findMainOcean();
       _cache.clear();

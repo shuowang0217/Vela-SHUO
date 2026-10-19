@@ -355,6 +355,10 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       widget.diagnostics?.record(VelaDiagnosticEvent.appResumed);
       if (androidVpn != null) unawaited(androidVpn!.refresh());
+      final activeSubscription = subscription;
+      if (activeSubscription is VelaFlClashSubscriptionController) {
+        unawaited(activeSubscription.checkAutoUpdates());
+      }
     } else if (state == AppLifecycleState.paused) {
       widget.diagnostics?.record(VelaDiagnosticEvent.appPaused);
     } else if (state == AppLifecycleState.detached) {
@@ -586,6 +590,9 @@ class _DesktopHome extends StatelessWidget {
     if (modes == null) return;
     showDialog<void>(
       context: context,
+      // The app intentionally keeps the full oil atlas visible while this
+      // compact mode selector is open. No full-screen black dimming layer.
+      barrierColor: Colors.transparent,
       builder: (_) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 20),
@@ -995,6 +1002,9 @@ class _MobileHome extends StatelessWidget {
     if (modes == null) return;
     showDialog<void>(
       context: context,
+      // The app intentionally keeps the full oil atlas visible while this
+      // compact mode selector is open. No full-screen black dimming layer.
+      barrierColor: Colors.transparent,
       builder: (_) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 18),

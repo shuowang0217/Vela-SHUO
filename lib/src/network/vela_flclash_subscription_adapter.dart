@@ -21,11 +21,13 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
     VelaSubscriptionVault? vault,
     VelaSubscriptionVault? profileVault,
     FlClashProfileDownloader? downloader,
+    DateTime Function()? clock,
   })  : _store = vault ?? VelaDeviceSubscriptionVault(),
         _downloader = downloader,
         _library = VelaProfileLibrary(profileVault ??
             (vault == null ? VelaDeviceProfileVault() :
                 VelaMemoryProfileVault())),
+        _clock = clock ?? DateTime.now,
         super(core: core);
 
   final FlClashWindowsBackend backend;
@@ -34,6 +36,8 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
   bool _addingProfile = false;
   final VelaSubscriptionVault _store;
   final VelaProfileLibrary _library;
+  final DateTime Function() _clock;
+  final Map<String, DateTime> _autoRefreshAttemptedAt = {};
   List<VelaStoredProfile> _profiles = [];
   String? _activeProfileId;
   List<VelaStoredProfile> get profiles => List.unmodifiable(_profiles);
@@ -197,7 +201,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
           _selection = previous;
         }
       }
-      _updatedAt = DateTime.now();
+      _updatedAt = _clock();
       _stored = false;
       _current = VelaSubscriptionPhase.ready;
       // A freshly imported subscription must have a usable default node.
@@ -299,7 +303,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       selectedGroup: activate ? backend.activeGroup : null,
       favorites: const [],
       usage: usage,
-      updatedAt: DateTime.now(),
+      updatedAt: _clock(),
       nodeCount: activate ? nodes.length : null,
     );
     final next = [..._profiles, profile];
@@ -441,7 +445,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       final next = [..._profiles];
       next[index] = entry.copyWith(
         raw: fetched.content, usage: _quotaMap(fetched.usage),
-        updatedAt: DateTime.now(),
+        updatedAt: _clock(),
       );
       if (active) {
         final latestSelected = selected?.name;
@@ -459,6 +463,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
         _updatedAt = next[index].updatedAt;
         _stored = true;
       }
+      _autoRefreshAttemptedAt.remove(id);
       _lastError = null;
       _emit();
       return true;
@@ -507,7 +512,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       }
       final next = [..._profiles];
       next[index] = next[index].copyWith(
-        raw: raw, updatedAt: DateTime.now());
+        raw: raw, updatedAt: _clock());
       await _library.write(next, _activeProfileId);
       _profiles = next;
       _lastError = null;
@@ -535,8 +540,9 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
         (sourceUrl != null &&
          !VelaStoredProfile.isSafeSubscriptionUrl(sourceUrl)) ||
         (autoUpdateMinutes != null &&
-         (autoUpdateMinutes < 15 || autoUpdateMinutes > 43200))) {
-      _lastError = '请输入有效的机场名称、HTTPS 订阅地址和更新间隔';
+         (sourceUrl == null || autoUpdateMinutes < 15 ||
+          autoUpdateMinutes > 43200))) {
+      _lastError = '启用自动更新需要有效的 HTTPS 订阅地址和更新间隔';
       _emit();
       return false;
     }
@@ -553,6 +559,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       );
       await _library.write(next, _activeProfileId);
       _profiles = next;
+      _autoRefreshAttemptedAt.remove(id);
       if (_activeProfileId == id) {
         _profileName = clean;
         _sessionUrl = sourceUrl;
@@ -573,23 +580,48 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
 
   void _scheduleAutoUpdates() {
     _autoRefreshTimer?.cancel();
-    if (!_profiles.any((p) => p.sourceUrl != null &&
-        p.autoUpdateMinutes != null)) {
-      return;
-    }
+    final configured = <String>{
+      for (final p in _profiles)
+        if (p.sourceUrl != null && p.autoUpdateMinutes != null) p.id,
+    };
+    _autoRefreshAttemptedAt.removeWhere(
+        (id, _) => !configured.contains(id));
+    if (configured.isEmpty) return;
+
+    // One lightweight minute tick supports 15-minute minimum intervals.
+    // The actual download only starts once that profile's interval expires.
     _autoRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (_closed || _storageBusy || _addingProfile || loading) return;
-      final now = DateTime.now();
-      for (final p in _profiles) {
-        final minutes = p.autoUpdateMinutes;
-        if (p.sourceUrl == null || minutes == null) continue;
-        if (p.updatedAt == null ||
-            now.difference(p.updatedAt!).inMinutes >= minutes) {
-          unawaited(refreshProfile(p.id));
-          break; // no overlapping download attempts
-        }
-      }
+      unawaited(checkAutoUpdates());
     });
+  }
+
+  /// Checks due subscriptions without interrupting the live proxy/VPN.
+  /// Exposed so app-resume and deterministic tests can trigger the same path.
+  /// Failed attempts are cooled down for that profile's own interval; a dead
+  /// subscription cannot be retried every minute or starve other airports.
+  Future<bool> checkAutoUpdates({DateTime? now}) async {
+    if (_closed || _storageBusy || _addingProfile || loading) return false;
+    final instant = now ?? _clock();
+    VelaStoredProfile? due;
+    for (final profile in _profiles) {
+      final minutes = profile.autoUpdateMinutes;
+      if (profile.sourceUrl == null || minutes == null) continue;
+      final interval = Duration(minutes: minutes);
+      final updated = profile.updatedAt;
+      if (updated != null && instant.difference(updated) < interval) continue;
+      final attempted = _autoRefreshAttemptedAt[profile.id];
+      if (attempted != null && instant.difference(attempted) < interval) {
+        continue;
+      }
+      due = profile;
+      break;
+    }
+    if (due == null) return false;
+
+    _autoRefreshAttemptedAt[due.id] = instant;
+    final ok = await refreshProfile(due.id);
+    if (ok) _autoRefreshAttemptedAt.remove(due.id);
+    return ok;
   }
 
   /// Apply staged active airport on the NEXT safe connection, never while

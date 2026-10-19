@@ -11,11 +11,12 @@ import 'vela_stellar_import_dialog.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../theme/vela_palettes.dart';
 import 'stellar_design.dart';
+import 'vela_airport_card_layout.dart';
 
 /// Configuration management in the approved orbital-card visual language.
-/// Current FlClash integration has one active on-device profile. This view
-/// deliberately shows real data only; it does NOT fabricate other profiles,
-/// provider quota, scheduled updates, or server-side expiration.
+/// This view shows real saved profiles and provider quota only. Configured
+/// subscription auto-updates are scheduled by the controller while Vela runs;
+/// no server-side expiration or background-after-exit guarantee is fabricated.
 class VelaStellarConfigPage extends StatefulWidget {
   const VelaStellarConfigPage({super.key, required this.demo,
     required this.core, this.subscription, this.connection, this.androidVpn});
@@ -265,7 +266,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         labelText: '更新间隔（分钟）',
-                        helperText: '最少 15 分钟；打开软件时自动更新')),
+                        helperText: '最少 15 分钟；Vela 运行时自动检查，关闭后不保证后台更新')),
                   const SizedBox(height: 8),
                   const Text('编辑订阅来源或更新策略不影响正在连接的代理。',
                     style: TextStyle(fontSize: 11)),
@@ -283,6 +284,10 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
       );
       if (save != true) return;
       final rawUrl = url.text.trim();
+      if (auto && rawUrl.isEmpty) {
+        _notify('自动更新需要填写 HTTPS 订阅地址');
+        return;
+      }
       final interval = auto ? int.tryParse(minutes.text.trim()) : null;
       if (auto && interval == null) {
         _notify('请输入有效的自动更新分钟数');
@@ -292,7 +297,9 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
         name: name.text.trim(),
         sourceUrl: rawUrl.isEmpty ? null : rawUrl,
         autoUpdateMinutes: interval);
-      _notify(ok ? '机场编辑已保存，随时可以更新订阅'
+      _notify(ok
+          ? interval == null ? '机场编辑已保存，自动更新已关闭'
+              : '已保存：Vela 运行时每 $interval 分钟检查订阅'
           : native.error ?? '编辑失败');
     } finally {
       name.dispose();
@@ -518,15 +525,20 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                           profiles.sort((a, b) => (b.updatedAt ?? DateTime(1970))
                               .compareTo(a.updatedAt ?? DateTime(1970)));
                         }
-                        final cardWidth = area.maxWidth >= 680
-                            ? (area.maxWidth - 12) / 2 : area.maxWidth;
-                        return Wrap(spacing: 12, runSpacing: 12,
-                          children: [for (final profile in profiles)
-                            SizedBox(width: cardWidth,
-                              child: _profileCard(context, profile,
-                                selected: profile.id == _native!.activeProfileId,
-                                online: online &&
-                                    profile.id == _native!.activeProfileId)),
+                        final activeId = _native!.activeProfileId;
+                        // Keep the original equal-sized two-column gallery.
+                        // Only pin the selected airport first; preserve the
+                        // chosen order of all remaining subscriptions.
+                        final ordered = [
+                          ...profiles.where((p) => p.id == activeId),
+                          ...profiles.where((p) => p.id != activeId),
+                        ];
+                        return VelaAirportCardLayout(
+                          cards: [
+                            for (final profile in ordered)
+                              _profileCard(context, profile,
+                                selected: profile.id == activeId,
+                                online: online && profile.id == activeId),
                           ],
                         );
                       })
@@ -648,7 +660,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
         padding: const EdgeInsets.all(17),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            StellarCompassGlyph(size: 42),
+            const StellarCompassGlyph(size: 42),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -657,9 +669,30 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                   style: TextStyle(color: t.text,
                       fontWeight: FontWeight.bold, fontSize: 17)),
                 const SizedBox(height: 4),
-                StellarLabel(online ? '● 代理正在使用'
-                    : selected ? '● 当前机场' : '点击切换机场',
-                    accent: selected),
+                // Compact contrast cue: a light, tinted status badge plus
+                // the existing selected card border, without scaling the card.
+                if (selected)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: t.accent.withValues(
+                          alpha: t.dark ? .20 : .12),
+                      border: Border.all(
+                        color: t.accent.withValues(alpha: .52),
+                        width: .7),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Text(
+                      online ? '● 代理正在使用' : '● 当前机场',
+                      style: TextStyle(
+                        color: t.dark ? t.text : t.accent,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12),
+                    ),
+                  )
+                else
+                  const StellarLabel('点击切换机场'),
               ])),
             PopupMenuButton<String>(
               key: ValueKey('airport_menu_${profile.id}'),

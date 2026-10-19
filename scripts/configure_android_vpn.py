@@ -96,4 +96,21 @@ icon_source = Path("native/android/vela_notification_sail.xml")
 drawable_dir = Path("android/app/src/main/res/drawable")
 drawable_dir.mkdir(parents=True, exist_ok=True)
 shutil.copy2(icon_source, drawable_dir / icon_source.name)
+
+# Generate a text-free, unframed brushstroke surface; never reuse the
+# dashboard's connection plaque (it contains decorative power/brand graphics).
+import runpy
+runpy.run_path("scripts/prepare_oil_notification.py", run_name="__main__")
+painted_dir = Path("android/app/src/main/res/drawable-nodpi")
+painted_dir.mkdir(parents=True, exist_ok=True)
+for name in ("day", "night"):
+    source_image = Path(f"assets/oil/ui/notification_oil_{name}.png")
+    if not source_image.is_file() or source_image.stat().st_size == 0:
+        raise SystemExit(f"Missing clean Vela notification art: {source_image}")
+    shutil.copy2(source_image, painted_dir / f"vela_notification_oil_{name}.png")
+
+layout_dir = Path("android/app/src/main/res/layout")
+layout_dir.mkdir(parents=True, exist_ok=True)
+for item in ("vela_notification_compact.xml", "vela_notification_expanded.xml"):
+    shutil.copy2(Path("native/android") / item, layout_dir / item)
 print("Vela stable Android: fixed package ID and release signing enforced")

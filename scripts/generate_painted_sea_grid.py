@@ -43,7 +43,7 @@ def main():
             ratio = np.mean(water[y0:y1, x0:x1])
             chars.append('1' if ratio >= 0.62 else '0')
         rows.append(''.join(chars))
-    OUT.write_text('\n'.join(rows) + '\n', encoding='ascii')
+    OUT.write_bytes(('\n'.join(rows) + '\n').encode('ascii'))
     print('Painted sea grid:', COLUMNS, ROWS, 'water cells',
           sum(r.count('1') for r in rows))
 

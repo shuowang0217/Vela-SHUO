@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/services.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,11 +26,17 @@ enum VelaRoutingMode {
 }
 
 class VelaRoutingModeController extends ChangeNotifier {
-  VelaRoutingModeController(this.backend, {SharedPreferences? preferences})
-      : _preferences = preferences;
+  VelaRoutingModeController(this.backend, {
+    SharedPreferences? preferences,
+    bool? useNativeStorage,
+  }) : _preferences = preferences,
+       _useNativeStorage = useNativeStorage ?? Platform.isAndroid;
 
   static const preferenceKey = 'vela_route_mode_v120_voyage';
   final FlClashWindowsBackend backend;
+  static const MethodChannel _nativePrefs =
+      MethodChannel('vela_shuo/ui_preferences');
+  final bool _useNativeStorage;
   SharedPreferences? _preferences;
 
   VelaRoutingMode current = VelaRoutingMode.rule;
@@ -46,12 +55,53 @@ class VelaRoutingModeController extends ChangeNotifier {
     return _restoreFuture ??= _readPreference();
   }
 
+  Future<String?> _readStoredMode() async {
+    if (!_useNativeStorage) {
+      _preferences ??= await SharedPreferences.getInstance();
+      return _preferences?.getString(preferenceKey);
+    }
+    // Exactly the same synchronous Android private commit/readback strategy
+    // already used by theme/palette. No dependency on Flutter DataStore.
+    final value = await _nativePrefs.invokeMethod<String>('readRoutingMode');
+    if (value != null) return value;
+
+    // Upgrade an older installation once, best effort. A missing/blocked
+    // legacy plugin may not prevent startup or a later native write.
+    try {
+      _preferences ??= await SharedPreferences.getInstance()
+          .timeout(const Duration(milliseconds: 900));
+      final old = _preferences?.getString(preferenceKey);
+      if (old != null && VelaRoutingMode.values.any((m) => m.wire == old)) {
+        final saved = await _nativePrefs.invokeMethod<bool>(
+            'writeRoutingMode', {'value': old});
+        if (saved == true) return old;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<void> _saveStoredMode(VelaRoutingMode mode) async {
+    if (_useNativeStorage) {
+      final saved = await _nativePrefs.invokeMethod<bool>(
+          'writeRoutingMode', {'value': mode.wire});
+      if (saved != true ||
+          await _nativePrefs.invokeMethod<String>('readRoutingMode') !=
+              mode.wire) {
+        throw StateError('Native routing preference write was not confirmed');
+      }
+    } else {
+      _preferences ??= await SharedPreferences.getInstance();
+      if (await _preferences!.setString(preferenceKey, mode.wire) != true) {
+        throw StateError('Routing preference write was not confirmed');
+      }
+    }
+  }
+
   Future<void> _readPreference() async {
     try {
-      _preferences ??= await SharedPreferences.getInstance();
+      final value = await _readStoredMode();
       if (_closed) return;
-      current = VelaRoutingMode.decode(
-          _preferences?.getString(preferenceKey));
+      current = VelaRoutingMode.decode(value);
       notifyListeners();
     } catch (_) {
       error = '读取代理模式设置失败';
@@ -115,8 +165,7 @@ class VelaRoutingModeController extends ChangeNotifier {
           ? revision : -1;
       if (persist) {
         try {
-          _preferences ??= await SharedPreferences.getInstance();
-          await _preferences?.setString(preferenceKey, target.wire);
+          await _saveStoredMode(target);
         } catch (_) {
           error = '代理模式已生效，但本机保存设置失败';
         }

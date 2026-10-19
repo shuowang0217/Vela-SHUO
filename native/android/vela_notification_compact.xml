@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+/One UI renders an OEM app icon and rounded outer card.
+     Inner layout has NO second icon, UI button image, or enclosing white box.
+     Separate rows preserve both speed values on a narrow Samsung slot. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="56dp">
+    <ImageView android:id="@+id/vela_notice_art"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:contentDescription="@null" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingStart="9dp"
+        android:paddingEnd="7dp">
+        <TextView android:id="@+id/vela_notice_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans"
+            android:textStyle="bold"
+            android:textColor="#243541"
+            android:textSize="14sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+        <TextView android:id="@+id/vela_notice_up"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans"
+            android:textColor="#243541"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+        <TextView android:id="@+id/vela_notice_down"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans"
+            android:textColor="#243541"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+    </LinearLayout>
+</FrameLayout>
