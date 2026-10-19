@@ -14,6 +14,7 @@ import 'package:vela_shuo/src/stellar/vela_stellar_config_page.dart';
 import 'package:vela_shuo/src/subscription/flclash_profile_downloader.dart';
 import 'package:vela_shuo/src/subscription/vela_profile_library.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_vault.dart';
+import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
 
 class _TestCoreTransport implements FlClashCoreTransport {
