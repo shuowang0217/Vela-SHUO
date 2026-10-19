@@ -3,13 +3,19 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('active airport is always featured before the remaining cards', () {
+  test('selected airport sorts first without resizing its card', () {
     final source =
         File('lib/src/stellar/vela_stellar_config_page.dart').readAsStringSync();
-    expect(source, contains('final activeProfile = profiles.where'));
-    expect(source, contains('SizedBox(width: area.maxWidth'));
-    expect(source, contains('featured ? 22 : 17'));
-    expect(source, contains('StellarCompassGlyph(size: featured ? 50 : 42)'));
+    expect(source, contains('...profiles.where((p) => p.id == activeId)'));
+    expect(source, contains('...profiles.where((p) => p.id != activeId)'));
+    expect(source, contains('return Wrap(spacing: 12, runSpacing: 12'));
+    expect(source, contains('SizedBox(width: cardWidth'));
+    expect(source, contains('padding: const EdgeInsets.all(17)'));
+    expect(source, contains('const StellarCompassGlyph(size: 42)'));
+    expect(source, isNot(contains('featured: true')));
+    expect(source, contains('if (selected)'));
+    expect(source, contains('t.accent.withValues(alpha: .52)'));
+    expect(source, contains('代理正在使用'));
   });
 
   test('auto-update interval and retry cooldown are enforced by Vela', () {

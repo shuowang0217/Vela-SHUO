@@ -525,34 +525,21 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                               .compareTo(a.updatedAt ?? DateTime(1970)));
                         }
                         final activeId = _native!.activeProfileId;
-                        final activeProfile = profiles.where(
-                            (p) => p.id == activeId).firstOrNull;
-                        // The live airport is always the lead card, regardless
-                        // of the recent-update sort. Other airports keep their
-                        // chosen order in the two-column gallery.
-                        final remaining = activeProfile == null
-                            ? profiles
-                            : profiles.where(
-                                (p) => p.id != activeProfile.id).toList();
+                        // Keep the original equal-sized two-column gallery.
+                        // Only pin the selected airport first; preserve the
+                        // chosen order of all remaining subscriptions.
+                        final ordered = [
+                          ...profiles.where((p) => p.id == activeId),
+                          ...profiles.where((p) => p.id != activeId),
+                        ];
                         final cardWidth = area.maxWidth >= 680
                             ? (area.maxWidth - 12) / 2 : area.maxWidth;
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (activeProfile != null)
-                              SizedBox(width: area.maxWidth,
-                                child: _profileCard(context, activeProfile,
-                                  selected: true, featured: true,
-                                  online: online)),
-                            if (activeProfile != null && remaining.isNotEmpty)
-                              const SizedBox(height: 12),
-                            Wrap(spacing: 12, runSpacing: 12,
-                              children: [for (final profile in remaining)
-                                SizedBox(width: cardWidth,
-                                  child: _profileCard(context, profile,
-                                    selected: false, online: false)),
-                              ],
-                            ),
+                        return Wrap(spacing: 12, runSpacing: 12,
+                          children: [for (final profile in ordered)
+                            SizedBox(width: cardWidth,
+                              child: _profileCard(context, profile,
+                                selected: profile.id == activeId,
+                                online: online && profile.id == activeId)),
                           ],
                         );
                       })
@@ -657,7 +644,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
   }
 
   Widget _profileCard(BuildContext context, VelaStoredProfile profile, {
-    required bool selected, required bool online, bool featured = false,
+    required bool selected, required bool online,
   }) {
     final t = VelaThemeRuntime.active;
     final usage = profile.usage;
@@ -671,21 +658,42 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
       borderRadius: BorderRadius.circular(18),
       onTap: _busy || selected ? null : () => _activateAirport(profile.id),
       child: StellarPanel(selected: selected,
-        padding: EdgeInsets.all(featured ? 22 : 17),
+        padding: const EdgeInsets.all(17),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            StellarCompassGlyph(size: featured ? 50 : 42),
+            const StellarCompassGlyph(size: 42),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(profile.name, maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: t.text,
-                      fontWeight: FontWeight.bold, fontSize: featured ? 19 : 17)),
+                      fontWeight: FontWeight.bold, fontSize: 17)),
                 const SizedBox(height: 4),
-                StellarLabel(online ? '● 代理正在使用'
-                    : selected ? '● 当前机场' : '点击切换机场',
-                    accent: selected),
+                // Compact contrast cue: a light, tinted status badge plus
+                // the existing selected card border, without scaling the card.
+                if (selected)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: t.accent.withValues(
+                          alpha: t.dark ? .20 : .12),
+                      border: Border.all(
+                        color: t.accent.withValues(alpha: .52),
+                        width: .7),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Text(
+                      online ? '● 代理正在使用' : '● 当前机场',
+                      style: TextStyle(
+                        color: t.dark ? t.text : t.accent,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12),
+                    ),
+                  )
+                else
+                  const StellarLabel('点击切换机场'),
               ])),
             PopupMenuButton<String>(
               key: ValueKey('airport_menu_${profile.id}'),
