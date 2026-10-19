@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/vela_palettes.dart';
 import '../brand/vela_watercolor_chrome.dart';
+import '../brand/vela_glass_toast.dart';
 import 'vela_core_controller.dart';
 import 'vela_connection_coordinator.dart';
 
@@ -69,9 +70,7 @@ class VelaCoreSettingsCard extends StatelessWidget {
                   }
                 } catch (_) {
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('无法打开内核文件选择窗口'),
-                    ));
+                    VelaGlassToast.show(context, '无法打开内核文件选择窗口');
                   }
                 }
               } : null,
