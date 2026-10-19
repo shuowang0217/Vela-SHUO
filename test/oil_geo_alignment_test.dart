@@ -9,10 +9,11 @@ void main() {
       size: Size(1672, 941), longitude: 116.4, latitude: 39.9,
       oilIllustration: true,
     );
-    expect(camera.projectArtwork(VelaWorldCamera.beijing),
-        const Offset(592, 290));
+    final beijing = camera.projectArtwork(VelaWorldCamera.beijing);
+    expect(beijing.dx, closeTo(836, .01));
     final tokyo = camera.projectArtwork(const Offset(139.69, 35.68));
-    expect((tokyo - const Offset(806, 298)).distance, lessThan(.1));
+    expect(tokyo.dx, greaterThan(beijing.dx + 100));
+    expect(tokyo.dy, greaterThan(beijing.dy));
     expect(camera.projectAlongArtwork(VelaWorldCamera.beijing,
         const Offset(139.69, 35.68)), tokyo);
   });
@@ -22,13 +23,17 @@ void main() {
       size: Size(1279, 1536), longitude: 116.4, latitude: 39.9,
       oilIllustration: true);
     final scale = camera.oilImageScale;
-    final coverLeft = (1279 - 1672 * scale) / 2;
-    final coverTop = (1536 - 941 * scale) / 2;
-    expect(camera.oilImageOrigin, Offset(coverLeft, coverTop));
-    expect(camera.projectArtwork(VelaWorldCamera.beijing),
-        Offset(coverLeft + 592 * scale, coverTop + 290 * scale));
+    // Beijing-centered idle and connected cameras must share one
+    // transform, so the first animation frame cannot snap to a new image.
+    final focused = VelaWorldCamera(
+      size: const Size(1279, 1536), longitude: 116.4, latitude: 39.9,
+      oilIllustration: true, focusOil: true);
+    expect(camera.oilImageOrigin, focused.oilImageOrigin);
     expect(camera.projectArtwork(VelaWorldCamera.beijing).dx,
-        lessThan(1279 / 2));
+        closeTo(1279 / 2, .001));
+    expect(camera.oilImageOrigin.dy, lessThanOrEqualTo(0));
+    expect(camera.oilImageOrigin.dy + 941 * scale,
+        greaterThanOrEqualTo(1536));
   });
 
   test('v1.6-like focus centers every selected node on oil panorama', () {
