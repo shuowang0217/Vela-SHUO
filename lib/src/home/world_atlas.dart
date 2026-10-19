@@ -68,8 +68,11 @@ class VelaWorldCamera {
   Offset get oilImageOrigin {
     final focused = oilCanvasPosition(Offset(longitude, latitude));
     final height = oilImageSize.height * oilImageScale;
+    // At exact cover scale, floating point rounding can leave an epsilon
+    // above zero: clamp(min > 0, max = 0) throws on portrait screens.
+    final overscan = math.max(0.0, height - size.height);
     final top = (size.height / 2 - focused.dy * oilImageScale)
-        .clamp(size.height - height, 0.0).toDouble();
+        .clamp(-overscan, 0.0).toDouble();
     return Offset(size.width / 2 - focused.dx * oilImageScale, top);
   }
 
@@ -100,7 +103,7 @@ class VelaWorldCamera {
       break;
     }
     x += cycle * oilImageSize.width;
-    final baseY = 505 - geographicPoint.dy * 5.4;
+    final baseY = 505.46 - geographicPoint.dy * 5.4;
     // The eastern Asian coast is painted lower than its geographic latitude.
     final localEastAsia = ((longitude - 116.4) / 25).clamp(0.0, 1.0) *
         ((geographicPoint.dy - 17) / 22).clamp(0.0, 1.0) * 30;
