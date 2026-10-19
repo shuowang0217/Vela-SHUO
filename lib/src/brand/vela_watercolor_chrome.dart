@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -20,7 +21,11 @@ class VelaWatercolorSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = VelaThemeRuntime.active;
     final wash = Color.lerp(t.surface, t.accentSoft, t.dark ? .10 : .075)!;
-    return DecoratedBox(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+        child: DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
         gradient: LinearGradient(
@@ -29,21 +34,21 @@ class VelaWatercolorSurface extends StatelessWidget {
           // Windows preserves its already approved desktop material.
           colors: defaultTargetPlatform == TargetPlatform.android
               ? [
-                  t.surface.withValues(alpha: .50),
-                  wash.withValues(alpha: .50),
-                  t.surface.withValues(alpha: .50),
+                  t.surface.withValues(alpha: .42),
+                  wash.withValues(alpha: .42),
+                  t.surface.withValues(alpha: .42),
                 ]
               : [
-                  t.surface.withValues(alpha: t.dark ? .82 : .88),
-                  wash.withValues(alpha: t.dark ? .69 : .78),
-                  t.surface.withValues(alpha: t.dark ? .79 : .84),
+                  t.surface.withValues(alpha: t.dark ? .75 : .82),
+                  wash.withValues(alpha: t.dark ? .62 : .71),
+                  t.surface.withValues(alpha: t.dark ? .72 : .79),
                 ],
           stops: const [0, .58, 1],
         ),
         border: Border.all(color: selected || hovered
             ? t.accent.withValues(alpha: .78)
-            : t.line.withValues(alpha: t.dark ? .86 : .78),
-          width: selected ? 1.5 : 1.05),
+            : t.line.withValues(alpha: t.dark ? .96 : .92),
+          width: selected ? 1.7 : 1.25),
         boxShadow: [BoxShadow(
           color: const Color(0xFF18384B).withValues(
             alpha: t.dark ? .20 : .095),
@@ -55,6 +60,8 @@ class VelaWatercolorSurface extends StatelessWidget {
         painter: _VelaInkStroke(
           t.dark ? t.accentSoft : t.text, radius),
         child: Padding(padding: padding, child: child),
+      ),
+        ),
       ),
     );
   }
@@ -87,6 +94,23 @@ class _VelaInkStroke extends CustomPainter {
     old.ink != ink || old.radius != radius;
 }
 
+/// v1.8.9: all legacy oil-plaque roles use the original v1.6 glass.
+enum VelaOilReliefShape { connection, speed, medallion, book, compass, helm, power }
+class VelaOilReliefSurface extends StatelessWidget {
+  const VelaOilReliefSurface({super.key, required this.child,
+    required this.shape, this.padding = EdgeInsets.zero,
+    this.selected = false, this.radius = 19});
+  final Widget child;
+  final VelaOilReliefShape shape;
+  final EdgeInsetsGeometry padding;
+  final bool selected;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) => VelaWatercolorSurface(
+    selected: selected, radius: radius, padding: padding, child: child);
+}
+
 /// Distinct nautical ink silhouettes, not generic Material icon shapes.
 enum VelaVoyageSymbol { globe, logbook, compass, helm }
 
@@ -116,7 +140,7 @@ class _VoyageGlyphPainter extends CustomPainter {
     c.scale(s.width / 32, s.height / 32);
     final p = Paint()
       ..color = ink
-      ..strokeWidth = 1.65
+      ..strokeWidth = 2.05
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
@@ -163,6 +187,25 @@ class _VoyageGlyphPainter extends CustomPainter {
               Offset(16 + 13 * vx, 16 + 13 * vy), p);
         }
         break;
+    }
+    // A few raised ivory/gold brush ridges keep the icon readable on glass
+    // while giving its contours the same hand-painted texture as the map.
+    final ridge = Paint()
+      ..color = wash.withValues(alpha: .82)
+      ..strokeWidth = 1.35
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    c.drawPath(Path()..moveTo(6, 7)..quadraticBezierTo(9, 4, 12, 6), ridge);
+    c.drawPath(Path()..moveTo(22, 25)..quadraticBezierTo(24, 23, 26, 19), ridge);
+    final flecks = Paint()
+      ..color = ink.withValues(alpha: .55)
+      ..style = PaintingStyle.fill;
+    for (var i = 0; i < 7; i++) {
+      final x = 7.0 + (i * 17 % 19).toDouble();
+      final y = 5.0 + (i * 11 % 23).toDouble();
+      c.drawOval(Rect.fromCenter(
+        center: Offset(x,y), width: i.isEven ? 1.8 : 1.1,
+        height: 0.8), flecks);
     }
     c.restore();
   }

@@ -127,6 +127,36 @@ class VelaSailPainter extends CustomPainter {
       ..lineTo(132, 40)
       ..close();
     canvas.drawPath(star, Paint()..color = glow);
+    // Palette-knife highlights on both sails and the hull. These are small
+    // short curved pigment dabs, not a Gaussian-blurred bitmap of the boat.
+    final highlight = Paint()
+      ..color = pearl.withValues(alpha: .85)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.3
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(Path()
+      ..moveTo(91, 35)
+      ..quadraticBezierTo(105, 54, 109, 80), highlight);
+    canvas.drawPath(Path()
+      ..moveTo(64, 70)
+      ..quadraticBezierTo(55, 91, 45, 98),
+      highlight..strokeWidth = 3.2);
+    final underStroke = Paint()
+      ..color = glow.withValues(alpha: .83)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(Path()
+      ..moveTo(22, 126)..quadraticBezierTo(65, 123, 100, 131),
+      underStroke);
+    for (var n = 0; n < 10; n++) {
+      final x = 33.0 + (n * 29 % 103);
+      final y = 116.0 + (n * 7 % 17);
+      canvas.drawOval(Rect.fromLTWH(x, y, 5, 1.9),
+        Paint()..color = n.isEven
+          ? gold.withValues(alpha: .8)
+          : pearl.withValues(alpha: .72));
+    }
     canvas.restore();
   }
 

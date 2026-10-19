@@ -5,7 +5,6 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'brand/vela_glass_toast.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:vela_shuo/src/update/vela_update_service.dart';
@@ -31,7 +30,7 @@ import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
 import 'package:vela_shuo/src/home/vela_voyage_speed.dart';
 import 'package:vela_shuo/src/home/vela_voyage_connection_label.dart';
-import 'package:vela_shuo/src/brand/vela_sail_mark.dart';
+import 'package:vela_shuo/src/brand/vela_selected_identity.dart';
 import 'package:vela_shuo/src/brand/vela_watercolor_chrome.dart';
 import 'package:vela_shuo/src/settings/settings_controller.dart';
 import 'package:vela_shuo/src/theme/vela_palettes.dart';
@@ -79,7 +78,9 @@ class VelaShuoApp extends StatelessWidget {
       return MaterialApp(
         title: 'Vela',
         debugShowCheckedModeBanner: false,
-        themeMode: settings.themeMode,
+        themeMode: VelaThemeRuntime.oilPreview
+            ? (VelaThemeRuntime.active.dark ? ThemeMode.dark : ThemeMode.light)
+            : settings.themeMode,
         theme: _theme(Brightness.light, palette),
         darkTheme: _theme(Brightness.dark, palette),
         home: _Shell(settings: settings, diagnostics: diagnostics,
@@ -91,16 +92,18 @@ class VelaShuoApp extends StatelessWidget {
 }
 
 ThemeData _theme(Brightness brightness, VelaPalette palette) {
-  final t = palette.tokens(brightness);
+  final t = VelaThemeRuntime.oilPreview ? VelaThemeRuntime.active : palette.tokens(brightness);
+  final actualBrightness = VelaThemeRuntime.oilPreview
+      ? (t.dark ? Brightness.dark : Brightness.light) : brightness;
   final scheme = ColorScheme.fromSeed(
-    seedColor: t.accent, brightness: brightness,
+    seedColor: t.accent, brightness: actualBrightness,
     primary: t.accent, secondary: t.accentSoft, surface: t.background);
   final shape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(16),
     side: BorderSide(color: t.line.withValues(alpha: .6)));
   return ThemeData(
     useMaterial3: true,
-    brightness: brightness,
+    brightness: actualBrightness,
     colorScheme: scheme,
     scaffoldBackgroundColor: t.background,
     fontFamily: 'Georgia',
@@ -116,13 +119,13 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
       bodySmall: TextStyle(color: t.muted, fontSize: 12),
     ),
     iconTheme: IconThemeData(color: t.accent, size: 21),
-    cardTheme: CardThemeData(elevation: 0,
-      color: t.surface.withValues(alpha: .79), shape: shape),
+    cardTheme: CardThemeData(elevation: VelaThemeRuntime.oilPreview ? 3 : 0,
+      color: t.surface.withValues(alpha: .74), shape: shape),
     listTileTheme: ListTileThemeData(
       iconColor: t.accent, textColor: t.text,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13))),
     inputDecorationTheme: InputDecorationTheme(
-      filled: true, fillColor: t.surface.withValues(alpha: .84),
+      filled: true, fillColor: t.raised.withValues(alpha: .58),
       hintStyle: TextStyle(color: t.muted),
       prefixIconColor: t.accent,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(15),
@@ -151,8 +154,23 @@ ThemeData _theme(Brightness brightness, VelaPalette palette) {
       shape: shape,
       labelStyle: TextStyle(color: t.text)),
     dialogTheme: DialogThemeData(
-      backgroundColor: t.surface,
+      backgroundColor: t.surface.withValues(alpha: .74),
+      elevation: 0,
       shape: shape),
+    popupMenuTheme: PopupMenuThemeData(
+      color: t.surface.withValues(alpha: .78),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17),
+        side: BorderSide(color: t.line.withValues(alpha: .75)))),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: t.surface.withValues(alpha: .73),
+      modalBackgroundColor: t.surface.withValues(alpha: .73),
+      shape: RoundedRectangleBorder(borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(23)), side: BorderSide(color: t.line))),
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: t.surface.withValues(alpha: .81),
+      contentTextStyle: TextStyle(color: t.text),
+      behavior: SnackBarBehavior.floating),
     dividerTheme: DividerThemeData(
       color: t.line.withValues(alpha: .56), thickness: .75),
   );
@@ -410,8 +428,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   };
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
+  Widget build(BuildContext context) => AnimatedBuilder(
+    // Palette preferences notify the MaterialApp, but direct runtime-pigment
+    // consumers inside the shell must also rebuild without resetting VPN state.
+    animation: widget.settings,
+    builder: (context, _) => LayoutBuilder(
+      builder: (context, constraints) {
       final desktop = constraints.maxWidth >= 820;
       return Scaffold(
         backgroundColor: Colors.transparent,
@@ -450,7 +472,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         ]),
 
       );
-    },
+      },
+    ),
   );
 }
 
@@ -481,7 +504,7 @@ class VelaBrandLogo extends StatelessWidget {
         child: child,
       ),
     ),
-    child: VelaSailMark(size: size),
+    child: VelaSelectedIcon(size: size),
   );
 }
 
@@ -602,18 +625,17 @@ class _DesktopHome extends StatelessWidget {
       return Stack(children: [
         Positioned(
           left: narrow ? 20 : 32, top: narrow ? 16 : 25,
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const VelaSailMark(size: 37),
-            const SizedBox(width: 9),
-            Column(crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min, children: [
-              Text('VELA', style: TextStyle(color: _foreground,
-                fontWeight: FontWeight.w800, fontSize: narrow ? 25 : 30,
-                letterSpacing: 2.8)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              VelaSelectedWordmark(
+                width: narrow ? 175 : 215,
+                height: narrow ? 74 : 94),
               Text(velaBrandTagline, style: TextStyle(
                 color: _muted, fontSize: 9, letterSpacing: .9)),
-            ]),
-          ]),
+            ],
+          ),
         ),
         Positioned(
           right: narrow ? 16 : 29, top: narrow ? 15 : 22,
@@ -621,15 +643,13 @@ class _DesktopHome extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(28),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
+              filter: ImageFilter.blur(sigmaX: 10,
+                sigmaY: 10),
+              child: VelaOilReliefSurface(
+                shape: VelaOilReliefShape.connection,
                 key: const ValueKey('immersive_connection'),
+                radius: 28,
                 padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
-                decoration: BoxDecoration(
-                  color: _panel.withValues(alpha: .69),
-                  border: Border.all(color: _line.withValues(alpha: .65)),
-                  borderRadius: BorderRadius.circular(28),
-                ),
                 child: Row(children: [
                   Icon(Icons.circle, size: 9,
                     color: busy ? _blue : connected ? _mint : _muted),
@@ -657,18 +677,22 @@ class _DesktopHome extends StatelessWidget {
                       onPressed: () => _openRouting(context),
                     ),
                   const SizedBox(width: 5),
-                  IconButton.filled(
-                    key: const ValueKey('immersive_power_button'),
-                    tooltip: busy ? '正在连接' :
-                        connected ? '安全断开' : '连接',
-                    onPressed: busy ? null : () => _toggle(context),
-                    icon: Icon(connected
-                        ? Icons.power_settings_new_rounded
-                        : Icons.sailing_rounded, size: 24),
-                    style: IconButton.styleFrom(
-                      backgroundColor: _blue.withValues(alpha: .87),
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(48, 48)),
+                  VelaOilReliefSurface(
+                    shape: VelaOilReliefShape.power,
+                    radius: 40, padding: EdgeInsets.zero,
+                    child: IconButton.filled(
+                      key: const ValueKey('immersive_power_button'),
+                      tooltip: busy ? '正在连接' :
+                          connected ? '安全断开' : '连接',
+                      onPressed: busy ? null : () => _toggle(context),
+                      icon: Icon(connected
+                          ? Icons.power_settings_new_rounded
+                          : Icons.sailing_rounded, size: 24),
+                      style: IconButton.styleFrom(
+                        backgroundColor: _blue.withValues(alpha: .87),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(48, 48)),
+                    ),
                   ),
                 ]),
               ),
@@ -699,19 +723,16 @@ class _VoyageRatePanel extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(19),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
+        filter: ImageFilter.blur(sigmaX: 10,
+                sigmaY: 10),
+        child: SizedBox(
           key: const ValueKey('voyage_speed_panel'),
           width: 283, height: 79,
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-          decoration: BoxDecoration(
-            color: _panel.withValues(
-              alpha: defaultTargetPlatform == TargetPlatform.android
-                  ? .50 : .72),
-            borderRadius: BorderRadius.circular(19),
-            border: Border.all(color: _line.withValues(alpha: .65)),
-          ),
-          child: Row(children: [
+          child: VelaOilReliefSurface(
+            shape: VelaOilReliefShape.speed,
+            radius: 19,
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+            child: Row(children: [
             Expanded(child: _VoyageRate(label: '风速 · 上传',
               icon: Icons.north_east_rounded,
               number: upload.$1, unit: upload.$2)),
@@ -721,7 +742,8 @@ class _VoyageRatePanel extends StatelessWidget {
             Expanded(child: _VoyageRate(label: '航速 · 下载',
               icon: Icons.south_west_rounded,
               number: download.$1, unit: download.$2)),
-          ]),
+            ]),
+          ),
         ),
       ),
     );
@@ -737,7 +759,8 @@ class _VoyageRate extends StatelessWidget {
   final String unit;
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) {
+    return Column(
     mainAxisAlignment: MainAxisAlignment.center,
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -760,6 +783,7 @@ class _VoyageRate extends StatelessWidget {
         ]))),
     ],
   );
+  }
 }
 
 /// Four truly separate floating travel-journal buttons. No shared pill.
@@ -783,7 +807,14 @@ class _VoyageDock extends StatelessWidget {
               borderRadius: BorderRadius.circular(17),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
-                child: VelaWatercolorSurface(
+                child: VelaOilReliefSurface(
+                  shape: switch (target) {
+                    1 => VelaOilReliefShape.medallion,
+                    4 => VelaOilReliefShape.book,
+                    2 => VelaOilReliefShape.compass,
+                    3 => VelaOilReliefShape.helm,
+                    _ => VelaOilReliefShape.medallion,
+                  },
                   selected: selected == target,
                   padding: EdgeInsets.zero,
                   radius: 17,
@@ -827,7 +858,7 @@ class _VoyageHomeShortcut extends StatelessWidget {
               padding: const EdgeInsets.symmetric(
                 horizontal: 15, vertical: 8),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const VelaSailMark(size: 27),
+                const VelaSelectedIcon(size: 27),
                 const SizedBox(width: 7),
                 Text('VELA  /  HOME', style: TextStyle(
                   fontFamily: 'Georgia', letterSpacing: 1.3,
@@ -938,7 +969,7 @@ class _MobileHome extends StatelessWidget {
           routingController != null &&
           !await routingController.synchronize(sub.activeProfileId)) {
         if (context.mounted) {
-          VelaGlassToast.show(context, '规则模式尚未被 FlClash 核心确认，VPN 未启动');
+          VelaGlassToast.show(context, '规则模式尚未被 代理核心确认，VPN 未启动');
         }
         return;
       }
@@ -987,6 +1018,9 @@ class _MobileHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
+      final wide = VelaThemeRuntime.oilPreview &&
+          constraints.maxWidth >= 790 &&
+          constraints.maxWidth > constraints.maxHeight * 1.14;
       final vpn = androidVpn;
       final connected = vpn?.connected ??
           connection?.connected ?? demo.isConnected;
@@ -1003,34 +1037,64 @@ class _MobileHome extends StatelessWidget {
       );
       return Stack(children: [
         Positioned(
-          top: 13, left: 16, right: 12,
-          child: Row(children: [
-            const VelaSailMark(size: 40),
-            const SizedBox(width: 9),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('VELA', style: TextStyle(color: _foreground,
-                    fontSize: 26, fontWeight: FontWeight.w800,
-                    letterSpacing: 2.5)),
-                Text(velaBrandTagline, style: TextStyle(
-                    color: _muted, fontSize: 9)),
-              ],
-            )),
-            if (vpn != null)
-              Icon(Icons.shield_outlined, size: 18,
-                  color: connected ? _mint : _blue),
-          ]),
+          top: wide ? 24 : 12,
+          left: wide ? 31 : 14,
+          right: wide ? null : 14,
+          width: wide ? 295 : null,
+          child: VelaThemeRuntime.oilPreview && !wide
+            ? Row(key: const ValueKey('mobile_oil_masthead'),
+                children: [
+                // Restore v1.6's compact, unboxed masthead hierarchy.
+                const VelaSelectedWordmark(width: 136, height: 58),
+                const SizedBox(width: 10),
+                Expanded(child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('航海油画  ·  v1.8.0', style: TextStyle(
+                      color: _blue, fontSize: 10,
+                      letterSpacing: 1.0, fontWeight: FontWeight.w700)),
+                    Text(velaBrandTagline, style: TextStyle(
+                      color: _muted, fontSize: 9)),
+                  ],
+                )),
+                if (vpn != null)
+                  Icon(Icons.shield_outlined, size: 18,
+                    color: connected ? _mint : _blue),
+              ])
+            : Row(children: [
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const VelaSelectedWordmark(width: 195, height: 91),
+                    Text(velaBrandTagline, style: TextStyle(
+                        color: _muted, fontSize: 9)),
+                  ],
+                )),
+                if (vpn != null)
+                  Icon(Icons.shield_outlined, size: 18,
+                      color: connected ? _mint : _blue),
+              ]),
         ),
         Positioned(
-          top: 90, left: 14, right: 14,
+          // v1.6 layout: compact brand top, connection directly beneath,
+          // speed above the bottom navigation dock.
+          top: wide ? 23 : 90,
+          left: wide ? null : 14,
+          right: wide ? 28 : 14,
+          width: wide ? 356 : null,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: VelaWatercolorSurface(
+              // Oil uses opaque paint rather than blurred glass.
+              filter: ImageFilter.blur(
+                sigmaX: 10,
+                sigmaY: 10),
+              child: VelaOilReliefSurface(
+                shape: VelaOilReliefShape.connection,
+                key: const ValueKey('mobile_oil_status'),
                 radius: 24,
-                padding: const EdgeInsets.fromLTRB(14, 8, 9, 8),
+                padding: const EdgeInsets.fromLTRB(14, 16, 9, 16),
                 child: Row(children: [
                   Icon(Icons.circle, size: 9, color:
                       busy ? _blue : connected ? _mint : _muted),
@@ -1063,19 +1127,23 @@ class _MobileHome extends StatelessWidget {
                       icon: const Icon(Icons.alt_route_rounded),
                       iconSize: 21, color: _blue,
                       onPressed: () => _openRouting(context)),
-                  IconButton.filled(
-                    key: ValueKey(vpn != null
-                        ? 'android_vpn_button' : 'mobile_connect_button'),
-                    tooltip: busy ? '正在连接' :
-                        connected ? '断开航线' : '启航连接',
-                    onPressed: busy ? null : () => _toggle(context),
-                    icon: Icon(connected
-                        ? Icons.power_settings_new_rounded
-                        : Icons.sailing_rounded, size: 24),
-                    style: IconButton.styleFrom(
-                      backgroundColor: _blue.withValues(alpha: .9),
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(48, 48)),
+                  VelaOilReliefSurface(
+                    shape: VelaOilReliefShape.power,
+                    radius: 40, padding: EdgeInsets.zero,
+                    child: IconButton.filled(
+                      key: ValueKey(vpn != null
+                          ? 'android_vpn_button' : 'mobile_connect_button'),
+                      tooltip: busy ? '正在连接' :
+                          connected ? '断开航线' : '启航连接',
+                      onPressed: busy ? null : () => _toggle(context),
+                      icon: Icon(connected
+                          ? Icons.power_settings_new_rounded
+                          : Icons.sailing_rounded, size: 24),
+                      style: IconButton.styleFrom(
+                        backgroundColor: _blue.withValues(alpha: .9),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(48, 48)),
+                    ),
                   ),
                 ]),
               ),
@@ -1083,7 +1151,8 @@ class _MobileHome extends StatelessWidget {
           ),
         ),
         if (vpn?.error != null)
-          Positioned(top: 178, left: 18, right: 18,
+          Positioned(top: wide ? 178 : 198,
+            left: 18, right: 18,
             child: VelaWatercolorSurface(
               padding: const EdgeInsets.symmetric(
                   horizontal: 12, vertical: 8),
@@ -1092,7 +1161,7 @@ class _MobileHome extends StatelessWidget {
                   style: const TextStyle(fontSize: 11,
                       color: Color(0xFFE78986))))),
         Positioned(
-          left: 14, bottom: 90,
+          left: wide ? 29 : 14, bottom: wide ? 26 : 90,
           child: _VoyageRatePanel(
             traffic: traffic, active: vpn?.connected ??
                 connection?.connected ?? false),
@@ -1270,8 +1339,8 @@ class _SettingsPage extends StatelessWidget {
             applicationLegalese: '© Vela',
             children: [
               Text(Platform.isAndroid
-                  ? 'FlClash / Mihomo 原生 VPN；支持正式签名覆盖升级。'
-                  : 'FlClash / Mihomo 系统代理；更新前请安全退出。'),
+                  ? 'Mihomo 原生 VPN；支持正式签名覆盖升级。'
+                  : 'Mihomo 系统代理；更新前请安全退出。'),
             ],
           ),
         ),
@@ -1451,7 +1520,9 @@ class _PalettePicker extends StatelessWidget {
           Text('8 套', style: TextStyle(color: _muted, fontSize: 12)),
         ]),
         SizedBox(height: 7),
-        Text('Color Hunt · Popular / All time 前 8 套配色',
+        Text(VelaThemeRuntime.oilPreview
+          ? '选择油画颜料配色，所有卡片、按钮与弹窗同步更换颜色'
+          : 'Color Hunt · Popular / All time 前 8 套配色',
           style: TextStyle(fontSize: 12, color: _muted),
         ),
         SizedBox(height: 18),
@@ -1470,7 +1541,14 @@ class _PalettePicker extends StatelessWidget {
                   child: _PaletteOption(
                     palette: palette,
                     selected: settings.paletteId == palette.id,
-                    onTap: () => settings.setPalette(palette.id),
+                    onTap: () async {
+                      await settings.setPalette(palette.id);
+                      if (context.mounted &&
+                          !settings.lastPaletteSaveSucceeded) {
+                        VelaGlassToast.show(context,
+                            '配色保存失败，请重试。当前选择尚未写入手机存储');
+                      }
+                    },
                   ),
                 ),
             ],

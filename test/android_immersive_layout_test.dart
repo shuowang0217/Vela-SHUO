@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vela_shuo/src/brand/vela_selected_identity.dart';
 import 'package:vela_shuo/src/app.dart';
 import 'package:vela_shuo/src/brand/vela_watercolor_chrome.dart';
 import 'package:vela_shuo/src/home/world_atlas.dart';
@@ -15,13 +16,14 @@ void main() {
     await tester.pumpWidget(VelaShuoApp(settings: SettingsController()));
     await tester.pump();
     expect(find.byType(VelaWorldAtlas), findsOneWidget);
-    expect(find.text('VELA'), findsOneWidget);
+    expect(find.byType(VelaSelectedWordmark), findsOneWidget);
     expect(find.text('— SHUO —'), findsNothing);
     expect(find.text('风速 · 上传'), findsOneWidget);
     expect(find.text('航速 · 下载'), findsOneWidget);
     expect(find.byKey(const ValueKey('mobile_connect_button')), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
-    expect(find.byType(VelaVoyageGlyph), findsNWidgets(4));
+    expect(find.byType(VelaVoyageGlyph), findsAtLeastNWidgets(4));
+    expect(find.byType(VelaOilReliefSurface), findsAtLeastNWidgets(4));
     for (final i in [1, 4, 2, 3]) {
       expect(find.byKey(ValueKey('nav_$i')), findsOneWidget);
     }
@@ -45,7 +47,27 @@ void main() {
     await tester.pump();
     expect(find.byKey(const ValueKey('mobile_connect_button')), findsOneWidget);
     expect(find.byKey(const ValueKey('voyage_speed_panel')), findsOneWidget);
-    expect(find.byType(VelaVoyageGlyph), findsNWidgets(4));
+    expect(find.byType(VelaVoyageGlyph), findsAtLeastNWidgets(4));
+    expect(find.byType(VelaOilReliefSurface), findsAtLeastNWidgets(4));
     await tester.pumpWidget(const SizedBox.shrink());
   });
+  testWidgets('portrait status is below the masthead and above speed',
+      (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(VelaShuoApp(settings: SettingsController()));
+    await tester.pump();
+    final masthead = tester.getRect(
+        find.byKey(const ValueKey('mobile_oil_masthead')));
+    final status = tester.getRect(
+        find.byKey(const ValueKey('mobile_oil_status')));
+    final speed = tester.getRect(
+        find.byKey(const ValueKey('voyage_speed_panel')));
+    expect(status.top, greaterThan(masthead.bottom + 8));
+    expect(status.bottom, lessThan(speed.top - 8));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
 }

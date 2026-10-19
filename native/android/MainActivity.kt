@@ -45,6 +45,48 @@ class MainActivity : FlutterActivity() {
             bridge.invokeMethod("statusChanged",
                 mapOf("state" to state, "error" to error))
         }
+        // Commit UI-only preferences to Android private SharedPreferences.
+        // This is independent of Flutter's asynchronous DataStore plugin.
+        MethodChannel(engine.dartExecutor.binaryMessenger,
+            "vela_shuo/ui_preferences").setMethodCallHandler { call, result ->
+            val prefs = getSharedPreferences("vela_ui_preferences_v1", MODE_PRIVATE)
+            when (call.method) {
+                "readPalette" ->
+                    result.success(prefs.getString("selected_palette", null))
+                "readTheme" ->
+                    result.success(prefs.getString("selected_theme", null))
+                "writePalette", "writeTheme" -> {
+                    val value = call.argument<String>("value")
+                    val isPalette = call.method == "writePalette"
+                    val valid = if (isPalette) {
+                        value != null && value in setOf("mint", "navy", "peach", "pink",
+                            "sand", "rose", "lavender", "ocean")
+                    } else {
+                        value != null && value in setOf("light", "dark", "system")
+                    }
+                    if (!valid) {
+                        result.error("INVALID", "无效的主题设置", null)
+                    } else {
+                        val key = if (isPalette) "selected_palette"
+                                  else "selected_theme"
+                        // commit() is synchronous: report success only when
+                        // the data is on disk, even if the app is killed next.
+                        val written = prefs.edit().putString(key, value).commit()
+                        if (written && prefs.getString(key, null) == value) {
+                            result.success(true)
+                        } else {
+                            result.error("STORAGE", "主题配色未能保存", null)
+                        }
+                    }
+                }
+                "removePalette", "removeTheme" -> {
+                    val key = if (call.method == "removePalette")
+                        "selected_palette" else "selected_theme"
+                    result.success(prefs.edit().remove(key).commit())
+                }
+                else -> result.notImplemented()
+            }
+        }
         bridge.setMethodCallHandler { call, result ->
             when (call.method) {
                 "coreHomeDir" -> {

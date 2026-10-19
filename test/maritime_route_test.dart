@@ -74,4 +74,25 @@ void main() {
     expect(route.pointAt(0), VelaMaritimeRoute.homePort);
     expect(route.samples.length, greaterThan(20));
   });
+  test('Beijing to London uses the v1.6 sea corridor instead of Eurasia', () {
+    const route = VelaMaritimeRoute(
+      from: VelaMaritimeRoute.homePort, to: Offset(-0.13, 51.5));
+    final sea = route.oceanWaypoints;
+    expect(sea.first.dy, lessThan(40));
+    expect(sea.any((p) => p.dx > 100 && p.dx < 107 && p.dy < 6), true);
+    expect(sea.any((p) => p.dx > 30 && p.dx < 35 && p.dy < 35), true);
+    expect(sea.last.dx, lessThan(0));
+    expect(sea.last.dy, greaterThan(45));
+    // No direct segment across the Eurasian interior.
+    expect(sea.length, greaterThan(8));
+  });
+
+  test('London to Beijing reverses the same safe maritime passage', () {
+    const outward = VelaMaritimeRoute(
+      from: VelaMaritimeRoute.homePort, to: Offset(-0.13, 51.5));
+    const returning = VelaMaritimeRoute(
+      from: Offset(-0.13, 51.5), to: VelaMaritimeRoute.homePort);
+    expect(returning.oceanWaypoints, outward.oceanWaypoints.reversed.toList());
+  });
+
 }

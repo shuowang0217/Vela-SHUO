@@ -5,19 +5,28 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../brand/vela_sail_mark.dart';
+import '../theme/vela_palettes.dart';
 import 'demo_connection.dart';
 import 'maritime_route.dart';
+import 'ocean_grid.dart';
+import 'painted_ocean_route.dart';
+import 'vela_oil_scene.dart';
 
 /// Camera for a precisely georeferenced 2:1 equirectangular world map.
 @immutable
 class VelaWorldCamera {
   const VelaWorldCamera({required this.size, required this.longitude,
     required this.latitude,
-    this.portraitWidthScale = portraitHeightScale});
+    this.portraitWidthScale = portraitHeightScale,
+    this.oilIllustration = false, this.focusOil = false});
   final Size size;
   final double longitude;
   final double latitude;
   final double portraitWidthScale;
+  // Illustrated Vela oil world is a hand-drawn panorama, not a 2:1
+  // geographic raster. Anchor the voyage locally to painted city positions.
+  final bool oilIllustration;
+  final bool focusOil;
   static const beijing = Offset(116.4, 39.9);
 
   // The artist-drawn watercolor texture is shifted relative to a strict
@@ -32,11 +41,219 @@ class VelaWorldCamera {
   double get artworkDy =>
       artworkLatitudeCorrection / 180 * worldHeight;
 
-  Offset projectArtwork(Offset geographicPoint) =>
-      project(geographicPoint) - Offset(artworkDx, artworkDy);
+  /// The oil canvas is a stylized panorama, not a map projection.
+  /// Calibrated marks in the clean approved 1672x941 painting:
+  /// Beijing = (592, 290), Tokyo = (806, 298).
+  /// Use the *same* canvas fit and projection for route, labels and ship.
+  static const oilImageSize = Size(1672, 941);
+  static const oilBeijing = Offset(592, 290);
+  static const oilTokyo = Offset(806, 298);
 
+
+
+  // Cover both viewport dimensions without the blurred portrait underlay.
+  // The original painting retains its aspect ratio on Android and Windows.
+  bool get compactOilPortrait => oilIllustration &&
+      defaultTargetPlatform == TargetPlatform.android &&
+      size.height > size.width * 1.25;
+
+  double get oilImageScale => math.max(
+      size.width / oilImageSize.width,
+      size.height / oilImageSize.height);
+  double get oilTileWidth => oilImageSize.width * oilImageScale;
+
+  // The camera origin is a function of the animated longitude/latitude
+  // ONLY. Switching connection state must not swap projection formulas,
+  // otherwise the background jumps on the first animation frame.
+  Offset get oilImageOrigin {
+    final focused = oilCanvasPosition(Offset(longitude, latitude));
+    final height = oilImageSize.height * oilImageScale;
+    // At exact cover scale, floating point rounding can leave an epsilon
+    // above zero: clamp(min > 0, max = 0) throws on portrait screens.
+    final overscan = math.max(0.0, height - size.height);
+    final top = (size.height / 2 - focused.dy * oilImageScale)
+        .clamp(-overscan, 0.0).toDouble();
+    return Offset(size.width / 2 - focused.dx * oilImageScale, top);
+  }
+
+  // Calibrated against actual painted continents: Europe is at the left,
+  // China near the left-center, and North America on the right. Geographic
+  // values outside the base world repeat with exactly one image width per
+  // 360 degrees, keeping camera motion continuous across the date line.
+  static const _oilLongitudeStops = <double>[
+    -10, 0, 30, 60, 85, 103, 116.4, 139.69, 170, 180,
+    242, 286, 320, 350,
+  ];
+  static const _oilPixelStops = <double>[
+    80, 132, 248, 355, 466, 536, 592, 746, 850, 905,
+    1255, 1452, 1600, 1752,
+  ];
+
+  Offset oilCanvasPosition(Offset geographicPoint) {
+    final longitude = geographicPoint.dx;
+    final cycle = ((longitude + 10) / 360).floor();
+    final normalized = longitude - cycle * 360;
+    var x = _oilPixelStops.last;
+    for (var i = 0; i < _oilLongitudeStops.length - 1; i++) {
+      if (normalized > _oilLongitudeStops[i + 1]) continue;
+      final t = (normalized - _oilLongitudeStops[i]) /
+          (_oilLongitudeStops[i + 1] - _oilLongitudeStops[i]);
+      x = _oilPixelStops[i] +
+          (_oilPixelStops[i + 1] - _oilPixelStops[i]) * t;
+      break;
+    }
+    x += cycle * oilImageSize.width;
+    final baseY = 505.46 - geographicPoint.dy * 5.4;
+    // The eastern Asian coast is painted lower than its geographic latitude.
+    final localEastAsia = ((longitude - 116.4) / 25).clamp(0.0, 1.0) *
+        ((geographicPoint.dy - 17) / 22).clamp(0.0, 1.0) * 30;
+    return Offset(x, baseY + localEastAsia);
+  }
+
+  Offset projectArtwork(Offset geographicPoint) {
+    if (!oilIllustration) {
+      return project(geographicPoint) - Offset(artworkDx, artworkDy);
+    }
+    return wrapOilPoint(oilImageOrigin +
+        oilCanvasPosition(geographicPoint) * oilImageScale);
+  }
+
+  Offset wrapOilPoint(Offset point) {
+    if (!oilIllustration) return point;
+    final shift = ((size.width / 2 - point.dx) / oilTileWidth).round();
+    return point + Offset(shift * oilTileWidth, 0);
+  }
+
+  /// Draw the route exclusively through the painted ocean, on exactly
+  /// the same periodic image tiles used by city labels and camera movement.
+  /// A failed coastline lookup intentionally produces no track.
+  Path paintedRoutePath(Offset from, Offset to, {double until = 1}) {
+    final grid = VelaPaintedOceanRoute.instance;
+    if (!grid.ready) return Path();
+    final coordinates = grid.routePixels(
+        oilCanvasPosition(from), oilCanvasPosition(to));
+    if (coordinates.length < 2) return Path();
+    final path = Path();
+    double? lastX;
+    var first = true;
+    for (final pixel in coordinates) {
+      var x = pixel.dx;
+      if (lastX != null) {
+        x += ((lastX - x) / oilImageSize.width).round() *
+            oilImageSize.width;
+      }
+      lastX = x;
+      final screen = oilImageOrigin + Offset(x, pixel.dy) * oilImageScale;
+      if (first) {
+        path.moveTo(screen.dx, screen.dy);
+        first = false;
+      } else {
+        path.lineTo(screen.dx, screen.dy);
+      }
+    }
+    if (until >= 1) return path;
+    final clip = Path();
+    for (final metric in path.computeMetrics()) {
+      clip.addPath(metric.extractPath(0,
+          metric.length * until.clamp(0.0, 1.0)), Offset.zero);
+    }
+    return clip;
+  }
+
+  /// The painted world repeats left and right; traces must repeat as well.
+  Path repeatPaintedPath(Path source) {
+    if (!oilIllustration) return source;
+    final result = Path();
+    for (var copy = -2; copy <= 2; copy++) {
+      result.addPath(source, Offset(copy * oilTileWidth, 0));
+    }
+    return result;
+  }
+
+  /// Create an unwrapped path projector for one ordered sea voyage.
+  /// Individual markers choose the nearest tile; successive route points
+  /// must also use neighboring copies so their strokes never jump a whole
+  /// map width across the international date line.
+  Offset Function(Offset) seaLaneProjector(Offset from, Offset to) {
+    Offset? previous;
+    return (geo) {
+      var point = projectSeaLane(from, to, geo);
+      if (oilIllustration && previous != null) {
+        final shift = ((previous!.dx - point.dx) / oilTileWidth).round();
+        point += Offset(shift * oilTileWidth, 0);
+      }
+      previous = point;
+      return point;
+    };
+  }
+
+  /// The oil painting is intentionally NOT a geographic projection.
+  /// Its coast is stylized; dip the China-to-Tokyo maritime corridor into
+  /// the painted sea rather than tracing a geographic line across green land.
+  /// The moving sail, line, and shimmer all use this identical transform.
+  Offset projectSeaLane(Offset origin, Offset destination, Offset geo) {
+    final painted = projectAlongArtwork(origin, geo);
+    // The oil painting is an illustration, not a georeferenced atlas.
+    // The Europe/Asia voyage must follow an independently calibrated
+    // southern-water corridor rather than project a geographic polyline
+    // through the illustrated Eurasian mountains.
+    final europe = destination.dx >= -12 && destination.dx <= 20 &&
+        destination.dy >= 43 && destination.dy <= 62;
+    final asia = origin.dx >= 105 && origin.dx <= 150 &&
+        origin.dy >= 15 && origin.dy <= 47;
+    if (oilIllustration && asia && europe) {
+      const sea = <Offset>[
+        Offset(120.6, 35.1), Offset(123, 22), Offset(117, 12),
+        Offset(103.5, 1.6), Offset(85, 3), Offset(58, 13),
+        Offset(43, 13), Offset(33, 28), Offset(31, 32),
+        Offset(16, 35.5), Offset(-6, 36), Offset(-4, 48.5),
+      ];
+      const paintedSea = <Offset>[
+        Offset(610, 322), Offset(612, 400), Offset(582, 520),
+        Offset(520, 650), Offset(449, 720), Offset(366, 705),
+        Offset(321, 666), Offset(289, 625), Offset(266, 550),
+        Offset(241, 476), Offset(210, 410), Offset(151, 315),
+      ];
+      var best = double.infinity;
+      var chosen = paintedSea.first;
+      for (var i = 0; i < sea.length - 1; i++) {
+        final a = sea[i];
+        final b = sea[i + 1];
+        final delta = b - a;
+        final length = delta.distanceSquared;
+        final t = length == 0 ? 0.0 :
+            (((geo - a).dx * delta.dx + (geo - a).dy * delta.dy) /
+                length).clamp(0.0, 1.0).toDouble();
+        final at = Offset.lerp(a, b, t)!;
+        final distance = (at - geo).distanceSquared;
+        if (distance < best) {
+          best = distance;
+          chosen = Offset.lerp(paintedSea[i], paintedSea[i + 1], t)!;
+        }
+      }
+      return wrapOilPoint(oilImageOrigin + chosen * oilImageScale);
+    }
+    if (!oilIllustration ||
+        origin.dx < 110 || origin.dx > 125 ||
+        destination.dx < 135 || destination.dx > 142 ||
+        destination.dy < 33 || destination.dy > 38) {
+      return painted;
+    }
+    final t = ((geo.dx - 117.90) / (139.73 - 117.90))
+        .clamp(0.0, 1.0);
+    // Measured visual off-shore displacement in 1672x941 paint coordinates.
+    // Zero at Tokyo Bay, deepest over the Yellow Sea/East China Sea.
+    final arc = math.sin(math.pi * t);
+    return painted + Offset(
+      25 * arc * oilImageScale,
+      (26 * (1-t) + 76 * arc) * oilImageScale,
+    );
+  }
+
+  // One projection, no alternate origin-relative formula. Previously the
+  // route painter and city markers disagreed after selecting another node.
   Offset projectAlongArtwork(Offset origin, Offset destination) =>
-      projectAlong(origin, destination) - Offset(artworkDx, artworkDy);
+      projectArtwork(destination);
 
   static double shortestDelta(double from, double to) =>
       (to - from + 540) % 360 - 180;
@@ -129,6 +346,12 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
       }
     });
     widget.demo.addListener(_sync);
+    VelaOceanGrid.instance.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
+    VelaPaintedOceanRoute.instance.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
     _sync();
   }
 
@@ -147,12 +370,6 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
     _toLon = lon + delta;
     _toLat = destination.dy;
     _pan.forward(from: 0);
-  }
-
-  Offset get _currentBoatLocation {
-    final fraction = Curves.easeInOutCubic.transform(_sail.value);
-    return VelaMaritimeRoute(from: _routeFrom, to: _routeTo)
-        .pointAt(fraction);
   }
 
   void _sync() {
@@ -176,16 +393,8 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
       _homebound = false;
       if (!sameNode) {
         // The route starts at the current boat position if retargeted.
-        _routeFrom = _destination == null
-            ? VelaMaritimeRoute.homePort : _currentBoatLocation;
-        final oldDestination = _destination;
-        final lastCity = oldDestination == null
-            ? null : Offset(oldDestination.longitude, oldDestination.latitude);
-        _originName = (_routeFrom - VelaMaritimeRoute.homePort).distance < .75
-            ? 'BEIJING'
-            : lastCity != null && (_routeFrom - lastCity).distance < .75
-                ? VelaAtlasInk.englishLabel(oldDestination!.mapLabel)
-                : 'AT SEA';
+        _routeFrom = VelaMaritimeRoute.homePort;
+        _originName = 'BEIJING';
         _routeTo = Offset(node.longitude, node.latitude);
         _destination = node;
         _sail.forward(from: 0);
@@ -235,34 +444,59 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
           final size = Size(bounds.maxWidth, bounds.maxHeight);
           final compactAndroid = defaultTargetPlatform ==
               TargetPlatform.android && size.height > size.width * 1.25;
+          final active = _returning || (
+              widget.demo.phase != VelaPhase.idle &&
+              widget.demo.phase != VelaPhase.error);
           final camera = VelaWorldCamera(
             size: size,
             longitude: _focusLongitude, latitude: _focusLatitude,
+            oilIllustration: VelaThemeRuntime.oilPreview,
+            focusOil: active,
             portraitWidthScale: compactAndroid
                 ? VelaWorldCamera.androidCompactScale
                 : VelaWorldCamera.portraitHeightScale);
           final coverCamera = compactAndroid ? VelaWorldCamera(
             size: size, longitude: _focusLongitude,
             latitude: _focusLatitude) : camera;
-          final active = _returning || (
-              widget.demo.phase != VelaPhase.idle &&
-              widget.demo.phase != VelaPhase.error);
           return ClipRect(child: Stack(fit: StackFit.expand, children: [
             const ColoredBox(color: Color(0xFF071929)),
-            if (compactAndroid)
+            // Render the USER-APPROVED thick-oil artwork itself.
+            // V1.8.5 mistakenly substituted a watercolor global tile then
+            // drew fake procedural dashes on top: it could never look like
+            // the approved blue/gold impasto composition.
+            if (VelaThemeRuntime.oilPreview)
+              Positioned.fill(child: IgnorePointer(
+                child: Stack(fit: StackFit.expand, children: [
+                  _OilMapLayer(camera: camera,
+                      asset: 'assets/oil/oil_map_clean.webp'),
+                  AnimatedOpacity(
+                    opacity: dark ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 850),
+                    child: _OilMapLayer(camera: camera,
+                        asset: 'assets/oil/oil_map_night.webp')),
+                ]))),
+            if (!VelaThemeRuntime.oilPreview && compactAndroid)
               ImageFiltered(
-                // Full-bleed soft watercolor beneath a smaller atlas avoids
-                // exposed black strips at the north/south edges.
-                imageFilter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                // The oil preview stays sharp on portrait Android.
+                imageFilter: ImageFilter.blur(
+                  sigmaX: VelaThemeRuntime.oilPreview ? 0 : 16,
+                  sigmaY: VelaThemeRuntime.oilPreview ? 0 : 16),
                 child: Stack(fit: StackFit.expand, children: [
                   _WorldTiles(camera: coverCamera,
-                    asset: 'assets/world/watercolor_day.webp', show: !dark),
+                    asset: const bool.fromEnvironment('VELA_OIL_PREVIEW',
+                      defaultValue: true)
+                        ? 'assets/oil/oil_atlas_day.webp'
+                        : 'assets/world/watercolor_day.webp', show: !dark),
                   _WorldTiles(camera: coverCamera,
-                    asset: 'assets/world/watercolor_night.webp', show: dark),
+                    asset: const bool.fromEnvironment('VELA_OIL_PREVIEW',
+                      defaultValue: true)
+                        ? 'assets/oil/oil_atlas_night.webp'
+                        : 'assets/world/watercolor_night.webp', show: dark),
                 ]),
               ),
-            ShaderMask(
-              shaderCallback: (rect) => (compactAndroid
+            if (!VelaThemeRuntime.oilPreview) ShaderMask(
+              shaderCallback: (rect) => (compactAndroid &&
+                  !VelaThemeRuntime.oilPreview
                 ? const LinearGradient(
                     begin: Alignment.topCenter, end: Alignment.bottomCenter,
                     colors: [Colors.transparent, Colors.white,
@@ -275,11 +509,18 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
               blendMode: BlendMode.dstIn,
               child: Stack(fit: StackFit.expand, children: [
                 _WorldTiles(camera: camera,
-                  asset: 'assets/world/watercolor_day.webp', show: !dark),
+                  asset: const bool.fromEnvironment('VELA_OIL_PREVIEW',
+                      defaultValue: true)
+                        ? 'assets/oil/oil_atlas_day.webp'
+                        : 'assets/world/watercolor_day.webp', show: !dark),
                 _WorldTiles(camera: camera,
-                  asset: 'assets/world/watercolor_night.webp', show: dark),
+                  asset: const bool.fromEnvironment('VELA_OIL_PREVIEW',
+                      defaultValue: true)
+                        ? 'assets/oil/oil_atlas_night.webp'
+                        : 'assets/world/watercolor_night.webp', show: dark),
               ]),
             ),
+            if (!VelaThemeRuntime.oilPreview)
             IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
@@ -291,8 +532,13 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
               ),
             ))),
             // Hand-painted moving clouds above the map, below the clear route.
-            VelaAtlasWeather(camera: camera, dark: dark,
-              connected: widget.demo.phase == VelaPhase.connected),
+            if (VelaThemeRuntime.oilPreview) ...[
+              // Pigment is already in the approved map texture.
+              // Only detached alpha clouds float above the painted world.
+              const VelaOilScene(),
+            ] else
+              VelaAtlasWeather(camera: camera, dark: dark,
+                connected: widget.demo.phase == VelaPhase.connected),
             CustomPaint(painter: _WorldRoutePainter(
               camera: camera, from: _routeFrom, to: _routeTo,
               label: _destination?.mapLabel ?? 'DESTINATION',
@@ -302,6 +548,8 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
               homebound: _homebound, dark: dark,
             ), child: const SizedBox.expand()),
             VelaRouteSheen(camera: camera, from: _routeFrom, to: _routeTo,
+              routingReady: VelaOceanGrid.instance.ready ||
+                  VelaPaintedOceanRoute.instance.ready,
               connected: widget.demo.phase == VelaPhase.connected,
               dark: dark),
           ]));
@@ -314,6 +562,37 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
 
 
 
+
+/// Full-viewport oil panorama. The approved artwork is not stretched or
+/// blurred: identical horizontal tiles share the camera transform of every
+/// city marker, route control point and moving ship. The assets' two edges
+/// are feather-matched by scripts/stitch_oil_panorama.py before packaging.
+class _OilMapLayer extends StatelessWidget {
+  const _OilMapLayer({required this.camera, required this.asset});
+  final VelaWorldCamera camera;
+  final String asset;
+
+  @override
+  Widget build(BuildContext context) {
+    final period = camera.oilTileWidth;
+    final imageHeight = VelaWorldCamera.oilImageSize.height *
+        camera.oilImageScale;
+    final baseLeft = ((camera.oilImageOrigin.dx % period) + period) %
+        period - period;
+    final count = (camera.size.width / period).ceil() + 3;
+    return ClipRect(child: Stack(clipBehavior: Clip.hardEdge, children: [
+      for (var i = 0; i < count; i++)
+        Positioned(
+          left: baseLeft + i * period - .25,
+          top: camera.oilImageOrigin.dy,
+          width: period + .5,
+          height: imageHeight,
+          child: Image.asset(asset, fit: BoxFit.fill,
+            filterQuality: FilterQuality.high, gaplessPlayback: true),
+        ),
+    ]));
+  }
+}
 
 class VelaWeatherCadence {
   const VelaWeatherCadence._();
@@ -608,7 +887,9 @@ class VelaRouteSheen extends StatefulWidget {
   const VelaRouteSheen({
     super.key, required this.camera, required this.from,
     required this.to, required this.connected, required this.dark,
+    this.routingReady = false,
   });
+  final bool routingReady;
   final VelaWorldCamera camera;
   final Offset from;
   final Offset to;
@@ -627,7 +908,9 @@ class _VelaRouteSheenState extends State<VelaRouteSheen>
 
   void _refresh() {
     _points = widget.connected && (widget.to - widget.from).distance > .01
-        ? VelaMaritimeRoute(from: widget.from, to: widget.to).samples
+        ? (widget.camera.oilIllustration
+            ? <Offset>[widget.from, widget.to]
+            : VelaMaritimeRoute(from: widget.from, to: widget.to).oceanSamples)
         : const <Offset>[];
   }
 
@@ -660,6 +943,7 @@ class _VelaRouteSheenState extends State<VelaRouteSheen>
   void didUpdateWidget(covariant VelaRouteSheen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.connected != widget.connected ||
+        oldWidget.routingReady != widget.routingReady ||
         oldWidget.from != widget.from || oldWidget.to != widget.to) {
       _refresh();
       if (!widget.connected) _progress.value = 0;
@@ -685,7 +969,7 @@ class _VelaRouteSheenState extends State<VelaRouteSheen>
     child: RepaintBoundary(child: AnimatedBuilder(
       animation: _progress, builder: (context, _) => CustomPaint(
         painter: _VelaSilkRoutePainter(
-          camera: widget.camera, from: widget.from,
+          camera: widget.camera, from: widget.from, to: widget.to,
           samples: _points, dark: widget.dark, phase: _progress.value),
         child: const SizedBox.expand(),
       ),
@@ -695,11 +979,12 @@ class _VelaRouteSheenState extends State<VelaRouteSheen>
 
 class _VelaSilkRoutePainter extends CustomPainter {
   const _VelaSilkRoutePainter({
-    required this.camera, required this.from, required this.samples,
-    required this.dark, required this.phase,
+    required this.camera, required this.from, required this.to,
+    required this.samples, required this.dark, required this.phase,
   });
   final VelaWorldCamera camera;
   final Offset from;
+  final Offset to;
   final List<Offset> samples;
   final bool dark;
   final double phase;
@@ -707,12 +992,10 @@ class _VelaSilkRoutePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (samples.length < 2) return;
-    final path = Path();
-    for (var k = 0; k < samples.length; k++) {
-      final p = camera.projectAlongArtwork(from, samples[k]);
-      if (k == 0) { path.moveTo(p.dx, p.dy); }
-      else { path.lineTo(p.dx, p.dy); }
-    }
+    final path = camera.oilIllustration
+        ? camera.paintedRoutePath(from, to)
+        : VelaMaritimeRoute(from: from, to: samples.last)
+            .oceanPath(camera.seaLaneProjector(from, samples.last));
     for (final metric in path.computeMetrics()) {
       if (metric.length == 0) continue;
       final start = (phase - .16).clamp(0.0, 1.0) * metric.length;
@@ -739,8 +1022,8 @@ class _VelaSilkRoutePainter extends CustomPainter {
             const Color(0xFFCAECF3).withValues(alpha: .30),
             Colors.transparent,
           ], [0, .5, 1]);
-      canvas.drawPath(segment, halo);
-      canvas.drawPath(segment, silk);
+      canvas.drawPath(camera.repeatPaintedPath(segment), halo);
+      canvas.drawPath(camera.repeatPaintedPath(segment), silk);
     }
   }
 
@@ -858,34 +1141,67 @@ class _WorldRoutePainter extends CustomPainter {
     }
     if (!active || (from - to).distance < .01) return;
     final route = VelaMaritimeRoute(from: from, to: to);
-    Offset geoProject(Offset geo) => camera.projectAlongArtwork(from, geo);
-    canvas.drawPath(route.path(geoProject), Paint()
-      ..style = PaintingStyle.stroke ..strokeWidth = 2.8
-      ..color = const Color(0xA4B9DFFF));
-    final traveled = route.path(geoProject, until: progress);
-    canvas.drawPath(traveled, Paint()
-      ..style = PaintingStyle.stroke ..strokeWidth = 13
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 11)
-      ..color = const Color(0xB06FCBFF));
-    canvas.drawPath(traveled, Paint()
-      ..style = PaintingStyle.stroke ..strokeWidth = 4.0
-      ..strokeCap = StrokeCap.round ..color = const Color(0xFFE6BB76));
+    final routePath = camera.oilIllustration
+        ? camera.paintedRoutePath(from, to)
+        : route.oceanPath(camera.seaLaneProjector(from, to));
+    final traveled = camera.oilIllustration
+        ? camera.paintedRoutePath(from, to, until: progress)
+        : route.oceanPath(
+            camera.seaLaneProjector(from, to), until: progress);
+    final visibleRoute = camera.repeatPaintedPath(routePath);
+    final visibleTravel = camera.repeatPaintedPath(traveled);
+    // Hand-painted nautical chart line: warm gold below, pale silk highlights.
+    // Every moving shimmer and the sail use this exact same curved path.
+    canvas.drawPath(visibleRoute, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.3
+      ..strokeCap = StrokeCap.round
+      ..color = (dark ? const Color(0xFFC39C68) :
+          const Color(0xFF8D5F32)).withValues(alpha: .78));
+    canvas.drawPath(visibleRoute, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFF9DFAD).withValues(alpha: .88));
+    canvas.drawPath(visibleTravel, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 7.0
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4)
+      ..color = const Color(0xFFB9D6EB).withValues(alpha: .30));
+    canvas.drawPath(visibleTravel, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.6
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFEFC78A));
+    final metrics = routePath.computeMetrics().toList();
+    if (metrics.isEmpty) return;
+    final metric = metrics.first;
     if (connected) {
-      final origin = camera.projectArtwork(from);
-      final destination = camera.projectAlongArtwork(from, to);
-      _marker(canvas, origin, VelaAtlasInk.englishLabel(originLabel),
+      // City pins belong on the painted city, not on offshore lane
+      // waypoints. The route itself remains a separate sea-only corridor.
+      final homePin = camera.projectArtwork(from);
+      final cityPin = camera.projectArtwork(to);
+      _marker(canvas, homePin, VelaAtlasInk.englishLabel(originLabel),
         const Color(0xFFE3B777), showLabel: true,
-        toLeft: (destination - origin).distance < 170);
-      _marker(canvas, destination, VelaAtlasInk.englishLabel(label),
+        toLeft: (cityPin - homePin).distance < 170);
+      _marker(canvas, cityPin, VelaAtlasInk.englishLabel(label),
         const Color(0xFF84D0FF), showLabel: true, above: true);
     }
-    final boat = geoProject(route.pointAt(progress));
-    canvas.drawCircle(boat, 25, Paint()
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)
-      ..color = const Color(0x6685D4FF));
+    final tangent = metric.getTangentForOffset(
+      metric.length * progress.clamp(0.0, 1.0));
+    if (tangent == null) return;
+    final boat = camera.oilIllustration
+        ? camera.wrapOilPoint(tangent.position) : tangent.position;
+    // Compact carved-ink silhouette; the previous 25 px blurred blue halo
+    // made the middle of the painted coastline look out of focus.
+    canvas.drawOval(Rect.fromCenter(center: boat + const Offset(0, 14),
+      width: 45, height: 9), Paint()
+      ..color = const Color(0xFF0C2B48).withValues(alpha: .25)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
     canvas.save();
-    canvas.translate(boat.dx - 23, boat.dy - 23);
-    const VelaSailPainter().paint(canvas, const Size(46, 46));
+    canvas.translate(boat.dx - 22, boat.dy - 22);
+    const VelaSailPainter().paint(canvas, const Size(44, 44));
     canvas.restore();
   }
 

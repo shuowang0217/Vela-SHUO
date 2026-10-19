@@ -27,7 +27,9 @@ class StellarPanel extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(radius),
     child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+      filter: ImageFilter.blur(
+        sigmaX: 9,
+        sigmaY: 9),
       child: VelaWatercolorSurface(
         padding: padding ?? const EdgeInsets.all(15),
         radius: radius, selected: selected, child: child),

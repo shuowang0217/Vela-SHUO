@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rasterize Vela ink-and-watercolor sail identity into native icons.
+"""Package approved oil-painted Vela icon into native Windows/Android assets.
 
 Requires Pillow, which is installed only in the release CI image; Flutter's
 runtime mark is independently painted with lib/src/brand/vela_sail_mark.dart.
@@ -7,6 +7,7 @@ No external branding, templates or mutable network downloads are used.
 """
 from __future__ import annotations
 import argparse
+import random
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageOps
 
@@ -89,24 +90,21 @@ def paths(layer: Image.Image, inactive=False):
 
 
 def render(inactive=False):
-    bg = gradient((233, 241, 225), (131, 187, 197))
-    mask = Image.new("L", (SIZE, SIZE))
-    ImageDraw.Draw(mask).rounded_rectangle(
-        (0, 0, SIZE - 1, SIZE - 1), radius=q(36), fill=255)
-    bg.putalpha(mask)
-    art = Image.new("RGBA", (SIZE, SIZE))
-    paths(art, inactive=inactive)
-    # Internal spacing prevents tiny-system-icon cropping.
-    art = art.resize((q(137), q(137)), Image.Resampling.LANCZOS)
-    bg.alpha_composite(art, (q(11.5), q(11.5)))
+    # ONE APPROVED ART SOURCE FOR ALL PLATFORMS. No procedural gradient,
+    # generic vector sail, or old icon substitution during packaging.
+    original=Path("assets/brand/vela_selected_icon.png")
+    if not original.is_file():
+        raise FileNotFoundError(
+            "Generate the selected brand images before launcher icons")
+    image=Image.open(original).convert("RGBA")
+    if image.size != (512,512):
+        raise ValueError("Selected artwork was not prepared at 512x512")
+    image=image.resize((SIZE,SIZE),Image.Resampling.LANCZOS)
     if inactive:
-        # Off state must be genuinely achromatic. The old off icon still had
-        # blue-green gradient and was almost indistinguishable in the tray.
-        alpha = bg.getchannel("A")
-        gray = ImageOps.grayscale(bg.convert("RGB")).convert("RGBA")
-        gray.putalpha(alpha)
+        gray=ImageOps.grayscale(image.convert("RGB")).convert("RGBA")
+        gray.putalpha(image.getchannel("A"))
         return gray
-    return bg
+    return image
 
 
 def save_icon(image: Image.Image, destination: Path):

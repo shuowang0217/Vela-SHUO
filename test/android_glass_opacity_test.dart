@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/brand/vela_watercolor_chrome.dart';
 
 void main() {
-  testWidgets('Android floating watercolor glass has 50% opacity',
+  testWidgets('Android returns to v1.8.13 42% translucent glass',
       (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     try {
@@ -19,7 +19,7 @@ void main() {
     expect(decoration.gradient, isNotNull);
     final gradient = decoration.gradient! as LinearGradient;
     for (final color in gradient.colors) {
-      expect(color.a, closeTo(.5, .003));
+      expect(color.a, closeTo(.42, .03));
     }
     } finally {
       debugDefaultTargetPlatformOverride = null;

@@ -164,7 +164,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
                         _groupNavigation(context, groupNames, group, narrow)
                       else if (flclash != null)
                         StellarPanel(child: StellarLabel(
-                          '直连模式：FlClash 不显示代理策略组，流量走 DIRECT')),
+                          '直连模式：当前模式不显示代理策略组，流量走 DIRECT')),
                       const SizedBox(height: 16),
                       if (nestedGroups.isNotEmpty) ...[
                         _nestedGroupChoices(context, nestedGroups, group),
@@ -321,7 +321,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
     final sub = widget.subscription;
     if (sub is VelaFlClashSubscriptionController &&
         !sub.selectRoutingGroup(label)) {
-      VelaGlassToast.show(context, 'FlClash 核心未找到当前策略组');
+      VelaGlassToast.show(context, '代理核心未找到当前策略组');
       return;
     }
     // Group navigation never changes Mihomo route mode or selected outbound.
@@ -386,7 +386,7 @@ class _StellarProxyState extends State<VelaStellarProxyPage> {
             ),
         ]),
         const SizedBox(height: 5),
-        StellarLabel('分组与规则来自 FlClash 核心；切换标签不会改变线路。',
+        StellarLabel('分组与规则来自 代理核心；切换标签不会改变线路。',
           size: 11),
       ],
     ));

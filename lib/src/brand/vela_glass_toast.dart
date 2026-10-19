@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import '../theme/vela_palettes.dart';
 
 /// One floating, translucent notice above the app, rather than a bottom
 /// Material SnackBar. Does not affect proxy/VPN state.
@@ -56,9 +57,11 @@ class _VelaGlassNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final ink = dark ? const Color(0xFFF4F9FE) : const Color(0xFF1C4052);
-    final tint = dark ? const Color(0xFF19384C) : const Color(0xFFEFF9FD);
+    // One palette-driven notice across all eight themes and both modes.
+    final tokens = VelaThemeRuntime.active;
+    final dark = tokens.dark;
+    final ink = tokens.text;
+    final tint = Color.lerp(tokens.surface, tokens.raised, .30)!;
     return TweenAnimationBuilder<double>(
       key: const ValueKey('vela_glass_toast'),
       tween: Tween(begin: 0, end: 1),
@@ -75,8 +78,7 @@ class _VelaGlassNotice extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
             boxShadow: [BoxShadow(
-              color: const Color(0xFF0C2B3B)
-                  .withValues(alpha: dark ? .25 : .14),
+              color: tokens.background.withValues(alpha: dark ? .44 : .24),
               blurRadius: 28, offset: const Offset(0, 9),
             )],
           ),
@@ -94,16 +96,15 @@ class _VelaGlassNotice extends StatelessWidget {
                     ],
                   ),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: dark ? .18 : .69),
+                    color: tokens.accent.withValues(alpha: dark ? .66 : .52),
                     width: 1),
                   borderRadius: BorderRadius.circular(22),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.sailing_rounded, color: dark
-                        ? const Color(0xFFC5DFE9) : const Color(0xFF397E98),
-                        size: 20),
+                    Icon(Icons.sailing_rounded,
+                      color: tokens.accent, size: 20),
                     const SizedBox(width: 12),
                     Flexible(child: Text(message,
                       style: TextStyle(color: ink, fontSize: 13.5,
@@ -113,7 +114,7 @@ class _VelaGlassNotice extends StatelessWidget {
                       onTap: onDismiss,
                       radius: 16,
                       child: Icon(Icons.close_rounded, size: 17,
-                        color: ink.withValues(alpha: .65)),
+                        color: tokens.muted),
                     ),
                   ]),
                 ),

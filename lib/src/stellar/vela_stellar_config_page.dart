@@ -601,9 +601,9 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                   const SizedBox(height: 10),
                   SizedBox(width: narrow ? 178 : 315,
                     child: LinearProgressIndicator(
-                      value: percent ?? 0, minHeight: 6,
+                      value: percent ?? 0, minHeight: 9,
                       borderRadius: BorderRadius.circular(8),
-                      backgroundColor: t.line,
+                      backgroundColor: t.dark ? const Color(0xFF53647A) : const Color(0xFFC8BBA7),
                       color: t.accent,
                     )),
                   const SizedBox(height: 9),
@@ -687,9 +687,10 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
               : '未提供套餐用量',
             style: TextStyle(color: t.text, fontSize: 13)),
           const SizedBox(height: 7),
-          LinearProgressIndicator(value: fraction ?? 0, minHeight: 5,
+          LinearProgressIndicator(value: fraction ?? 0, minHeight: 8,
               borderRadius: BorderRadius.circular(8),
-              backgroundColor: t.line, color: t.accent),
+              backgroundColor: t.dark ? const Color(0xFF53647A) : const Color(0xFFC8BBA7),
+              color: t.accent),
           const SizedBox(height: 11),
           Wrap(spacing: 12, runSpacing: 7, children: [
             if (profile.nodeCount != null)

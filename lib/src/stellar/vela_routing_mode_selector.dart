@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../network/vela_routing_mode.dart';
 import '../theme/vela_palettes.dart';
+import '../brand/vela_glass_toast.dart';
 import 'stellar_design.dart';
 
 /// Compact main-dashboard route switcher. Highlight changes only after the
@@ -26,10 +27,8 @@ class VelaRoutingModeSelector extends StatelessWidget {
     final ok = await controller.setMode(mode, activeProfileId);
     if (!context.mounted) return;
     if (!ok || controller.error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(controller.error ??
-            '航线模式切换失败，仍使用原模式'),
-      ));
+      VelaGlassToast.show(context,
+          controller.error ?? '航线模式切换失败，仍使用原模式');
     }
   }
 
