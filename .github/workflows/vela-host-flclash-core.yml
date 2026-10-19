@@ -39,6 +39,7 @@ jobs:
           python3 scripts/prepare_oil_ref.py
           python3 scripts/prepare_oil_night.py
           python3 scripts/stitch_oil_panorama.py
+          python3 scripts/generate_painted_sea_grid.py
           python3 scripts/prepare_selected_brand.py
       - run: flutter create --project-name vela_shuo --org com.shuowang --platforms windows .
       - name: Resolve Flutter dependencies
@@ -158,6 +159,7 @@ jobs:
           python scripts/prepare_oil_ref.py
           python scripts/prepare_oil_night.py
           python scripts/stitch_oil_panorama.py
+          python scripts/generate_painted_sea_grid.py
           python scripts/prepare_selected_brand.py
           if ($LASTEXITCODE -ne 0) { throw "Watercolor atlas preparation failed" }
           python scripts/generate_vela_brand_icons.py --windows
@@ -307,6 +309,7 @@ jobs:
           python3 scripts/prepare_oil_ref.py
           python3 scripts/prepare_oil_night.py
           python3 scripts/stitch_oil_panorama.py
+          python3 scripts/generate_painted_sea_grid.py
           python3 scripts/prepare_selected_brand.py
           python3 scripts/generate_vela_brand_icons.py --android
           python3 scripts/configure_android_vpn.py
