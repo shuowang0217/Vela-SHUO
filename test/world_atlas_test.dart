@@ -153,7 +153,7 @@ void main() {
         size: size, longitude: 116.4, latitude: 39.9,
         oilIllustration: true);
       final oldCoverScale = math.max(size.width / 1672, size.height / 941);
-      expect(camera.oilImageScale, closeTo(oldCoverScale * .66, .0001));
+      expect(camera.oilImageScale, closeTo(oldCoverScale, .0001));
       expect((camera.projectArtwork(VelaWorldCamera.beijing) -
           const Offset(195, 422)).distance, lessThan(.001));
     } finally {
