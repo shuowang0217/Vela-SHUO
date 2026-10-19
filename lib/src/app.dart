@@ -1051,7 +1051,7 @@ class _MobileHome extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('航海油画  ·  v1.8.17', style: TextStyle(
+                    Text('航海油画  ·  v1.8.0', style: TextStyle(
                       color: _blue, fontSize: 10,
                       letterSpacing: 1.0, fontWeight: FontWeight.w700)),
                     Text(velaBrandTagline, style: TextStyle(
