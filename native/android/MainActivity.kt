@@ -51,6 +51,23 @@ class MainActivity : FlutterActivity() {
             "vela_shuo/ui_preferences").setMethodCallHandler { call, result ->
             val prefs = getSharedPreferences("vela_ui_preferences_v1", MODE_PRIVATE)
             when (call.method) {
+                "readRoutingMode" ->
+                    result.success(prefs.getString("routing_mode", null))
+                "writeRoutingMode" -> {
+                    val value = call.argument<String>("value")
+                    if (value !in setOf("rule", "global", "direct")) {
+                        result.error("INVALID", "无效的代理模式", null)
+                    } else {
+                        val written = prefs.edit()
+                            .putString("routing_mode", value).commit()
+                        if (written &&
+                            prefs.getString("routing_mode", null) == value) {
+                            result.success(true)
+                        } else {
+                            result.error("STORAGE", "本机代理模式保存失败", null)
+                        }
+                    }
+                }
                 "readPalette" ->
                     result.success(prefs.getString("selected_palette", null))
                 "readTheme" ->
