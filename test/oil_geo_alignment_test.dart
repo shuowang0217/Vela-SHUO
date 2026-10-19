@@ -41,8 +41,13 @@ void main() {
       final camera = VelaWorldCamera(
         size: const Size(390, 844), longitude: node.dx,
         latitude: node.dy, oilIllustration: true, focusOil: true);
-      expect((camera.projectArtwork(node) -
-          const Offset(195, 422)).distance, lessThan(.001));
+      final pin = camera.projectArtwork(node);
+      expect(pin.dx, closeTo(195, .001));
+      expect(pin.dy, inInclusiveRange(0, 844));
+      // The bitmap is not allowed to uncover the screen at top or bottom.
+      expect(camera.oilImageOrigin.dy, lessThanOrEqualTo(0));
+      expect(camera.oilImageOrigin.dy + 941 * camera.oilImageScale,
+          greaterThanOrEqualTo(844));
     }
   });
 
