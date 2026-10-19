@@ -545,7 +545,8 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
               homebound: _homebound, dark: dark,
             ), child: const SizedBox.expand()),
             VelaRouteSheen(camera: camera, from: _routeFrom, to: _routeTo,
-              routingReady: VelaOceanGrid.instance.ready,
+              routingReady: VelaOceanGrid.instance.ready ||
+                  VelaPaintedOceanRoute.instance.ready,
               connected: widget.demo.phase == VelaPhase.connected,
               dark: dark),
           ]));
@@ -904,7 +905,9 @@ class _VelaRouteSheenState extends State<VelaRouteSheen>
 
   void _refresh() {
     _points = widget.connected && (widget.to - widget.from).distance > .01
-        ? VelaMaritimeRoute(from: widget.from, to: widget.to).oceanSamples
+        ? (widget.camera.oilIllustration
+            ? <Offset>[widget.from, widget.to]
+            : VelaMaritimeRoute(from: widget.from, to: widget.to).oceanSamples)
         : const <Offset>[];
   }
 
@@ -963,7 +966,7 @@ class _VelaRouteSheenState extends State<VelaRouteSheen>
     child: RepaintBoundary(child: AnimatedBuilder(
       animation: _progress, builder: (context, _) => CustomPaint(
         painter: _VelaSilkRoutePainter(
-          camera: widget.camera, from: widget.from,
+          camera: widget.camera, from: widget.from, to: widget.to,
           samples: _points, dark: widget.dark, phase: _progress.value),
         child: const SizedBox.expand(),
       ),
@@ -973,11 +976,12 @@ class _VelaRouteSheenState extends State<VelaRouteSheen>
 
 class _VelaSilkRoutePainter extends CustomPainter {
   const _VelaSilkRoutePainter({
-    required this.camera, required this.from, required this.samples,
-    required this.dark, required this.phase,
+    required this.camera, required this.from, required this.to,
+    required this.samples, required this.dark, required this.phase,
   });
   final VelaWorldCamera camera;
   final Offset from;
+  final Offset to;
   final List<Offset> samples;
   final bool dark;
   final double phase;
@@ -985,9 +989,10 @@ class _VelaSilkRoutePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (samples.length < 2) return;
-    final route = VelaMaritimeRoute(from: from, to: samples.last);
-    final path = route.oceanPath(camera.seaLaneProjector(
-        from, samples.last));
+    final path = camera.oilIllustration
+        ? camera.paintedRoutePath(from, to)
+        : VelaMaritimeRoute(from: from, to: samples.last)
+            .oceanPath(camera.seaLaneProjector(from, samples.last));
     for (final metric in path.computeMetrics()) {
       if (metric.length == 0) continue;
       final start = (phase - .16).clamp(0.0, 1.0) * metric.length;
@@ -1014,8 +1019,8 @@ class _VelaSilkRoutePainter extends CustomPainter {
             const Color(0xFFCAECF3).withValues(alpha: .30),
             Colors.transparent,
           ], [0, .5, 1]);
-      canvas.drawPath(segment, halo);
-      canvas.drawPath(segment, silk);
+      canvas.drawPath(camera.repeatPaintedPath(segment), halo);
+      canvas.drawPath(camera.repeatPaintedPath(segment), silk);
     }
   }
 
