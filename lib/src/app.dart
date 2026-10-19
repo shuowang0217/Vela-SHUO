@@ -355,6 +355,10 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       widget.diagnostics?.record(VelaDiagnosticEvent.appResumed);
       if (androidVpn != null) unawaited(androidVpn!.refresh());
+      final activeSubscription = subscription;
+      if (activeSubscription is VelaFlClashSubscriptionController) {
+        unawaited(activeSubscription.checkAutoUpdates());
+      }
     } else if (state == AppLifecycleState.paused) {
       widget.diagnostics?.record(VelaDiagnosticEvent.appPaused);
     } else if (state == AppLifecycleState.detached) {

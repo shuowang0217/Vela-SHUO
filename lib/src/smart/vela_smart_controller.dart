@@ -582,7 +582,7 @@ class VelaSmartController extends ChangeNotifier {
     _successful = 0;
     _failed = 0;
     _status = latencyOnly
-        ? 'FlClash 正在检测 ' + indices.length.toString() +
+        ? 'Vela 正在检测 ' + indices.length.toString() +
             ' 个节点的 HTTPS 延迟…'
         : all
             ? '正在测延迟和下载速度：' +
@@ -603,7 +603,7 @@ class VelaSmartController extends ChangeNotifier {
         );
       } catch (_) {
         if (!_disposed && run == _generation) {
-          _status = 'FlClash 批量测速通信失败，未将任何节点标记为故障。'
+          _status = 'Vela 批量测速通信失败，未将任何节点标记为故障。'
               '请确认内核运行状态后重试。';
           _scanning = false;
           _cancelRequested = false;
@@ -696,13 +696,13 @@ class VelaSmartController extends ChangeNotifier {
           }
           if (all) { _lastScan = _clock(); }
           _status = latencyOnly
-              ? 'FlClash 延迟测试完成：成功 $_successful，'
+              ? 'Vela 延迟测试完成：成功 $_successful，'
                   '失败 $_failed，共 $_total 个。'
               : all
                   ? (automatic && count > 50 && _fullProbe != null
                       ? '自动检测按50 MiB单轮流量上限完成前50个节点；'
                           '手动一键测速可测全部节点。'
-                      : 'FlClash 节点测速完成：延迟成功 $_successful，'
+                      : 'Vela 节点测速完成：延迟成功 $_successful，'
                           '延迟失败 $_failed，'
                           '下载成功 ${_downloads.values.where((s) => s.ok).length}，'
                           '共 $_total 个。')

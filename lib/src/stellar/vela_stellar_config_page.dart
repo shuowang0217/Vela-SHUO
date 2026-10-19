@@ -13,9 +13,9 @@ import '../theme/vela_palettes.dart';
 import 'stellar_design.dart';
 
 /// Configuration management in the approved orbital-card visual language.
-/// Current FlClash integration has one active on-device profile. This view
-/// deliberately shows real data only; it does NOT fabricate other profiles,
-/// provider quota, scheduled updates, or server-side expiration.
+/// This view shows real saved profiles and provider quota only. Configured
+/// subscription auto-updates are scheduled by the controller while Vela runs;
+/// no server-side expiration or background-after-exit guarantee is fabricated.
 class VelaStellarConfigPage extends StatefulWidget {
   const VelaStellarConfigPage({super.key, required this.demo,
     required this.core, this.subscription, this.connection, this.androidVpn});
@@ -283,6 +283,10 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
       );
       if (save != true) return;
       final rawUrl = url.text.trim();
+      if (auto && rawUrl.isEmpty) {
+        _notify('自动更新需要填写 HTTPS 订阅地址');
+        return;
+      }
       final interval = auto ? int.tryParse(minutes.text.trim()) : null;
       if (auto && interval == null) {
         _notify('请输入有效的自动更新分钟数');
@@ -292,7 +296,9 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
         name: name.text.trim(),
         sourceUrl: rawUrl.isEmpty ? null : rawUrl,
         autoUpdateMinutes: interval);
-      _notify(ok ? '机场编辑已保存，随时可以更新订阅'
+      _notify(ok
+          ? interval == null ? '机场编辑已保存，自动更新已关闭'
+              : '已保存：Vela 运行时每 $interval 分钟检查订阅'
           : native.error ?? '编辑失败');
     } finally {
       name.dispose();
@@ -518,15 +524,35 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                           profiles.sort((a, b) => (b.updatedAt ?? DateTime(1970))
                               .compareTo(a.updatedAt ?? DateTime(1970)));
                         }
+                        final activeId = _native!.activeProfileId;
+                        final activeProfile = profiles.where(
+                            (p) => p.id == activeId).firstOrNull;
+                        // The live airport is always the lead card, regardless
+                        // of the recent-update sort. Other airports keep their
+                        // chosen order in the two-column gallery.
+                        final remaining = activeProfile == null
+                            ? profiles
+                            : profiles.where(
+                                (p) => p.id != activeProfile.id).toList();
                         final cardWidth = area.maxWidth >= 680
                             ? (area.maxWidth - 12) / 2 : area.maxWidth;
-                        return Wrap(spacing: 12, runSpacing: 12,
-                          children: [for (final profile in profiles)
-                            SizedBox(width: cardWidth,
-                              child: _profileCard(context, profile,
-                                selected: profile.id == _native!.activeProfileId,
-                                online: online &&
-                                    profile.id == _native!.activeProfileId)),
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (activeProfile != null)
+                              SizedBox(width: area.maxWidth,
+                                child: _profileCard(context, activeProfile,
+                                  selected: true, featured: true,
+                                  online: online)),
+                            if (activeProfile != null && remaining.isNotEmpty)
+                              const SizedBox(height: 12),
+                            Wrap(spacing: 12, runSpacing: 12,
+                              children: [for (final profile in remaining)
+                                SizedBox(width: cardWidth,
+                                  child: _profileCard(context, profile,
+                                    selected: false, online: false)),
+                              ],
+                            ),
                           ],
                         );
                       })
@@ -631,7 +657,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
   }
 
   Widget _profileCard(BuildContext context, VelaStoredProfile profile, {
-    required bool selected, required bool online,
+    required bool selected, required bool online, bool featured = false,
   }) {
     final t = VelaThemeRuntime.active;
     final usage = profile.usage;
@@ -645,17 +671,17 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
       borderRadius: BorderRadius.circular(18),
       onTap: _busy || selected ? null : () => _activateAirport(profile.id),
       child: StellarPanel(selected: selected,
-        padding: const EdgeInsets.all(17),
+        padding: EdgeInsets.all(featured ? 22 : 17),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            StellarCompassGlyph(size: 42),
+            StellarCompassGlyph(size: featured ? 50 : 42),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(profile.name, maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: t.text,
-                      fontWeight: FontWeight.bold, fontSize: 17)),
+                      fontWeight: FontWeight.bold, fontSize: featured ? 19 : 17)),
                 const SizedBox(height: 4),
                 StellarLabel(online ? '● 代理正在使用'
                     : selected ? '● 当前机场' : '点击切换机场',

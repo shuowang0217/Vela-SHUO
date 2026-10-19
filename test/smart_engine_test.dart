@@ -931,4 +931,27 @@ void main() {
     expect(velaSmartCountryMatches('Germany Frankfurt', 'DE'), true);
   });
 
+  test('latency progress uses Vela branding and keeps native measurements',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 3);
+    final probe = _BatchProbe();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link, probe: probe,
+    );
+    try {
+      await smart.testAllLatencies();
+      expect(smart.status, contains('Vela 延迟测试完成'));
+      expect(smart.status, isNot(contains('FlClash')));
+      expect(smart.scanned, 3);
+      expect(smart.successful, 2);
+    } finally {
+      smart.dispose();
+      link.dispose();
+      sub.dispose();
+      core.dispose();
+      proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
 }
