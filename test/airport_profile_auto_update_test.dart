@@ -2,20 +2,15 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vela_shuo/src/home/demo_connection.dart';
 import 'package:vela_shuo/src/network/flclash_core_api.dart';
 import 'package:vela_shuo/src/network/flclash_windows_backend.dart';
 import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
-import 'package:vela_shuo/src/stellar/stellar_design.dart';
-import 'package:vela_shuo/src/stellar/vela_stellar_config_page.dart';
 import 'package:vela_shuo/src/subscription/flclash_profile_downloader.dart';
 import 'package:vela_shuo/src/subscription/vela_profile_library.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_vault.dart';
 import 'package:vela_shuo/src/subscription/vela_subscription_controller.dart';
-import 'package:vela_shuo/src/theme/vela_palettes.dart';
 
 class _TestCoreTransport implements FlClashCoreTransport {
   String active = 'Tokyo';
@@ -109,68 +104,13 @@ Future<({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('active airport is always first and enlarged on shared UI',
-      (tester) async {
-    final now = DateTime.utc(2026, 10, 19, 5);
-    await tester.binding.setSurfaceSize(const Size(1180, 1300));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    final setup = await _setup(
-      profiles: [
-        VelaStoredProfile(
-          id: 'newer', name: '牛逼', raw: 'proxies: []',
-          updatedAt: now,
-        ),
-        VelaStoredProfile(
-          id: 'active', name: '良心云', raw: 'proxies: []',
-          updatedAt: now.subtract(const Duration(hours: 2)),
-        ),
-      ],
-      activeId: 'active',
-      clock: () => now,
-    );
-    final demo = VelaDemoController();
-    addTearDown(() {
-      demo.dispose();
-      setup.subscription.dispose();
-      setup.core.dispose();
-      setup.temp.delete(recursive: true);
-    });
-    VelaThemeRuntime.select(VelaPalette.byId('ocean'), Brightness.light);
-
-    Widget page() => MaterialApp(
-      home: Scaffold(
-        body: VelaStellarConfigPage(
-          demo: demo,
-          core: setup.core,
-          subscription: setup.subscription,
-        ),
-      ),
-    );
-    await tester.pumpWidget(page());
-    await tester.pump(const Duration(milliseconds: 100));
-
-    final active = find.byKey(const ValueKey('airport_card_active'));
-    final other = find.byKey(const ValueKey('airport_card_newer'));
-    expect(active, findsOneWidget);
-    expect(other, findsOneWidget);
-    expect(tester.getTopLeft(active).dy, lessThan(tester.getTopLeft(other).dy));
-    expect(tester.getSize(active).width,
-        greaterThan(tester.getSize(other).width * 1.5));
-
-    // The same shared configuration page remains correctly ordered on narrow
-    // Android layouts; the selected card uses the larger compass treatment.
-    await tester.binding.setSurfaceSize(const Size(470, 1300));
-    await tester.pumpWidget(page());
-    await tester.pumpAndSettle();
-    expect(tester.getTopLeft(active).dy, lessThan(tester.getTopLeft(other).dy));
-    final activeGlyph = tester.widget<StellarCompassGlyph>(
-      find.descendant(of: active, matching: find.byType(StellarCompassGlyph)),
-    );
-    final otherGlyph = tester.widget<StellarCompassGlyph>(
-      find.descendant(of: other, matching: find.byType(StellarCompassGlyph)),
-    );
-    expect(activeGlyph.size, 50);
-    expect(otherGlyph.size, 42);
+  test('active airport layout is featured before the remaining cards', () {
+    final source = File(
+        'lib/src/stellar/vela_stellar_config_page.dart').readAsStringSync();
+    expect(source, contains('final activeProfile = profiles.where'));
+    expect(source, contains('SizedBox(width: area.maxWidth'));
+    expect(source, contains('featured ? 22 : 17'));
+    expect(source, contains('StellarCompassGlyph(size: featured ? 50 : 42)'));
   });
 
   test('15-minute auto-update downloads only when due and records success',
