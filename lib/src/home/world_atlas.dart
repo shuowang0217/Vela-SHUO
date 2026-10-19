@@ -50,32 +50,28 @@ class VelaWorldCamera {
 
 
 
-  // Portrait phones need a wider view of the painted world. Preserve the
-  // original landscape zoom while reducing the portrait crop by 34%.
-  // All route markers use this same scale and origin.
+  // Cover both viewport dimensions without the blurred portrait underlay.
+  // The original painting retains its aspect ratio on Android and Windows.
   bool get compactOilPortrait => oilIllustration &&
       defaultTargetPlatform == TargetPlatform.android &&
       size.height > size.width * 1.25;
 
   double get oilImageScale => math.max(
       size.width / oilImageSize.width,
-      size.height / oilImageSize.height) *
-      (compactOilPortrait ? .66 : 1.0);
+      size.height / oilImageSize.height);
+  double get oilTileWidth => oilImageSize.width * oilImageScale;
 
-  // v1.6 focus restored for the painted atlas: the very same animated
-  // longitude/latitude drives the bitmap, all route points and city pins.
-  // Image and geographic overlays therefore travel together when a user
-  // changes the connected node, including across the date line.
   Offset get oilImageOrigin {
-    // Idle landscape uses the exact same BoxFit.cover fit as the bitmap.
-    if (!focusOil && !compactOilPortrait) {
-      return Offset(
-        (size.width - oilImageSize.width * oilImageScale) / 2,
-        (size.height - oilImageSize.height * oilImageScale) / 2);
+    final imageHeight = oilImageSize.height * oilImageScale;
+    final restingY = (size.height - imageHeight) / 2;
+    if (!focusOil) {
+      return Offset((size.width - oilTileWidth) / 2, restingY);
     }
-    // Active voyages pan the bitmap together with its annotations.
-    return Offset(size.width / 2, size.height / 2) -
-        oilCanvasPosition(Offset(longitude, latitude)) * oilImageScale;
+    final focused = oilCanvasPosition(Offset(longitude, latitude));
+    // Never expose empty vertical bars while a node is being focused.
+    final focusY = (size.height / 2 - focused.dy * oilImageScale)
+        .clamp(size.height - imageHeight, 0.0).toDouble();
+    return Offset(size.width / 2 - focused.dx * oilImageScale, focusY);
   }
 
   Offset oilCanvasPosition(Offset geographicPoint) {
@@ -88,7 +84,9 @@ class VelaWorldCamera {
         ? (dx <= 23.29
             ? oilBeijing.dx +
                 dx * (oilTokyo.dx - oilBeijing.dx) / 23.29
-            : oilTokyo.dx + (dx - 23.29) * 5.55)
+            : oilTokyo.dx + (dx - 23.29) *
+                ((oilBeijing.dx - 180 * 4 + oilImageSize.width -
+                    oilTokyo.dx) / (180 - 23.29)))
         : oilBeijing.dx + dx * 4.0;
     final y = oilBeijing.dy +
         dy * ((oilTokyo.dy - oilBeijing.dy) / (beijing.dy - 35.68)) +
@@ -102,8 +100,28 @@ class VelaWorldCamera {
     if (!oilIllustration) {
       return project(geographicPoint) - Offset(artworkDx, artworkDy);
     }
-    return oilImageOrigin +
+    final point = oilImageOrigin +
         oilCanvasPosition(geographicPoint) * oilImageScale;
+    // Select the nearest horizontally tiled copy, like v1.6's world atlas.
+    final shift = ((size.width / 2 - point.dx) / oilTileWidth).round();
+    return point + Offset(shift * oilTileWidth, 0);
+  }
+
+  /// Create an unwrapped path projector for one ordered sea voyage.
+  /// Individual markers choose the nearest tile; successive route points
+  /// must also use neighboring copies so their strokes never jump a whole
+  /// map width across the international date line.
+  Offset Function(Offset) seaLaneProjector(Offset from, Offset to) {
+    Offset? previous;
+    return (geo) {
+      var point = projectSeaLane(from, to, geo);
+      if (oilIllustration && previous != null) {
+        final shift = ((previous!.dx - point.dx) / oilTileWidth).round();
+        point += Offset(shift * oilTileWidth, 0);
+      }
+      previous = point;
+      return point;
+    };
   }
 
   /// The oil painting is intentionally NOT a geographic projection.
