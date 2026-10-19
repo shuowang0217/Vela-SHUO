@@ -14,6 +14,7 @@ class VelaPaintedOceanRoute {
   static const double imageWidth = 1672;
   static const double imageHeight = 941;
   List<String> _cells = const [];
+  List<bool> _mainOcean = const [];
   Future<void>? _loading;
   final Map<String, List<Offset>> _cache = {};
 
@@ -31,12 +32,47 @@ class VelaPaintedOceanRoute {
         throw const FormatException('Invalid oil sea grid');
       }
       _cells = cells;
+      _findMainOcean();
       _cache.clear();
     } catch (_) {
       // Never draw an unverified, potentially overland fallback route.
       _cells = const [];
+      _mainOcean = const [];
       _loading = null;
     }
+  }
+
+  // Small decorative blue patches (cloud shadows or inland lakes) must
+  // never be selected as sailing endpoints. Keep the largest horizontally
+  // periodic sea-connected region of the approved painting.
+  void _findMainOcean() {
+    final marked = List<bool>.filled(columns * rows, false);
+    var largest = <int>[];
+    for (var id = 0; id < marked.length; id++) {
+      if (marked[id] || !_water(id % columns, id ~/ columns)) continue;
+      final component = <int>[id];
+      marked[id] = true;
+      for (var cursor = 0; cursor < component.length; cursor++) {
+        final current = component[cursor];
+        final x = current % columns, y = current ~/ columns;
+        for (final (dx, dy) in const <(int, int)>[
+          (-1,0),(1,0),(0,-1),(0,1),
+        ]) {
+          final xx = _wrap(x + dx), yy = y + dy;
+          if (!_water(xx, yy)) continue;
+          final next = _id(xx, yy);
+          if (marked[next]) continue;
+          marked[next] = true;
+          component.add(next);
+        }
+      }
+      if (component.length > largest.length) largest = component;
+    }
+    final main = List<bool>.filled(columns * rows, false);
+    for (final id in largest) {
+      main[id] = true;
+    }
+    _mainOcean = main;
   }
 
   static int _wrap(int x) => (x % columns + columns) % columns;
@@ -55,7 +91,7 @@ class VelaPaintedOceanRoute {
     // Nearest painted seawater, never a city inland or a painted mountain.
     for (var y = 0; y < rows; y++) {
       for (var x = 0; x < columns; x++) {
-        if (!_water(x, y)) continue;
+        if (!_mainOcean[_id(x, y)]) continue;
         final center = _point(_id(x, y));
         final dx0 = (center.dx - point.dx).abs() % imageWidth;
         final dx = math.min(dx0, imageWidth - dx0);
@@ -103,9 +139,9 @@ class VelaPaintedOceanRoute {
       final x = current % columns, y = current ~/ columns;
       for (final (dx, dy) in steps) {
         final yy = y + dy, xx = _wrap(x + dx);
-        if (!_water(xx, yy)) continue;
+        if (!_mainOcean[_id(xx, yy)]) continue;
         if (dx != 0 && dy != 0 &&
-            (!_water(xx, y) || !_water(x, yy))) continue;
+            (!_mainOcean[_id(xx, y)] || !_mainOcean[_id(x, yy)])) continue;
         final next = _id(xx, yy);
         if (closed[next]) continue;
         final score = scores[current] + (dx == 0 || dy == 0 ? 1 : math.sqrt2);
