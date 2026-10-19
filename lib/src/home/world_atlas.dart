@@ -65,7 +65,12 @@ class VelaWorldCamera {
     final imageHeight = oilImageSize.height * oilImageScale;
     final restingY = (size.height - imageHeight) / 2;
     if (!focusOil) {
-      return Offset((size.width - oilTileWidth) / 2, restingY);
+      // Portrait opens on China as in v1.6; landscape keeps the entire
+      // centered artwork. Both now use identical offsets for pins and paint.
+      final initialX = compactOilPortrait
+          ? size.width / 2 - oilBeijing.dx * oilImageScale
+          : (size.width - oilTileWidth) / 2;
+      return Offset(initialX, restingY);
     }
     final focused = oilCanvasPosition(Offset(longitude, latitude));
     // Never expose empty vertical bars while a node is being focused.
