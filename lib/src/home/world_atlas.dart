@@ -9,6 +9,7 @@ import '../theme/vela_palettes.dart';
 import 'demo_connection.dart';
 import 'maritime_route.dart';
 import 'ocean_grid.dart';
+import 'painted_ocean_route.dart';
 import 'vela_oil_scene.dart';
 
 /// Camera for a precisely georeferenced 2:1 equirectangular world map.
@@ -61,44 +62,49 @@ class VelaWorldCamera {
       size.height / oilImageSize.height);
   double get oilTileWidth => oilImageSize.width * oilImageScale;
 
+  // The camera origin is a function of the animated longitude/latitude
+  // ONLY. Switching connection state must not swap projection formulas,
+  // otherwise the background jumps on the first animation frame.
   Offset get oilImageOrigin {
-    final imageHeight = oilImageSize.height * oilImageScale;
-    final restingY = (size.height - imageHeight) / 2;
-    if (!focusOil) {
-      // Portrait opens on China as in v1.6; landscape keeps the entire
-      // centered artwork. Both now use identical offsets for pins and paint.
-      final initialX = compactOilPortrait
-          ? size.width / 2 - oilBeijing.dx * oilImageScale
-          : (size.width - oilTileWidth) / 2;
-      return Offset(initialX, restingY);
-    }
     final focused = oilCanvasPosition(Offset(longitude, latitude));
-    // Never expose empty vertical bars while a node is being focused.
-    final focusY = (size.height / 2 - focused.dy * oilImageScale)
-        .clamp(size.height - imageHeight, 0.0).toDouble();
-    return Offset(size.width / 2 - focused.dx * oilImageScale, focusY);
+    final height = oilImageSize.height * oilImageScale;
+    final top = (size.height / 2 - focused.dy * oilImageScale)
+        .clamp(size.height - height, 0.0).toDouble();
+    return Offset(size.width / 2 - focused.dx * oilImageScale, top);
   }
 
+  // Calibrated against actual painted continents: Europe is at the left,
+  // China near the left-center, and North America on the right. Geographic
+  // values outside the base world repeat with exactly one image width per
+  // 360 degrees, keeping camera motion continuous across the date line.
+  static const _oilLongitudeStops = <double>[
+    -10, 0, 30, 60, 85, 103, 116.4, 139.69, 170, 180,
+    242, 286, 320, 350,
+  ];
+  static const _oilPixelStops = <double>[
+    80, 132, 248, 355, 466, 536, 592, 746, 850, 905,
+    1255, 1452, 1600, 1752,
+  ];
+
   Offset oilCanvasPosition(Offset geographicPoint) {
-    final dx = shortestDelta(beijing.dx, geographicPoint.dx);
-    final dy = beijing.dy - geographicPoint.dy;
-    // The hand-painted globe is deliberately distorted. Its Beijing/Tokyo
-    // corridor is surveyed from pixel landmarks; other longitudes spread
-    // progressively toward the world's visible western/eastern edges.
-    final x = dx >= 0
-        ? (dx <= 23.29
-            ? oilBeijing.dx +
-                dx * (oilTokyo.dx - oilBeijing.dx) / 23.29
-            : oilTokyo.dx + (dx - 23.29) *
-                ((oilBeijing.dx - 180 * 4 + oilImageSize.width -
-                    oilTokyo.dx) / (180 - 23.29)))
-        : oilBeijing.dx + dx * 4.0;
-    final y = oilBeijing.dy +
-        dy * ((oilTokyo.dy - oilBeijing.dy) / (beijing.dy - 35.68)) +
-        (dx > 0 && dx < 23.29
-            ? 8 * math.sin(math.pi * dx / 23.29)
-            : 0);
-    return Offset(x, y);
+    final longitude = geographicPoint.dx;
+    final cycle = ((longitude + 10) / 360).floor();
+    final normalized = longitude - cycle * 360;
+    var x = _oilPixelStops.last;
+    for (var i = 0; i < _oilLongitudeStops.length - 1; i++) {
+      if (normalized > _oilLongitudeStops[i + 1]) continue;
+      final t = (normalized - _oilLongitudeStops[i]) /
+          (_oilLongitudeStops[i + 1] - _oilLongitudeStops[i]);
+      x = _oilPixelStops[i] +
+          (_oilPixelStops[i + 1] - _oilPixelStops[i]) * t;
+      break;
+    }
+    x += cycle * oilImageSize.width;
+    final baseY = 505 - geographicPoint.dy * 5.4;
+    // The eastern Asian coast is painted lower than its geographic latitude.
+    final localEastAsia = ((longitude - 116.4) / 25).clamp(0.0, 1.0) *
+        ((geographicPoint.dy - 17) / 22).clamp(0.0, 1.0) * 30;
+    return Offset(x, baseY + localEastAsia);
   }
 
   Offset projectArtwork(Offset geographicPoint) {
@@ -292,6 +298,9 @@ class _VelaWorldAtlasState extends State<VelaWorldAtlas>
     });
     widget.demo.addListener(_sync);
     VelaOceanGrid.instance.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
+    VelaPaintedOceanRoute.instance.initialize().then((_) {
       if (mounted) setState(() {});
     });
     _sync();
