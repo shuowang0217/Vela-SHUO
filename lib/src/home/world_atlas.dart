@@ -105,9 +105,12 @@ class VelaWorldCamera {
     if (!oilIllustration) {
       return project(geographicPoint) - Offset(artworkDx, artworkDy);
     }
-    final point = oilImageOrigin +
-        oilCanvasPosition(geographicPoint) * oilImageScale;
-    // Select the nearest horizontally tiled copy, like v1.6's world atlas.
+    return wrapOilPoint(oilImageOrigin +
+        oilCanvasPosition(geographicPoint) * oilImageScale);
+  }
+
+  Offset wrapOilPoint(Offset point) {
+    if (!oilIllustration) return point;
     final shift = ((size.width / 2 - point.dx) / oilTileWidth).round();
     return point + Offset(shift * oilTileWidth, 0);
   }
@@ -173,7 +176,7 @@ class VelaWorldCamera {
           chosen = Offset.lerp(paintedSea[i], paintedSea[i + 1], t)!;
         }
       }
-      return oilImageOrigin + chosen * oilImageScale;
+      return wrapOilPoint(oilImageOrigin + chosen * oilImageScale);
     }
     if (!oilIllustration ||
         origin.dx < 110 || origin.dx > 125 ||
@@ -1110,10 +1113,14 @@ class _WorldRoutePainter extends CustomPainter {
     final destination = metric.getTangentForOffset(metric.length)?.position ??
         camera.projectSeaLane(from, to, route.oceanWaypoints.last);
     if (connected) {
-      _marker(canvas, origin, VelaAtlasInk.englishLabel(originLabel),
+      // City pins belong on the painted city, not on offshore lane
+      // waypoints. The route itself remains a separate sea-only corridor.
+      final homePin = camera.projectArtwork(from);
+      final cityPin = camera.projectArtwork(to);
+      _marker(canvas, homePin, VelaAtlasInk.englishLabel(originLabel),
         const Color(0xFFE3B777), showLabel: true,
-        toLeft: (destination - origin).distance < 170);
-      _marker(canvas, destination, VelaAtlasInk.englishLabel(label),
+        toLeft: (cityPin - homePin).distance < 170);
+      _marker(canvas, cityPin, VelaAtlasInk.englishLabel(label),
         const Color(0xFF84D0FF), showLabel: true, above: true);
     }
     final tangent = metric.getTangentForOffset(
