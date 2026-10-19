@@ -559,6 +559,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       );
       await _library.write(next, _activeProfileId);
       _profiles = next;
+      _autoRefreshAttemptedAt.remove(id);
       if (_activeProfileId == id) {
         _profileName = clean;
         _sessionUrl = sourceUrl;

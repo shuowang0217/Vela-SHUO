@@ -91,11 +91,13 @@ Future<({
   final subscription = VelaFlClashSubscriptionController(
     backend: backend,
     core: core,
+    vault: VelaMemoryProfileVault(),
     profileVault: vault,
     downloader: downloader,
     clock: clock,
   );
-  expect(await subscription.restoreSaved(), isTrue);
+  expect(await subscription.restoreSaved().timeout(
+      const Duration(seconds: 5)), isTrue);
   return (
     temp: temp,
     core: core,
@@ -109,7 +111,7 @@ void main() {
 
   testWidgets('active airport is always first and enlarged on shared UI',
       (tester) async {
-    var now = DateTime.utc(2026, 10, 19, 5);
+    final now = DateTime.utc(2026, 10, 19, 5);
     await tester.binding.setSurfaceSize(const Size(1180, 1300));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final setup = await _setup(
@@ -145,7 +147,7 @@ void main() {
       ),
     );
     await tester.pumpWidget(page());
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 100));
 
     final active = find.byKey(const ValueKey('airport_card_active'));
     final other = find.byKey(const ValueKey('airport_card_newer'));
