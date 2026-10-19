@@ -64,7 +64,11 @@ class VelaVpnService : VpnService() {
         // Only Android-permitted inner notification content is oil-painted;
         // SystemUI controls the outside card/header. Static PNG resources
         // avoid sending a bitmap every 2-second traffic sample.
-        private fun paintedStatus(context: Context, rates: String,
+        // Android/One UI owns the outer notification card and app icon.
+        // Do not render a second Vela icon or a whole dashboard plaque here.
+        // Use a text-free, edge-faded oil brush texture in the content slot.
+        private fun paintedStatus(context: Context, upload: String,
+                                  download: String, connecting: Boolean,
                                   layout: Int): RemoteViews {
             val views = RemoteViews(context.packageName, layout)
             val dark = (context.resources.configuration.uiMode and
@@ -72,17 +76,16 @@ class VelaVpnService : VpnService() {
             views.setImageViewResource(R.id.vela_notice_art,
                 if (dark) R.drawable.vela_notification_oil_night
                 else R.drawable.vela_notification_oil_day)
-            views.setImageViewResource(R.id.vela_notice_scrim,
-                if (dark) R.drawable.vela_notification_scrim_night
-                else R.drawable.vela_notification_scrim_day)
-            views.setImageViewResource(R.id.vela_notice_icon,
-                R.drawable.vela_notification_brand)
             views.setTextViewText(R.id.vela_notice_title, airportName(context))
-            views.setTextViewText(R.id.vela_notice_rates, rates)
-            val ink = if (dark) Color.rgb(250, 242, 222)
+            views.setTextViewText(R.id.vela_notice_up,
+                if (connecting) "风速 采集中 ↑" else "风速 $upload ↑")
+            views.setTextViewText(R.id.vela_notice_down,
+                if (connecting) "航速 采集中 ↓" else "航速 $download ↓")
+            val ink = if (dark) Color.rgb(248, 244, 226)
                 else Color.rgb(35, 52, 62)
             views.setTextColor(R.id.vela_notice_title, ink)
-            views.setTextColor(R.id.vela_notice_rates, ink)
+            views.setTextColor(R.id.vela_notice_up, ink)
+            views.setTextColor(R.id.vela_notice_down, ink)
             return views
         }
 
@@ -96,9 +99,9 @@ class VelaVpnService : VpnService() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             val rates = if (connecting) "风速 采集中 ↑    航速 采集中 ↓"
                         else "风速 $upload ↑    航速 $download ↓"
-            val compact = paintedStatus(context, rates,
+            val compact = paintedStatus(context, upload, download, connecting,
                 R.layout.vela_notification_compact)
-            val expanded = paintedStatus(context, rates,
+            val expanded = paintedStatus(context, upload, download, connecting,
                 R.layout.vela_notification_expanded)
             val builder = Notification.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.vela_notification_sail)
