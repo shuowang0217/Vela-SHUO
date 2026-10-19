@@ -41,7 +41,7 @@ void main() {
     }
     final source=File('lib/src/home/world_atlas.dart').readAsStringSync();
     expect(source,contains('final tangent = metric.getTangentForOffset('));
-    expect(source,contains('final routePath = route.oceanPath(geoProject)'));
+    expect(source,contains('route.oceanPath(camera.seaLaneProjector(from, to))'));
     expect(source,isNot(contains('canvas.drawCircle(boat, 25')));
   });
 
