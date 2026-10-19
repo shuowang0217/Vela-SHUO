@@ -1108,10 +1108,6 @@ class _WorldRoutePainter extends CustomPainter {
     final metrics = routePath.computeMetrics().toList();
     if (metrics.isEmpty) return;
     final metric = metrics.first;
-    final origin = metric.getTangentForOffset(0)?.position ??
-        camera.projectSeaLane(from, to, route.oceanWaypoints.first);
-    final destination = metric.getTangentForOffset(metric.length)?.position ??
-        camera.projectSeaLane(from, to, route.oceanWaypoints.last);
     if (connected) {
       // City pins belong on the painted city, not on offshore lane
       // waypoints. The route itself remains a separate sea-only corridor.
