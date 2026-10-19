@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:flutter/services.dart';
 
@@ -148,7 +147,9 @@ class VelaPaintedOceanRoute {
       final x = current % columns, y = current ~/ columns;
       for (final (dx, dy) in steps) {
         final yy = y + dy, xx = _wrap(x + dx);
-        if (yy < 0 || yy >= rows) continue;
+        if (yy < 0 || yy >= rows) {
+          continue;
+        }
         if (!_mainOcean[_id(xx, yy)]) continue;
         if (dx != 0 && dy != 0 &&
             (!_mainOcean[_id(xx, y)] || !_mainOcean[_id(x, yy)])) continue;
