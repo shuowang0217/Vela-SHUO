@@ -6,6 +6,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
+import android.content.res.Configuration
+import android.graphics.Color
+import android.widget.RemoteViews
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.VpnService
@@ -58,6 +61,31 @@ class VelaVpnService : VpnService() {
             return manager
         }
 
+        // Only Android-permitted inner notification content is oil-painted;
+        // SystemUI controls the outside card/header. Static PNG resources
+        // avoid sending a bitmap every 2-second traffic sample.
+        private fun paintedStatus(context: Context, rates: String,
+                                  layout: Int): RemoteViews {
+            val views = RemoteViews(context.packageName, layout)
+            val dark = (context.resources.configuration.uiMode and
+                Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            views.setImageViewResource(R.id.vela_notice_art,
+                if (dark) R.drawable.vela_notification_oil_night
+                else R.drawable.vela_notification_oil_day)
+            views.setImageViewResource(R.id.vela_notice_scrim,
+                if (dark) R.drawable.vela_notification_scrim_night
+                else R.drawable.vela_notification_scrim_day)
+            views.setImageViewResource(R.id.vela_notice_icon,
+                R.drawable.vela_notification_brand)
+            views.setTextViewText(R.id.vela_notice_title, airportName(context))
+            views.setTextViewText(R.id.vela_notice_rates, rates)
+            val ink = if (dark) Color.rgb(250, 242, 222)
+                else Color.rgb(35, 52, 62)
+            views.setTextColor(R.id.vela_notice_title, ink)
+            views.setTextColor(R.id.vela_notice_rates, ink)
+            return views
+        }
+
         fun statusNotification(context: Context, upload: String, download: String,
                                connecting: Boolean = false,
                                ongoing: Boolean = true): Notification {
@@ -68,6 +96,10 @@ class VelaVpnService : VpnService() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             val rates = if (connecting) "风速 采集中 ↑    航速 采集中 ↓"
                         else "风速 $upload ↑    航速 $download ↓"
+            val compact = paintedStatus(context, rates,
+                R.layout.vela_notification_compact)
+            val expanded = paintedStatus(context, rates,
+                R.layout.vela_notification_expanded)
             val builder = Notification.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.vela_notification_sail)
                 .setContentTitle(airportName(context))
@@ -76,6 +108,9 @@ class VelaVpnService : VpnService() {
                 .setCategory(Notification.CATEGORY_SERVICE)
                 .setOnlyAlertOnce(true)
                 .setOngoing(ongoing)
+                .setCustomContentView(compact)
+                .setCustomBigContentView(expanded)
+                .setStyle(Notification.DecoratedCustomViewStyle())
             if (ongoing && Build.VERSION.SDK_INT >= 31) {
                 builder.setForegroundServiceBehavior(
                     Notification.FOREGROUND_SERVICE_IMMEDIATE)

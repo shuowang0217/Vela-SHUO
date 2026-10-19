@@ -2,7 +2,7 @@ name: Vela v1.8.0 Stable Release
 
 on:
   push:
-    branches: [main, release/v1.8.0]
+    branches: [main, release/v1.8.0, feature/v1.8.0-oil-notification-win-route]
   workflow_dispatch:
 
 permissions:

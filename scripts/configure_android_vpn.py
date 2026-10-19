@@ -96,4 +96,26 @@ icon_source = Path("native/android/vela_notification_sail.xml")
 drawable_dir = Path("android/app/src/main/res/drawable")
 drawable_dir.mkdir(parents=True, exist_ok=True)
 shutil.copy2(icon_source, drawable_dir / icon_source.name)
+
+# Bundle existing approved, static oil-plaque art in Android resources. Keep
+# package assets immutable while live speeds update in native VpnService.
+painted_dir = Path("android/app/src/main/res/drawable-nodpi")
+painted_dir.mkdir(parents=True, exist_ok=True)
+for source, target in (
+        ("assets/oil/ui/connection_plaque.png", "vela_notification_oil_day.png"),
+        ("assets/oil/ui/night_connection_plaque.png", "vela_notification_oil_night.png"),
+        ("assets/brand/vela_selected_icon.png", "vela_notification_brand.png")):
+    original = Path(source)
+    if not original.is_file() or original.stat().st_size == 0:
+        raise SystemExit(f"Missing Vela notification artwork: {source}")
+    shutil.copy2(original, painted_dir / target)
+
+layout_dir = Path("android/app/src/main/res/layout")
+layout_dir.mkdir(parents=True, exist_ok=True)
+for item in ("vela_notification_compact.xml", "vela_notification_expanded.xml"):
+    shutil.copy2(Path("native/android") / item, layout_dir / item)
+for item in ("vela_notification_scrim_day.xml",
+             "vela_notification_scrim_night.xml",
+             "vela_notification_icon_clip.xml"):
+    shutil.copy2(Path("native/android") / item, drawable_dir / item)
 print("Vela stable Android: fixed package ID and release signing enforced")
