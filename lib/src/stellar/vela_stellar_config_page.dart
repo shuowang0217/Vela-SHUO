@@ -11,6 +11,7 @@ import 'vela_stellar_import_dialog.dart';
 import '../subscription/vela_subscription_controller.dart';
 import '../theme/vela_palettes.dart';
 import 'stellar_design.dart';
+import 'vela_airport_card_layout.dart';
 
 /// Configuration management in the approved orbital-card visual language.
 /// This view shows real saved profiles and provider quota only. Configured
@@ -532,14 +533,12 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                           ...profiles.where((p) => p.id == activeId),
                           ...profiles.where((p) => p.id != activeId),
                         ];
-                        final cardWidth = area.maxWidth >= 680
-                            ? (area.maxWidth - 12) / 2 : area.maxWidth;
-                        return Wrap(spacing: 12, runSpacing: 12,
-                          children: [for (final profile in ordered)
-                            SizedBox(width: cardWidth,
-                              child: _profileCard(context, profile,
+                        return VelaAirportCardLayout(
+                          cards: [
+                            for (final profile in ordered)
+                              _profileCard(context, profile,
                                 selected: profile.id == activeId,
-                                online: online && profile.id == activeId)),
+                                online: online && profile.id == activeId),
                           ],
                         );
                       })

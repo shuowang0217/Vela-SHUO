@@ -8,8 +8,8 @@ void main() {
         File('lib/src/stellar/vela_stellar_config_page.dart').readAsStringSync();
     expect(source, contains('...profiles.where((p) => p.id == activeId)'));
     expect(source, contains('...profiles.where((p) => p.id != activeId)'));
-    expect(source, contains('return Wrap(spacing: 12, runSpacing: 12'));
-    expect(source, contains('SizedBox(width: cardWidth'));
+    expect(source, contains('return VelaAirportCardLayout('));
+    expect(source, isNot(contains('SizedBox(width: cardWidth')));
     expect(source, contains('padding: const EdgeInsets.all(17)'));
     expect(source, contains('const StellarCompassGlyph(size: 42)'));
     expect(source, isNot(contains('featured: true')));
