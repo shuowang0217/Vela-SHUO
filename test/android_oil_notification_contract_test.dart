@@ -24,9 +24,9 @@ void main() {
     expect(build, contains('scripts/prepare_oil_notification.py'));
     expect(build, contains('notification_oil_'));
     expect(build, isNot(contains('connection_plaque.png')));
-    expect(art, contains('oil_canvas.webp'));
+    expect(art, contains('notification_maritime_reference.webp'));
     expect(art, isNot(contains('connection_plaque.png')));
-    expect(art, contains('GaussianBlur'));
+    expect(art, contains('Image.Resampling.LANCZOS'));
     for (final layout in [compact, expanded]) {
       expect(layout, contains('@+id/vela_notice_title'));
       expect(layout, contains('@+id/vela_notice_up'));
