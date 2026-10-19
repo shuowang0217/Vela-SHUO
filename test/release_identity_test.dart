@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/update/vela_update_service.dart';
 
 void main() {
-  test('1.8.0 preview version and upgrade identity are consistent', () {
+  test('1.8.0 stable release identity and upgrade are consistent', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final generator = File('scripts/configure_android_vpn.py')
         .readAsStringSync();
