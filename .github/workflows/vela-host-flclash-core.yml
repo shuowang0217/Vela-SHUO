@@ -404,7 +404,7 @@ jobs:
           unzip -l release/windows/Vela-v1.8.0-Windows-x64.zip | grep -q 'Vela.exe'
           unzip -t release/android/Vela-v1.8.0-Android-arm64.apk >/dev/null
           unzip -l release/android/Vela-v1.8.0-Android-arm64.apk | grep -q 'lib/arm64-v8a/libclash.so'
-      - name: Publish GitHub Release v1.7.0 with verified Windows and Android assets
+      - name: Publish GitHub Release v1.8.0 with verified Windows and Android assets
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
