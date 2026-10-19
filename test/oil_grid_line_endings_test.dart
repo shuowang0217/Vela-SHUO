@@ -6,8 +6,8 @@ void main() {
   test('painted ocean mask accepts LF and CRLF', () {
     final row = List<String>.filled(VelaPaintedOceanRoute.columns, '1').join();
     final lines = List<String>.filled(VelaPaintedOceanRoute.rows, row);
-    expect(VelaPaintedOceanRoute.parseGrid(lines.join('\n') + '\n'), lines);
-    expect(VelaPaintedOceanRoute.parseGrid(lines.join('\r\n') + '\r\n'), lines);
+    expect(VelaPaintedOceanRoute.parseGrid("${lines.join('\n')}\n"), lines);
+    expect(VelaPaintedOceanRoute.parseGrid("${lines.join('\r\n')}\r\n"), lines);
     expect(VelaPaintedOceanRoute.parseGrid(lines.join('\n')), lines);
   });
 
@@ -16,7 +16,7 @@ void main() {
     final lines = List<String>.filled(VelaPaintedOceanRoute.rows, row);
     expect(() => VelaPaintedOceanRoute.parseGrid(lines.take(67).join('\n')),
         throwsFormatException);
-    lines[4] = row.substring(0, 119) + 'x';
+    lines[4] = "${row.substring(0, 119)}x";
     expect(() => VelaPaintedOceanRoute.parseGrid(lines.join('\r\n')),
         throwsFormatException);
   });
