@@ -42,11 +42,12 @@ class VelaAirportCardLayout extends StatelessWidget {
         );
       }
 
-      // TableRow's fill alignment gives both cards identical outer height,
-      // determined by the tallest intrinsic card; no hard maximum or
-      // clipping, even when labels wrap or accessibility text grows.
+      // TableCellVerticalAlignment.fill alone cannot establish a row's
+      // natural height when every cell is 'fill' (RenderTable may use 0px).
+      // intrinsicHeight measures the tallest card first, then stretches
+      // both peers to that measured height, preserving wrapped metadata.
       return Table(
-        defaultVerticalAlignment: TableCellVerticalAlignment.fill,
+        defaultVerticalAlignment: TableCellVerticalAlignment.intrinsicHeight,
         columnWidths: {
           0: const FlexColumnWidth(),
           1: FixedColumnWidth(gap),
