@@ -2,7 +2,7 @@ name: Vela v1.9.0 Stable Release
 
 on:
   push:
-    branches: [main, release/v1.9.0, feature/v1.9.0-oil-notification-win-route]
+    branches: [main, release/v1.9.0]
   workflow_dispatch:
 
 permissions:
@@ -395,7 +395,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -qx 'version: 1.9.0+52' pubspec.yaml
+          grep -qx 'version: 1.9.0+53' pubspec.yaml
           (cd release/windows && sha256sum -c SHA256-Windows.txt)
           # Compatible with the pre-release build layout as well.
           sed -i 's#  dist/#  #' release/android/SHA256-Android.txt
