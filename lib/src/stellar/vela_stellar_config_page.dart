@@ -265,7 +265,7 @@ class _StellarConfigState extends State<VelaStellarConfigPage> {
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         labelText: '更新间隔（分钟）',
-                        helperText: '最少 15 分钟；打开软件时自动更新')),
+                        helperText: '最少 15 分钟；Vela 运行时自动检查，关闭后不保证后台更新')),
                   const SizedBox(height: 8),
                   const Text('编辑订阅来源或更新策略不影响正在连接的代理。',
                     style: TextStyle(fontSize: 11)),

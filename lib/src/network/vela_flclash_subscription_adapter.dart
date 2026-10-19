@@ -445,7 +445,7 @@ class VelaFlClashSubscriptionController extends VelaSubscriptionController {
       final next = [..._profiles];
       next[index] = entry.copyWith(
         raw: fetched.content, usage: _quotaMap(fetched.usage),
-        updatedAt: DateTime.now(),
+        updatedAt: _clock(),
       );
       if (active) {
         final latestSelected = selected?.name;
