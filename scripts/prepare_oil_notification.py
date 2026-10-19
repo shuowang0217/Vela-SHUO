@@ -57,6 +57,18 @@ def build(dark: bool) -> None:
     shape.rounded_rectangle((22, 9, 878, 201), radius=38,
                             fill=220 if dark else 202)
     mask = mask.filter(ImageFilter.GaussianBlur(radius=18))
+    # Gaussian support can leave nonzero alpha right at the PNG boundary.
+    # Multiply by a second gradual edge ramp to reach exactly zero at every
+    # outside edge, without introducing a visible rectangular cut-off.
+    edge = Image.new("L", SIZE, 0)
+    edge_pixels = edge.load()
+    width, height = SIZE
+    for y in range(height):
+        vertical = min(1.0, y / 25.0, (height - 1 - y) / 25.0)
+        for x in range(width):
+            horizontal = min(1.0, x / 35.0, (width - 1 - x) / 35.0)
+            edge_pixels[x, y] = int(255 * min(vertical, horizontal))
+    mask = ImageChops.multiply(mask, edge)
     base.putalpha(ImageChops.multiply(base.getchannel("A"), mask))
     name = "night" if dark else "day"
     target = DESTINATION / f"notification_oil_{name}.png"
