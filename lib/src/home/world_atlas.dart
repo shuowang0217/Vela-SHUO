@@ -121,6 +121,52 @@ class VelaWorldCamera {
     return point + Offset(shift * oilTileWidth, 0);
   }
 
+  /// Draw the route exclusively through the painted ocean, on exactly
+  /// the same periodic image tiles used by city labels and camera movement.
+  /// A failed coastline lookup intentionally produces no track.
+  Path paintedRoutePath(Offset from, Offset to, {double until = 1}) {
+    final grid = VelaPaintedOceanRoute.instance;
+    if (!grid.ready) return Path();
+    final coordinates = grid.routePixels(
+        oilCanvasPosition(from), oilCanvasPosition(to));
+    if (coordinates.length < 2) return Path();
+    final path = Path();
+    double? lastX;
+    var first = true;
+    for (final pixel in coordinates) {
+      var x = pixel.dx;
+      if (lastX != null) {
+        x += ((lastX - x) / oilImageSize.width).round() *
+            oilImageSize.width;
+      }
+      lastX = x;
+      final screen = oilImageOrigin + Offset(x, pixel.dy) * oilImageScale;
+      if (first) {
+        path.moveTo(screen.dx, screen.dy);
+        first = false;
+      } else {
+        path.lineTo(screen.dx, screen.dy);
+      }
+    }
+    if (until >= 1) return path;
+    final clip = Path();
+    for (final metric in path.computeMetrics()) {
+      clip.addPath(metric.extractPath(0,
+          metric.length * until.clamp(0.0, 1.0)), Offset.zero);
+    }
+    return clip;
+  }
+
+  /// The painted world repeats left and right; traces must repeat as well.
+  Path repeatPaintedPath(Path source) {
+    if (!oilIllustration) return source;
+    final result = Path();
+    for (var copy = -2; copy <= 2; copy++) {
+      result.addPath(source, Offset(copy * oilTileWidth, 0));
+    }
+    return result;
+  }
+
   /// Create an unwrapped path projector for one ordered sea voyage.
   /// Individual markers choose the nearest tile; successive route points
   /// must also use neighboring copies so their strokes never jump a whole
@@ -1087,29 +1133,35 @@ class _WorldRoutePainter extends CustomPainter {
     }
     if (!active || (from - to).distance < .01) return;
     final route = VelaMaritimeRoute(from: from, to: to);
-    final routePath = route.oceanPath(camera.seaLaneProjector(from, to));
-    final traveled = route.oceanPath(
-        camera.seaLaneProjector(from, to), until: progress);
+    final routePath = camera.oilIllustration
+        ? camera.paintedRoutePath(from, to)
+        : route.oceanPath(camera.seaLaneProjector(from, to));
+    final traveled = camera.oilIllustration
+        ? camera.paintedRoutePath(from, to, until: progress)
+        : route.oceanPath(
+            camera.seaLaneProjector(from, to), until: progress);
+    final visibleRoute = camera.repeatPaintedPath(routePath);
+    final visibleTravel = camera.repeatPaintedPath(traveled);
     // Hand-painted nautical chart line: warm gold below, pale silk highlights.
     // Every moving shimmer and the sail use this exact same curved path.
-    canvas.drawPath(routePath, Paint()
+    canvas.drawPath(visibleRoute, Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4.3
       ..strokeCap = StrokeCap.round
       ..color = (dark ? const Color(0xFFC39C68) :
           const Color(0xFF8D5F32)).withValues(alpha: .78));
-    canvas.drawPath(routePath, Paint()
+    canvas.drawPath(visibleRoute, Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round
       ..color = const Color(0xFFF9DFAD).withValues(alpha: .88));
-    canvas.drawPath(traveled, Paint()
+    canvas.drawPath(visibleTravel, Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 7.0
       ..strokeCap = StrokeCap.round
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4)
       ..color = const Color(0xFFB9D6EB).withValues(alpha: .30));
-    canvas.drawPath(traveled, Paint()
+    canvas.drawPath(visibleTravel, Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.6
       ..strokeCap = StrokeCap.round
@@ -1131,7 +1183,8 @@ class _WorldRoutePainter extends CustomPainter {
     final tangent = metric.getTangentForOffset(
       metric.length * progress.clamp(0.0, 1.0));
     if (tangent == null) return;
-    final boat = tangent.position;
+    final boat = camera.oilIllustration
+        ? camera.wrapOilPoint(tangent.position) : tangent.position;
     // Compact carved-ink silhouette; the previous 25 px blurred blue halo
     // made the middle of the painted coastline look out of focus.
     canvas.drawOval(Rect.fromCenter(center: boat + const Offset(0, 14),
