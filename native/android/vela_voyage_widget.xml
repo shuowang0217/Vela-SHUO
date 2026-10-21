@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+ android:layout_width="match_parent" android:layout_height="match_parent"
+ android:background="@drawable/vela_widget_frame">
+ <ImageView android:layout_width="match_parent" android:layout_height="match_parent"
+  android:scaleType="centerCrop" android:src="@drawable/vela_widget_oil"
+  android:contentDescription="@null"/>
+ <LinearLayout android:orientation="horizontal" android:layout_width="match_parent"
+  android:layout_height="match_parent" android:padding="12dp" android:gravity="center_vertical">
+  <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+   android:layout_height="match_parent" android:gravity="center_vertical" android:orientation="vertical">
+   <TextView android:id="@+id/widget_airport" android:layout_width="match_parent"
+    android:layout_height="wrap_content" android:text="Vela" android:singleLine="true"
+    android:ellipsize="end" android:textSize="15sp" android:textStyle="bold" android:textColor="#15374C"/>
+   <TextView android:id="@+id/widget_quota" android:layout_width="match_parent"
+    android:layout_height="wrap_content" android:layout_marginTop="7dp"
+    android:text="机场流量未知" android:textSize="14sp" android:textColor="#15374C"
+    android:singleLine="true" android:ellipsize="end"/>
+   <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:layout_marginTop="5dp" android:gravity="center_vertical" android:orientation="horizontal">
+    <ProgressBar android:id="@+id/widget_progress" style="?android:attr/progressBarStyleHorizontal"
+     android:layout_width="0dp" android:layout_weight="1" android:layout_height="7dp"
+     android:max="1000" android:progressDrawable="@drawable/vela_widget_progress"/>
+    <TextView android:id="@+id/widget_percent" android:layout_width="47dp"
+     android:layout_height="wrap_content" android:gravity="end" android:text="—"
+     android:textSize="11sp" android:textColor="#23485C"/>
+   </LinearLayout>
+   <TextView android:id="@+id/widget_status" android:layout_width="match_parent"
+    android:layout_height="wrap_content" android:layout_marginTop="7dp"
+    android:text="未航行" android:textSize="12sp" android:textStyle="bold" android:textColor="#194B55"/>
+  </LinearLayout>
+  <LinearLayout android:layout_width="106dp" android:layout_height="match_parent"
+   android:paddingLeft="7dp" android:gravity="center" android:orientation="vertical">
+   <TextView android:id="@+id/widget_city" android:layout_width="match_parent"
+    android:layout_height="wrap_content" android:text="CHINA" android:gravity="center"
+    android:singleLine="true" android:ellipsize="end"
+    android:textSize="17sp" android:fontFamily="serif" android:textStyle="bold"
+    android:textColor="#FFF3D5" android:shadowColor="#80000000"
+    android:shadowDx="1" android:shadowDy="1" android:shadowRadius="3"/>
+   <TextView android:id="@+id/widget_button" android:layout_width="match_parent"
+    android:layout_height="40dp" android:layout_marginTop="8dp"
+    android:gravity="center" android:background="@drawable/vela_widget_button"
+    android:text="启航" android:textColor="#FFF7E2" android:textSize="14sp"
+    android:textStyle="bold" android:contentDescription="Vela 航行开关"/>
+  </LinearLayout>
+ </LinearLayout>
+</FrameLayout>
