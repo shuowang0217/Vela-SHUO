@@ -70,6 +70,13 @@ permissions = '''
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 '''
 xml = xml[:root_end] + permissions + xml[root_end:]
+shortcut_activity = '''
+        <activity
+            android:name="com.shuowang.vela_shuo.VelaShortcutToggleActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
+'''
 service = '''
         <service
             android:name="com.shuowang.vela_shuo.VelaVpnService"
@@ -85,19 +92,14 @@ service = '''
 '''
 if xml.count('</application>') != 1:
     raise SystemExit("Generated Flutter manifest lacks a single application")
-xml = xml.replace('</application>', service + '    </application>', 1)
-# Register Android native app shortcuts on the Flutter launcher Activity.
-# This preview intentionally registers no AppWidget provider/receiver.
-if xml.count('</activity>') != 1:
-    raise SystemExit("Unexpected generated Flutter launcher activity")
-xml = xml.replace('</activity>', '''
-            <meta-data android:name="android.app.shortcuts"
-                android:resource="@xml/vela_app_shortcuts"/>
-        </activity>''', 1)
+xml = xml.replace('</application>', service + shortcut_activity + '    </application>', 1)
+# Dynamic shortcut is published by Kotlin after application/service creation.
+# It is not declared as a static launcher XML shortcut.
 manifest.write_text(xml, encoding="utf-8")
 
 kotlin_dir.mkdir(parents=True, exist_ok=True)
-for item in ("MainActivity.kt", "VelaVpnService.kt", "VelaVpnState.kt"):
+for item in ("MainActivity.kt", "VelaVpnService.kt", "VelaVpnState.kt",
+             "VelaCompassShortcut.kt", "VelaShortcutToggleActivity.kt"):
     shutil.copy2(Path("native/android") / item, kotlin_dir / item)
 
 icon_source = Path("native/android/vela_notification_sail.xml")
@@ -121,26 +123,10 @@ layout_dir = Path("android/app/src/main/res/layout")
 layout_dir.mkdir(parents=True, exist_ok=True)
 for item in ("vela_notification_compact.xml", "vela_notification_expanded.xml"):
     shutil.copy2(Path("native/android") / item, layout_dir / item)
-# Install static App Shortcut declarations and icons.
-xml_dir = Path("android/app/src/main/res/xml")
-xml_dir.mkdir(parents=True, exist_ok=True)
-shutil.copy2(Path("native/android/vela_app_shortcuts.xml"),
-             xml_dir / "vela_app_shortcuts.xml")
-for item in ("vela_shortcut_start.xml", "vela_shortcut_stop.xml"):
-    shutil.copy2(Path("native/android") / item, drawable_dir / item)
-strings_path = Path("android/app/src/main/res/values/strings.xml")
-strings_path.parent.mkdir(parents=True, exist_ok=True)
-new_strings = """    <string name="vela_shortcut_start">启航</string>
-    <string name="vela_shortcut_start_long">连接 Vela VPN</string>
-    <string name="vela_shortcut_stop">停止航行</string>
-    <string name="vela_shortcut_stop_long">断开 Vela VPN</string>
-"""
-if strings_path.exists():
-    content = strings_path.read_text(encoding="utf-8")
-    if content.count("</resources>") != 1:
-        raise SystemExit("Unexpected generated Android string resources")
-    content = content.replace("</resources>", new_strings + "</resources>", 1)
-else:
-    content = "<resources>\n" + new_strings + "</resources>\n"
-strings_path.write_text(content, encoding="utf-8")
-print("Vela stable Android: fixed package ID and release signing enforced")
+# Reuse the painted navigation compass FROM the approved Vela oil atlas.
+# It is a real bitmap icon (200px), not a generic Android play/stop glyph.
+compass = Path("assets/oil/ui/oil_nav_compass.png")
+if not compass.is_file() or compass.stat().st_size == 0:
+    raise SystemExit("Vela oil atlas compass icon was not generated")
+shutil.copy2(compass, painted_dir / "vela_shortcut_compass.png")
+print("Vela Android: one dynamic oil-compass shortcut, no static shortcuts or widgets")
