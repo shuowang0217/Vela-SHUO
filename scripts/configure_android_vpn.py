@@ -123,10 +123,12 @@ layout_dir = Path("android/app/src/main/res/layout")
 layout_dir.mkdir(parents=True, exist_ok=True)
 for item in ("vela_notification_compact.xml", "vela_notification_expanded.xml"):
     shutil.copy2(Path("native/android") / item, layout_dir / item)
-# Reuse the painted navigation compass FROM the approved Vela oil atlas.
-# It is a real bitmap icon (200px), not a generic Android play/stop glyph.
-compass = Path("assets/oil/ui/oil_nav_compass.png")
-if not compass.is_file() or compass.stat().st_size == 0:
-    raise SystemExit("Vela oil atlas compass icon was not generated")
-shutil.copy2(compass, painted_dir / "vela_shortcut_compass.png")
-print("Vela Android: one dynamic oil-compass shortcut, no static shortcuts or widgets")
+# Use the same user-approved navy/gold OIL-PAINTED SAILBOAT as Vela's
+# selected app identity, not the earlier navigation compass or a flat glyph.
+# prepare_selected_brand.py generates this transparent oil sail before the
+# Android native runner is configured in CI.
+sail = Path("assets/brand/vela_selected_icon.png")
+if not sail.is_file() or sail.stat().st_size == 0:
+    raise SystemExit("Approved Vela oil-painted sailboat icon was not generated")
+shutil.copy2(sail, painted_dir / "vela_shortcut_sail.png")
+print("Vela Android: one fixed-label 扬帆 oil-sail shortcut, no widgets")
