@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/update/vela_update_service.dart';
 
 void main() {
-  test('1.9.0+54 shortcuts preview identity and upgrade are consistent', () {
+  test('1.9.0+55 compass toggle preview identity and upgrade are consistent', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final generator = File('scripts/configure_android_vpn.py')
         .readAsStringSync();
@@ -12,7 +12,7 @@ void main() {
         .readAsStringSync();
     final windows = File('scripts/configure_windows_product.py')
         .readAsStringSync();
-    expect(pubspec, contains('version: 1.9.0+54'));
+    expect(pubspec, contains('version: 1.9.0+55'));
     expect(generator, contains('applicationId = "com.shuowang.vela"'));
     expect(generator, contains('android:label="Vela"'));
     expect(generator, contains('signingConfigs.getByName("velaRelease")'));
@@ -26,7 +26,7 @@ void main() {
     expect(generator, contains('keyAlias = "shuo-release"'));
     expect(workflow, contains('Vela-v1.9.0-Android-arm64.apk'));
     expect(workflow, contains('Vela-v1.9.0-Windows-x64.zip'));
-    expect(workflow, contains("versionCode='54' versionName='1.9.0'"));
+    expect(workflow, contains("versionCode='55' versionName='1.9.0'"));
     expect(workflow, contains("refs/heads/release/v1.9.0"));
     expect(windows, contains('set(BINARY_NAME "Vela")'));
     expect(VelaUpdateService.currentVersion, '1.9.0');
