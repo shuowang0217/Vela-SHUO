@@ -24,25 +24,12 @@ class MainActivity : FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var pendingProfile: String? = null
     private val noticePermissionCode = 8242
-    private var pendingShortcut: String? = null
-
-    private fun captureShortcut(candidate: Intent?) {
-        when (candidate?.action) {
-            "com.shuowang.vela.SHORTCUT_START" -> pendingShortcut = "start"
-            "com.shuowang.vela.SHORTCUT_STOP" -> pendingShortcut = "stop"
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
-        captureShortcut(intent)
         super.onCreate(savedInstanceState)
+        VelaVpnState.appContext = applicationContext
+        VelaCompassShortcut.refresh(this)
     }
 
-    override fun onNewIntent(newIntent: Intent) {
-        super.onNewIntent(newIntent)
-        setIntent(newIntent)
-        captureShortcut(newIntent)
-    }
 
     // Android 13+: request notification permission only after Connect.
     // A denied notification permission does not prevent VPN transport.
@@ -158,10 +145,29 @@ class MainActivity : FlutterActivity() {
                         }
                     }, "flclash-geo-init").start()
                 }
-                "consumeAppShortcut" -> {
-                    val requested = pendingShortcut
-                    pendingShortcut = null
-                    result.success(requested)
+                "cacheShortcutSelection" -> {
+                    val selection = call.argument<String>("profile")
+                    if (selection.isNullOrBlank() ||
+                        selection.toByteArray(Charsets.UTF_8).size > 4096) {
+                        result.success(false)
+                    } else {
+                        try {
+                            val obj = org.json.JSONObject(selection)
+                            val map = obj.optJSONObject("selected-map")
+                            val mode = obj.optString("route-mode", "rule")
+                            if (map == null ||
+                                mode !in setOf("rule", "global", "direct")) {
+                                result.success(false)
+                            } else {
+                                val persisted = getSharedPreferences(
+                                    "vela_shortcut_v1", MODE_PRIVATE).edit()
+                                    .putString("selection", selection).commit()
+                                result.success(persisted)
+                            }
+                        } catch (_: Exception) {
+                            result.success(false)
+                        }
+                    }
                 }
                 "setNotificationAirport" -> {
                     val name = call.argument<String>("name") ?: "Vela"
