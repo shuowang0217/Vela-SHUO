@@ -24,6 +24,25 @@ class MainActivity : FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var pendingProfile: String? = null
     private val noticePermissionCode = 8242
+    private var pendingShortcut: String? = null
+
+    private fun captureShortcut(candidate: Intent?) {
+        when (candidate?.action) {
+            "com.shuowang.vela.SHORTCUT_START" -> pendingShortcut = "start"
+            "com.shuowang.vela.SHORTCUT_STOP" -> pendingShortcut = "stop"
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        captureShortcut(intent)
+        super.onCreate(savedInstanceState)
+    }
+
+    override fun onNewIntent(newIntent: Intent) {
+        super.onNewIntent(newIntent)
+        setIntent(newIntent)
+        captureShortcut(newIntent)
+    }
 
     // Android 13+: request notification permission only after Connect.
     // A denied notification permission does not prevent VPN transport.
@@ -138,6 +157,11 @@ class MainActivity : FlutterActivity() {
                             }
                         }
                     }, "flclash-geo-init").start()
+                }
+                "consumeAppShortcut" -> {
+                    val requested = pendingShortcut
+                    pendingShortcut = null
+                    result.success(requested)
                 }
                 "setNotificationAirport" -> {
                     val name = call.argument<String>("name") ?: "Vela"
