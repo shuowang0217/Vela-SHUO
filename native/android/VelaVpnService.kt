@@ -142,6 +142,8 @@ class VelaVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
+        VelaVpnState.appContext = applicationContext
+        VelaCompassShortcut.refresh(this)
         // Create the status channel before startForeground and speed updates.
         statusNotification(this, "0 B/s", "0 B/s")
     }
