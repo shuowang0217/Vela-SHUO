@@ -24,6 +24,7 @@ class MainActivity : FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var pendingProfile: String? = null
     private val noticePermissionCode = 8242
+    private var widgetStartPending = false
 
     // Android 13+: request notification permission only after Connect.
     // A denied notification permission does not prevent VPN transport.
@@ -38,9 +39,21 @@ class MainActivity : FlutterActivity() {
             noticePermissionCode)
     }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        widgetStartPending = intent?.action == VelaVoyageWidget.LAUNCH
+        super.onCreate(savedInstanceState)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.action == VelaVoyageWidget.LAUNCH) widgetStartPending = true
+    }
+
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
         bridge = MethodChannel(engine.dartExecutor.binaryMessenger, channelName)
+        VelaVpnState.appContext = applicationContext
         VelaVpnState.listener = { state, error ->
             bridge.invokeMethod("statusChanged",
                 mapOf("state" to state, "error" to error))
@@ -138,6 +151,20 @@ class MainActivity : FlutterActivity() {
                             }
                         }
                     }, "flclash-geo-init").start()
+                }
+                "updateWidget" -> {
+                    val used = call.argument<Number>("used")?.toLong() ?: -1L
+                    val total = call.argument<Number>("total")?.toLong() ?: -1L
+                    VelaVoyageWidget.store(this, call.argument<String>("airport"),
+                        call.argument<String>("node"), used, total)
+                    result.success(null)
+                }
+                "consumeWidgetLaunch" -> {
+                    val pending = widgetStartPending ||
+                        intent?.action == VelaVoyageWidget.LAUNCH
+                    widgetStartPending = false
+                    if (pending) intent?.action = Intent.ACTION_MAIN
+                    result.success(pending)
                 }
                 "setNotificationAirport" -> {
                     val name = call.argument<String>("name") ?: "Vela"

@@ -70,6 +70,16 @@ permissions = '''
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 '''
 xml = xml[:root_end] + permissions + xml[root_end:]
+widget = '''
+        <receiver android:name="com.shuowang.vela_shuo.VelaVoyageWidget"
+            android:exported="true" android:label="Vela 航海油画">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/vela_voyage_widget_info"/>
+        </receiver>
+'''
 service = '''
         <service
             android:name="com.shuowang.vela_shuo.VelaVpnService"
@@ -85,11 +95,12 @@ service = '''
 '''
 if xml.count('</application>') != 1:
     raise SystemExit("Generated Flutter manifest lacks a single application")
-xml = xml.replace('</application>', service + '    </application>', 1)
+xml = xml.replace('</application>', service + widget + '    </application>', 1)
 manifest.write_text(xml, encoding="utf-8")
 
 kotlin_dir.mkdir(parents=True, exist_ok=True)
-for item in ("MainActivity.kt", "VelaVpnService.kt", "VelaVpnState.kt"):
+for item in ("MainActivity.kt", "VelaVpnService.kt",
+             "VelaVpnState.kt", "VelaVoyageWidget.kt"):
     shutil.copy2(Path("native/android") / item, kotlin_dir / item)
 
 icon_source = Path("native/android/vela_notification_sail.xml")
@@ -113,4 +124,16 @@ layout_dir = Path("android/app/src/main/res/layout")
 layout_dir.mkdir(parents=True, exist_ok=True)
 for item in ("vela_notification_compact.xml", "vela_notification_expanded.xml"):
     shutil.copy2(Path("native/android") / item, layout_dir / item)
+# Install native Android AppWidget resources after the Flutter project is created.
+shutil.copy2(Path("native/android/vela_voyage_widget.xml"),
+             layout_dir / "vela_voyage_widget.xml")
+xml_dir = Path("android/app/src/main/res/xml")
+xml_dir.mkdir(parents=True, exist_ok=True)
+shutil.copy2(Path("native/android/vela_voyage_widget_info.xml"),
+             xml_dir / "vela_voyage_widget_info.xml")
+for item in ("vela_widget_progress.xml", "vela_widget_button.xml",
+             "vela_widget_frame.xml"):
+    shutil.copy2(Path("native/android") / item, drawable_dir / item)
+import runpy
+runpy.run_path("scripts/prepare_oil_widget.py", run_name="__main__")
 print("Vela stable Android: fixed package ID and release signing enforced")

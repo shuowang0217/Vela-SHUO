@@ -201,6 +201,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   VelaTrafficMonitor? traffic;
   int tab = 0;
   String? _lastNotifiedAirport;
+  bool _widgetRestored = false;
+  bool _widgetLaunchBusy = false;
 
   // Store only the user's airport display name in Android private prefs.
   // Notification speed is sampled independently by native VpnService.
@@ -215,6 +217,38 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     unawaited(const MethodChannel('vela_shuo/android_vpn')
         .invokeMethod<void>('setNotificationAirport', {'name': label})
         .catchError((Object _) {}));
+  }
+
+  // Share display-only data with Android's private home-screen widget.
+  void _syncAndroidWidget() {
+    if (!Platform.isAndroid) return;
+    final sub = subscription;
+    final active = sub is VelaFlClashSubscriptionController ? sub : null;
+    final usage = active?.backend.subscriptionUsage;
+    unawaited(const MethodChannel('vela_shuo/android_vpn')
+        .invokeMethod<void>('updateWidget', {
+          'airport': active?.profileName ?? 'Vela',
+          'node': sub?.selected?.name ?? active?.backend.activeName ?? '',
+          'used': usage == null ? -1 : usage.upload + usage.download,
+          'total': usage?.total ?? -1,
+        }).catchError((Object _) {}));
+  }
+
+  Future<void> _handleWidgetLaunch() async {
+    if (!Platform.isAndroid || !_widgetRestored || _widgetLaunchBusy) return;
+    _widgetLaunchBusy = true;
+    try {
+      final pending = await const MethodChannel('vela_shuo/android_vpn')
+          .invokeMethod<bool>('consumeWidgetLaunch');
+      if (pending == true && androidVpn?.active != true &&
+          subscription?.androidVpnProfile != null) {
+        await androidVpn?.start(subscription!);
+      }
+    } catch (_) {
+      // Keep ordinary app operation available if the native bridge is absent.
+    } finally {
+      _widgetLaunchBusy = false;
+    }
   }
 
   void _synchronizeRouting() {
@@ -288,6 +322,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         unawaited(routing!.restore().then((_) => _synchronizeRouting()));
         subscription!.addListener(_synchronizeRouting);
         subscription!.addListener(_syncAndroidNotificationName);
+        if (Platform.isAndroid) subscription!.addListener(_syncAndroidWidget);
         _syncAndroidNotificationName();
         runtime.ensureRoutingMode = () async {
           final sub = subscription! as VelaFlClashSubscriptionController;
@@ -297,7 +332,13 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
               (subscription! as VelaFlClashSubscriptionController).activeProfileId);
         };
       }
-      unawaited(subscription!.restoreSaved());
+      unawaited(subscription!.restoreSaved().then((_) {
+        if (Platform.isAndroid) {
+          _widgetRestored = true;
+          _syncAndroidWidget();
+          unawaited(_handleWidgetLaunch());
+        }
+      }));
       if (subscription is VelaFlClashSubscriptionController) {
         (subscription! as VelaFlClashSubscriptionController).isVpnActive =
             () => androidVpn?.active == true;
@@ -345,6 +386,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     if (androidVpn != null) {
       androidVpn!.addListener(syncRealGlobe);
       androidVpn!.addListener(_onVpnForRouting);
+      androidVpn!.addListener(_syncAndroidWidget);
       syncRealGlobe();
     }
     WidgetsBinding.instance.addObserver(this);
@@ -354,7 +396,10 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       widget.diagnostics?.record(VelaDiagnosticEvent.appResumed);
-      if (androidVpn != null) unawaited(androidVpn!.refresh());
+      if (androidVpn != null) {
+        unawaited(androidVpn!.refresh());
+        unawaited(_handleWidgetLaunch());
+      }
       final activeSubscription = subscription;
       if (activeSubscription is VelaFlClashSubscriptionController) {
         unawaited(activeSubscription.checkAutoUpdates());
@@ -375,10 +420,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     subscription?.removeListener(syncRealGlobe);
     subscription?.removeListener(_synchronizeRouting);
     subscription?.removeListener(_syncAndroidNotificationName);
+    subscription?.removeListener(_syncAndroidWidget);
     connection?.removeListener(syncRealGlobe);
     smart?.dispose();
     androidVpn?.removeListener(syncRealGlobe);
     androidVpn?.removeListener(_onVpnForRouting);
+    androidVpn?.removeListener(_syncAndroidWidget);
     androidVpn?.dispose();
     traffic?.dispose();
     widget.windowExitGuard?.shutdownConnection = null;
