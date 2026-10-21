@@ -2,7 +2,7 @@ name: Vela v1.9.0 Stable Release
 
 on:
   push:
-    branches: [main, release/v1.9.0, feature/android-app-shortcuts, feature/android-compass-toggle, feature/android-compass-fixed-label]
+    branches: [main, release/v1.9.0, feature/android-app-shortcuts, feature/android-compass-toggle, feature/android-compass-fixed-label, feature/android-yangfan-shortcut]
   workflow_dispatch:
 
 permissions:
@@ -88,7 +88,7 @@ jobs:
 
   windows:
     name: 'Windows x64: Vela UI + FlClash pinned Mihomo source'
-    if: github.ref != 'refs/heads/feature/android-app-shortcuts' && github.ref != 'refs/heads/feature/android-compass-toggle' && github.ref != 'refs/heads/feature/android-compass-fixed-label'
+    if: github.ref != 'refs/heads/feature/android-app-shortcuts' && github.ref != 'refs/heads/feature/android-compass-toggle' && github.ref != 'refs/heads/feature/android-compass-fixed-label' && github.ref != 'refs/heads/feature/android-yangfan-shortcut'
     needs: vela-ui
     runs-on: windows-2022
     timeout-minutes: 110
@@ -339,10 +339,10 @@ jobs:
           test -s android/app/vela-release.jks
           flutter build apk --release --target-platform android-arm64
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk dist/Vela-CompassFixed-v1.9.0-Android-arm64.apk
-          unzip -l dist/Vela-CompassFixed-v1.9.0-Android-arm64.apk | grep 'lib/arm64-v8a/libcore.so'
-          unzip -l dist/Vela-CompassFixed-v1.9.0-Android-arm64.apk | grep 'lib/arm64-v8a/libclash.so'
-          if unzip -l dist/Vela-CompassFixed-v1.9.0-Android-arm64.apk | grep -q libmihomo-jni.so; then
+          cp build/app/outputs/flutter-apk/app-release.apk dist/Vela-Yangfan-v1.9.0-Android-arm64.apk
+          unzip -l dist/Vela-Yangfan-v1.9.0-Android-arm64.apk | grep 'lib/arm64-v8a/libcore.so'
+          unzip -l dist/Vela-Yangfan-v1.9.0-Android-arm64.apk | grep 'lib/arm64-v8a/libclash.so'
+          if unzip -l dist/Vela-Yangfan-v1.9.0-Android-arm64.apk | grep -q libmihomo-jni.so; then
             echo 'Unexpected legacy native core included' >&2
             exit 1
           fi
@@ -353,22 +353,22 @@ jobs:
           # The Python helper verifies the APK cryptographically and checks the
           # signer SHA-256 before the package can reach any release artifact.
           python3 scripts/finalize_android_signing.py \
-            --apk dist/Vela-CompassFixed-v1.9.0-Android-arm64.apk \
+            --apk dist/Vela-Yangfan-v1.9.0-Android-arm64.apk \
             --keystore android/app/vela-release.jks \
             --apksigner "$signer"
           rm -f android/app/vela-release.jks
           # Confirm the app identity and monotonically increasing versionCode.
           aapt="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
           test -x "$aapt"
-          package_badging="$("$aapt" dump badging dist/Vela-CompassFixed-v1.9.0-Android-arm64.apk)"
+          package_badging="$("$aapt" dump badging dist/Vela-Yangfan-v1.9.0-Android-arm64.apk)"
           # Print identity before verification; storing output avoids grep -q
           # terminating the aapt producer under shell pipefail.
           printf '%s\n' "$package_badging" | grep '^package:'
-          grep -q "^package: name='com.shuowang.vela' versionCode='56' versionName='1.9.0'" <<< "$package_badging"
-          sha256sum dist/Vela-CompassFixed-v1.9.0-Android-arm64.apk | sed 's#  dist/#  #' > dist/SHA256-Android.txt
+          grep -q "^package: name='com.shuowang.vela' versionCode='57' versionName='1.9.0'" <<< "$package_badging"
+          sha256sum dist/Vela-Yangfan-v1.9.0-Android-arm64.apk | sed 's#  dist/#  #' > dist/SHA256-Android.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Vela-CompassFixed-v1.9.0-Android-arm64
+          name: Vela-Yangfan-v1.9.0-Android-arm64
           path: vela/dist/*
           if-no-files-found: error
           retention-days: 14
