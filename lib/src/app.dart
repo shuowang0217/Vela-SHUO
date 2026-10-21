@@ -201,6 +201,44 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   VelaTrafficMonitor? traffic;
   int tab = 0;
   String? _lastNotifiedAirport;
+  bool _shortcutProfilesReady = false;
+  bool _shortcutBusy = false;
+
+  // Samsung / Android launcher commands still use Vela's verified VPN flows.
+  // Opening Vela normally never connects automatically.
+  Future<void> _consumeAppShortcut() async {
+    if (!Platform.isAndroid || !_shortcutProfilesReady || _shortcutBusy) return;
+    _shortcutBusy = true;
+    try {
+      final command = await const MethodChannel('vela_shuo/android_vpn')
+          .invokeMethod<String>('consumeAppShortcut');
+      if (command != 'start' && command != 'stop') return;
+      final vpn = androidVpn;
+      if (vpn == null) return;
+      await vpn.refresh();
+      if (command == 'stop') {
+        if (vpn.connected) await vpn.stop();
+        return;
+      }
+      if (vpn.active) return;
+      final sub = subscription;
+      if (sub == null) return;
+      if (sub is VelaFlClashSubscriptionController) {
+        if (!await sub.applyPendingProfileIfIdle()) return;
+        final modes = routing;
+        if (modes != null) {
+          await modes.restore();
+          if (!await modes.synchronize(sub.activeProfileId)) return;
+        }
+      }
+      if (sub.androidVpnProfile == null) return;
+      await vpn.start(sub);
+    } catch (_) {
+      // If initialization fails, the ordinary VPN button remains available.
+    } finally {
+      _shortcutBusy = false;
+    }
+  }
 
   // Store only the user's airport display name in Android private prefs.
   // Notification speed is sampled independently by native VpnService.
@@ -297,7 +335,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
               (subscription! as VelaFlClashSubscriptionController).activeProfileId);
         };
       }
-      unawaited(subscription!.restoreSaved());
+      unawaited(subscription!.restoreSaved().then((_) {
+        if (Platform.isAndroid) {
+          _shortcutProfilesReady = true;
+          unawaited(_consumeAppShortcut());
+        }
+      }));
       if (subscription is VelaFlClashSubscriptionController) {
         (subscription! as VelaFlClashSubscriptionController).isVpnActive =
             () => androidVpn?.active == true;
@@ -354,7 +397,10 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       widget.diagnostics?.record(VelaDiagnosticEvent.appResumed);
-      if (androidVpn != null) unawaited(androidVpn!.refresh());
+      if (androidVpn != null) {
+        unawaited(androidVpn!.refresh());
+        unawaited(_consumeAppShortcut());
+      }
       final activeSubscription = subscription;
       if (activeSubscription is VelaFlClashSubscriptionController) {
         unawaited(activeSubscription.checkAutoUpdates());
