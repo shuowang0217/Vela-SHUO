@@ -201,43 +201,17 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   VelaTrafficMonitor? traffic;
   int tab = 0;
   String? _lastNotifiedAirport;
-  bool _shortcutProfilesReady = false;
-  bool _shortcutBusy = false;
 
-  // Samsung / Android launcher commands still use Vela's verified VPN flows.
-  // Opening Vela normally never connects automatically.
-  Future<void> _consumeAppShortcut() async {
-    if (!Platform.isAndroid || !_shortcutProfilesReady || _shortcutBusy) return;
-    _shortcutBusy = true;
-    try {
-      final command = await const MethodChannel('vela_shuo/android_vpn')
-          .invokeMethod<String>('consumeAppShortcut');
-      if (command != 'start' && command != 'stop') return;
-      final vpn = androidVpn;
-      if (vpn == null) return;
-      await vpn.refresh();
-      if (command == 'stop') {
-        if (vpn.connected) await vpn.stop();
-        return;
-      }
-      if (vpn.active) return;
-      final sub = subscription;
-      if (sub == null) return;
-      if (sub is VelaFlClashSubscriptionController) {
-        if (!await sub.applyPendingProfileIfIdle()) return;
-        final modes = routing;
-        if (modes != null) {
-          await modes.restore();
-          if (!await modes.synchronize(sub.activeProfileId)) return;
-        }
-      }
-      if (sub.androidVpnProfile == null) return;
-      await vpn.start(sub);
-    } catch (_) {
-      // If initialization fails, the ordinary VPN button remains available.
-    } finally {
-      _shortcutBusy = false;
-    }
+  // The native transparent launcher shortcut reads only this selectedMap and
+  // route mode. No subscription URL, credential or profile YAML is persisted
+  // in launcher preferences.
+  void _cacheAndroidCompassSelection() {
+    if (!Platform.isAndroid) return;
+    final selected = subscription?.androidVpnProfile;
+    if (selected == null || selected.isEmpty) return;
+    unawaited(const MethodChannel('vela_shuo/android_vpn')
+        .invokeMethod<bool>('cacheShortcutSelection', {'profile': selected})
+        .catchError((Object _) => false));
   }
 
   // Store only the user's airport display name in Android private prefs.
@@ -326,6 +300,10 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         unawaited(routing!.restore().then((_) => _synchronizeRouting()));
         subscription!.addListener(_synchronizeRouting);
         subscription!.addListener(_syncAndroidNotificationName);
+        if (Platform.isAndroid) {
+          subscription!.addListener(_cacheAndroidCompassSelection);
+          routing!.addListener(_cacheAndroidCompassSelection);
+        }
         _syncAndroidNotificationName();
         runtime.ensureRoutingMode = () async {
           final sub = subscription! as VelaFlClashSubscriptionController;
@@ -336,10 +314,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
         };
       }
       unawaited(subscription!.restoreSaved().then((_) {
-        if (Platform.isAndroid) {
-          _shortcutProfilesReady = true;
-          unawaited(_consumeAppShortcut());
-        }
+        _cacheAndroidCompassSelection();
       }));
       if (subscription is VelaFlClashSubscriptionController) {
         (subscription! as VelaFlClashSubscriptionController).isVpnActive =
@@ -397,10 +372,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       widget.diagnostics?.record(VelaDiagnosticEvent.appResumed);
-      if (androidVpn != null) {
-        unawaited(androidVpn!.refresh());
-        unawaited(_consumeAppShortcut());
-      }
+      if (androidVpn != null) unawaited(androidVpn!.refresh());
       final activeSubscription = subscription;
       if (activeSubscription is VelaFlClashSubscriptionController) {
         unawaited(activeSubscription.checkAutoUpdates());
@@ -421,6 +393,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     subscription?.removeListener(syncRealGlobe);
     subscription?.removeListener(_synchronizeRouting);
     subscription?.removeListener(_syncAndroidNotificationName);
+    subscription?.removeListener(_cacheAndroidCompassSelection);
+    routing?.removeListener(_cacheAndroidCompassSelection);
     connection?.removeListener(syncRealGlobe);
     smart?.dispose();
     androidVpn?.removeListener(syncRealGlobe);
