@@ -19,7 +19,8 @@ object VelaVpnState {
             state = next
             error = reason
             listener?.invoke(next, reason)
-            appContext?.let { VelaCompassShortcut.refresh(it, next == "connected") }
+            // Shortcut label is fixed; no per-connection launcher refresh needed.
+            appContext?.let { VelaCompassShortcut.refresh(it) }
         }
     }
 }
