@@ -19,13 +19,20 @@ class VelaShortcutToggleActivity : Activity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         if (VelaVpnState.state == "connected") {
-            startService(Intent(this, VelaVpnService::class.java)
-                .setAction(VelaVpnService.ACTION_STOP))
+            try {
+                startService(Intent(this, VelaVpnService::class.java)
+                    .setAction(VelaVpnService.ACTION_STOP))
+                Toast.makeText(this, "正在返航…", Toast.LENGTH_SHORT).show()
+            } catch (_: Exception) {
+                Toast.makeText(this, "返航失败，请在 Vela 内检查连接",
+                    Toast.LENGTH_SHORT).show()
+            }
             finish()
             return
         }
         if (VelaVpnState.state == "connecting" ||
             VelaVpnState.state == "preparing") {
+            Toast.makeText(this, "正在启航，请稍候", Toast.LENGTH_SHORT).show()
             finish()
             return
         }
@@ -74,6 +81,7 @@ class VelaShortcutToggleActivity : Activity() {
             VelaVpnState.report("connecting")
             ContextCompat.startForegroundService(this, Intent(this,
                 VelaVpnService::class.java).setAction(VelaVpnService.ACTION_START))
+            Toast.makeText(this, "正在启航…", Toast.LENGTH_SHORT).show()
         } catch (_: Exception) {
             VelaVpnState.report("error", "快捷启航失败，请在 Vela 内检查连接")
             Toast.makeText(this, "启航失败，请在 Vela 内检查连接", Toast.LENGTH_SHORT).show()
