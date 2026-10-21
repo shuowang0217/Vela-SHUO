@@ -10,33 +10,39 @@ import android.os.Build
 import java.util.concurrent.Executors
 
 /**
- * Exactly one dynamic Android launcher shortcut. Its label is based on the
- * actual VpnService state, never a Dart animation or unverified preference.
- * Using a fixed ID updates both launcher menus and mutable pinned shortcuts.
+ * Exactly one oil-compass Android launcher shortcut. Its label remains fixed
+ * so an already-open Samsung One UI shortcut menu cannot show stale verbs.
+ * A fixed ID upgrades the previous dynamic and pinned shortcuts in-place.
  */
 object VelaCompassShortcut {
     private const val ID = "vela_compass_toggle"
     private val executor = Executors.newSingleThreadExecutor { task ->
         Thread(task, "vela-compass-shortcut").apply { isDaemon = true }
     }
-    @Volatile private var lastPublished: Boolean? = null
+    private const val LABEL = "航行开关"
+    @Volatile private var installedInProcess = false
 
-    fun refresh(context: Context, connected: Boolean = VelaVpnState.state == "connected") {
+    fun refresh(context: Context) {
         if (Build.VERSION.SDK_INT < 25) return
         val app = context.applicationContext
         executor.execute {
             try {
                 val manager = app.getSystemService(ShortcutManager::class.java)
-                // Initial publish is required on app upgrade/cold launch.
-                if (lastPublished == connected &&
-                    manager.dynamicShortcuts.any { it.id == ID }) return@execute
+                // Refresh only on first use or when upgrading the old
+                // dynamic '启航'/'返航' label to the fixed label.
+                if (manager.dynamicShortcuts.any {
+                    it.id == ID && it.shortLabel.toString() == LABEL
+                }) {
+                    installedInProcess = true
+                    return@execute
+                }
 
                 val launch = Intent(app, VelaShortcutToggleActivity::class.java)
                     .setAction("com.shuowang.vela.TOGGLE_VOYAGE")
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
                 val shortcut = ShortcutInfo.Builder(app, ID)
-                    .setShortLabel(if (connected) "返航" else "启航")
-                    .setLongLabel(if (connected) "断开 Vela VPN" else "连接 Vela VPN")
+                    .setShortLabel(LABEL)
+                    .setLongLabel("点击切换 Vela 启航 / 返航")
                     .setIcon(Icon.createWithResource(app, R.drawable.vela_shortcut_compass))
                     // Dynamic shortcuts must be attributed to a launcher Activity,
                     // but their execution Intent may target a different Activity.
@@ -44,7 +50,7 @@ object VelaCompassShortcut {
                     .setIntent(launch)
                     .build()
                 if (manager.setDynamicShortcuts(listOf(shortcut))) {
-                    lastPublished = connected
+                    installedInProcess = true
                 }
             } catch (_: Exception) {
                 // Launcher may be locked, unavailable or rate-limited.
