@@ -1,8 +1,8 @@
-name: Vela v1.10.0 Stable Release
+name: Vela v1.10.0 exit-IP preview (no release)
 
 on:
   push:
-    branches: [main, release/v1.10.0]
+    branches: [main, release/v1.10.0, feature/v1.10.0-inline-exit-ip]
   workflow_dispatch:
 
 permissions:
@@ -211,7 +211,7 @@ jobs:
             Set-Content 'vela/SHA256-Windows.txt'
       - uses: actions/upload-artifact@v4
         with:
-          name: Vela-v1.10.0-Windows-x64
+          name: Vela-exit-ip-preview-Windows-x64
           path: |
             vela/Vela-v1.10.0-Windows-x64.zip
             vela/SHA256-Windows.txt
@@ -369,7 +369,7 @@ jobs:
           sha256sum dist/Vela-v1.10.0-Android-arm64.apk | sed 's#  dist/#  #' > dist/SHA256-Android.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Vela-v1.10.0-Android-arm64
+          name: Vela-exit-ip-preview-Android-arm64
           path: vela/dist/*
           if-no-files-found: error
           retention-days: 14
