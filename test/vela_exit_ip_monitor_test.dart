@@ -32,6 +32,11 @@ void main() {
     expect(VelaExitIpInfo.parseTrace('ip=not-an-ip\nloc=US\n'), isNull);
     expect(VelaExitIpInfo.parseTrace('ip=127.0.0.1\nloc=JP\n'), isNull);
     expect(VelaExitIpInfo.parseTrace('ip=203.0.113.11\nloc=??\n'), isNull);
+    expect(VelaExitIpInfo.parseCountryResponse(
+        '{"ip":"203.0.113.40","country":"US"}')?.label,
+        '🇺🇸 203.0.113.40');
+    expect(VelaExitIpInfo.parseCountryResponse('{}'), isNull);
+    expect(VelaExitIpInfo.parseCountryResponse('invalid'), isNull);
   });
 
   test('disconnected state never sends a probe and reads timeout', () {
