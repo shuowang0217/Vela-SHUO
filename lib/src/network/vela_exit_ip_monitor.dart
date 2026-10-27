@@ -40,47 +40,80 @@ class VelaExitIpInfo {
          address.type != InternetAddressType.IPv6)) return null;
     return VelaExitIpInfo(address: ip, countryCode: country);
   }
+
+  /// Alternate endpoint is used only if the Cloudflare trace is unavailable.
+  static VelaExitIpInfo? parseCountryResponse(String body) {
+    if (body.length > 4096) return null;
+    try {
+      final response = jsonDecode(body);
+      if (response is! Map || response['ip'] is! String ||
+          response['country'] is! String) return null;
+      return parseTrace('ip=' + (response['ip'] as String) + '\nloc=' +
+          (response['country'] as String) + '\n');
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 /// Windows MUST use Mihomo's local mixed HTTP proxy (never a DIRECT fallback).
 /// Android sockets use the already-established Android VPN TUN.
 class VelaExitIpProbe {
   HttpClient? _active;
+  int _generation = 0;
 
   Future<VelaExitIpInfo?> lookup({required bool useProxy, int? proxyPort}) async {
     if (useProxy && (proxyPort == null || proxyPort < 1 ||
         proxyPort > 65535)) return null;
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 4);
-    _active = client;
-    if (useProxy) {
-      client.findProxy = (_) => 'PROXY 127.0.0.1:$proxyPort';
-    }
-    try {
-      final request = await client.getUrl(
-          Uri.https('www.cloudflare.com', '/cdn-cgi/trace'))
-          .timeout(const Duration(seconds: 6));
-      request.followRedirects = false;
-      request.headers.set(HttpHeaders.acceptHeader, 'text/plain');
-      final response = await request.close()
-          .timeout(const Duration(seconds: 8));
-      if (response.statusCode != HttpStatus.ok ||
-          response.contentLength > 4096) return null;
-      final body = <int>[];
-      await for (final chunk in response.timeout(const Duration(seconds: 6))) {
-        if (body.length + chunk.length > 4096) return null;
-        body.addAll(chunk);
+    final generation = _generation;
+    final endpoints = <(Uri, VelaExitIpInfo? Function(String))>[
+      (Uri.https('www.cloudflare.com', '/cdn-cgi/trace'),
+          VelaExitIpInfo.parseTrace),
+      (Uri.https('api.country.is', '/'),
+          VelaExitIpInfo.parseCountryResponse),
+    ];
+    for (final (url, parse) in endpoints) {
+      if (generation != _generation) return null;
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 4);
+      _active = client;
+      if (useProxy) {
+        client.findProxy = (_) => 'PROXY 127.0.0.1:$proxyPort';
       }
-      return VelaExitIpInfo.parseTrace(utf8.decode(body));
-    } catch (_) {
-      return null;
-    } finally {
-      if (identical(_active, client)) _active = null;
-      client.close(force: true);
+      try {
+        final request = await client.getUrl(url)
+            .timeout(const Duration(seconds: 6));
+        request.followRedirects = false;
+        request.headers.set(HttpHeaders.acceptHeader, 'text/plain, application/json');
+        final response = await request.close()
+            .timeout(const Duration(seconds: 8));
+        if (response.statusCode != HttpStatus.ok ||
+            response.contentLength > 4096) continue;
+        final body = <int>[];
+        var tooLarge = false;
+        await for (final chunk in response.timeout(const Duration(seconds: 6))) {
+          if (body.length + chunk.length > 4096) {
+            tooLarge = true;
+            break;
+          }
+          body.addAll(chunk);
+        }
+        if (tooLarge || generation != _generation) return null;
+        final result = parse(utf8.decode(body));
+        if (result != null) return result;
+      } catch (_) {
+        // A blocked detection endpoint is not proof that the VPN is broken.
+        // Try the second service using the same enforced proxy/VPN route.
+      } finally {
+        if (identical(_active, client)) _active = null;
+        client.close(force: true);
+      }
     }
+    return null;
   }
 
   void cancel() {
+    _generation++;
     _active?.close(force: true);
     _active = null;
   }
