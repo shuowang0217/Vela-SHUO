@@ -126,17 +126,22 @@ void main() {
   test('disconnected state never probes and displays timeout', () {
     final probe = _FakeExitProbe();
     final monitor = VelaExitIpMonitor(
-        probe: probe, interval: const Duration(days: 1));
+        probe: probe, interval: const Duration(days: 1),
+        connectionSettle: Duration.zero,
+        initialRetries: const []);
     expect(monitor.label, 'timeout');
     monitor.sync(false, 'JP');
     expect(probe.pending, isEmpty);
     monitor.dispose();
   });
 
-  test('success then failed refresh clears old address', () async {
+  test('refresh does not erase valid IP or replace it on transient timeout',
+      () async {
     final probe = _FakeExitProbe();
     final monitor = VelaExitIpMonitor(
-        probe: probe, interval: const Duration(days: 1));
+        probe: probe, interval: const Duration(days: 1),
+        connectionSettle: Duration.zero,
+        initialRetries: const []);
     monitor.sync(true, 'airport-a|JP');
     expect(monitor.label, '检测中…');
     probe.pending.first.complete(const VelaExitIpInfo(
@@ -145,11 +150,56 @@ void main() {
     expect(monitor.label, '🇯🇵 203.0.113.17');
 
     final retry = monitor.refresh();
-    expect(monitor.label, '检测中…');
+    expect(monitor.label, '🇯🇵 203.0.113.17');
     probe.pending.last.complete(null);
     await retry;
+    expect(monitor.label, '🇯🇵 203.0.113.17');
+    expect(monitor.info?.address, '203.0.113.17');
+    monitor.dispose();
+  });
+
+  testWidgets('initial timeout retries automatically without focus or node '
+      'change', (tester) async {
+    final probe = _FakeExitProbe();
+    final monitor = VelaExitIpMonitor(
+      probe: probe,
+      interval: const Duration(days: 1),
+      connectionSettle: const Duration(milliseconds: 100),
+      initialRetries: const [Duration(milliseconds: 250)],
+    );
+    addTearDown(monitor.dispose);
+    monitor.sync(true, 'node-one');
+    expect(monitor.label, '检测中…');
+    expect(probe.pending, isEmpty);
+    await tester.pump(const Duration(milliseconds: 101));
+    expect(probe.pending, hasLength(1));
+    probe.pending.first.complete(null);
+    await tester.pump();
     expect(monitor.label, 'timeout');
-    expect(monitor.info, isNull);
+    // The second request must start without any UI lifecycle event.
+    await tester.pump(const Duration(milliseconds: 251));
+    expect(probe.pending, hasLength(2));
+    probe.pending.last.complete(const VelaExitIpInfo(
+        address: '203.0.113.21', countryCode: 'US'));
+    await tester.pump();
+    expect(monitor.label, '🇺🇸 203.0.113.21');
+  });
+
+  test('unchanged connected route is a no-op, including window resume',
+      () async {
+    final probe = _FakeExitProbe();
+    final monitor = VelaExitIpMonitor(
+      probe: probe,
+      interval: const Duration(days: 1),
+      connectionSettle: Duration.zero,
+    );
+    monitor.sync(true, 'same-route');
+    probe.pending.single.complete(const VelaExitIpInfo(
+        address: '203.0.113.23', countryCode: 'JP'));
+    await Future<void>.delayed(Duration.zero);
+    monitor.sync(true, 'same-route');
+    expect(probe.pending, hasLength(1));
+    expect(monitor.label, '🇯🇵 203.0.113.23');
     monitor.dispose();
   });
 
@@ -157,7 +207,9 @@ void main() {
       () async {
     final probe = _FakeExitProbe();
     final monitor = VelaExitIpMonitor(
-        probe: probe, interval: const Duration(days: 1));
+        probe: probe, interval: const Duration(days: 1),
+        connectionSettle: Duration.zero,
+        initialRetries: const []);
     monitor.sync(true, 'node-one');
     monitor.sync(true, 'node-two');
     expect(probe.pending, hasLength(2));
