@@ -202,6 +202,26 @@ final class FlClashCoreApi {
         'selected-map': selectedMap, 'test-url': testUrl,
       }, timeout: const Duration(minutes: 2)) as String? ?? '';
 
+  /// Native FlClash Go: the first usable response is sent with the real
+  /// Mihomo route chain and core/picks version. This works on Windows stdio
+  /// and Android JNI without a second Dart HTTP/network stack.
+  Future<Map<String, dynamic>?> outboundIp({
+    required List<String> urls,
+    int timeoutMs = 6000,
+  }) async {
+    final result = await invoke('outboundIp', arguments: {
+      'proxy-name': '',
+      'urls': urls,
+      'timeout': timeoutMs,
+    }, timeout: Duration(milliseconds: timeoutMs + 8000));
+    if (result == null) return null;
+    if (result is! Map) {
+      throw const FlClashCoreFailure(
+          'invalid_response', 'Invalid native outbound IP result');
+    }
+    return Map<String, dynamic>.from(result);
+  }
+
   Future<Object?> probe(String url, String proxyName) => invoke('probe',
         arguments: {'url': url, 'proxy-name': proxyName,
                     'timeout': 8000, 'max-body': 2048, 'headers': <String,String>{}},
