@@ -398,14 +398,12 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       widget.diagnostics?.record(VelaDiagnosticEvent.appResumed);
+      // FlClash holds a verified exit IP for the current route. Returning
+      // from another window must NOT erase it or trigger a duplicate probe.
+      // Android refreshes only the authoritative VPN status; any real
+      // reconnect is handled by syncRealGlobe and the IP monitor itself.
       if (androidVpn != null) {
-        unawaited(androidVpn!.refresh().then((_) {
-          final monitor = exitIp;
-          if (monitor?.connected == true) unawaited(monitor!.refresh());
-        }));
-      } else {
-        final monitor = exitIp;
-        if (monitor?.connected == true) unawaited(monitor!.refresh());
+        unawaited(androidVpn!.refresh());
       }
       final activeSubscription = subscription;
       if (activeSubscription is VelaFlClashSubscriptionController) {
