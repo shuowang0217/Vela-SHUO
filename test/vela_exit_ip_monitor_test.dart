@@ -167,7 +167,7 @@ void main() {
       connectionSettle: const Duration(milliseconds: 100),
       initialRetries: const [Duration(milliseconds: 250)],
     );
-    addTearDown(monitor.dispose);
+
     monitor.sync(true, 'node-one');
     expect(monitor.label, '检测中…');
     expect(probe.pending, isEmpty);
@@ -183,6 +183,7 @@ void main() {
         address: '203.0.113.21', countryCode: 'US'));
     await tester.pump();
     expect(monitor.label, '🇺🇸 203.0.113.21');
+    monitor.dispose();
   });
 
   test('unchanged connected route is a no-op, including window resume',
