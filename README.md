@@ -1,17 +1,25 @@
 # Vela
 
-**正式版 1.9.0**（Android build 53） · Windows x64 / Android ARM64
+**正式版 1.11.0**（Android build 63） · Windows x64 / Android ARM64
 
-原创航海油画风格网络客户端，原生 FlClash / Mihomo 内核处理协议、分组、规则与 DNS。源码仓库继续使用 `Vela-SHUO` 作为内部名称。
+原创航海油画风格网络客户端，使用固定版本的原生 FlClash / Mihomo 内核处理代理、规则与 DNS，源码仓库仍为 `Vela-SHUO`。
 
 ## 正式版下载
 
 [GitHub Releases · 最新 Vela](https://github.com/shuowang0217/Vela-SHUO/releases/latest)
 
-- **Android**：`Vela-v1.9.0-Android-arm64.apk`。固定包名 `com.shuowang.vela`，沿用原正式签名，versionCode=53。同签名旧版可覆盖安装，原配置和偏好通常能够保留。
-- **Windows**：`Vela-v1.9.0-Windows-x64.zip`。使用「安全退出」关闭旧版，完整解压后运行 `Vela.exe`，不要只复制 EXE。
+- **Android**：`Vela-v1.11.0-Android-arm64.apk`；固定应用 ID `com.shuowang.vela`、长期正式签名、versionCode=63。可覆盖较低 build 的同签名安装版，正常保留机场数据。
+- **Windows**：`Vela-v1.11.0-Windows-x64.zip`；安全退出旧版，完整解压后运行 `Vela.exe`，请勿只替换 EXE。
+- **版本更新**：应用只提示 GitHub 最新正式 Release，不在后台静默下载安装。
 
-应用「检查更新」读取 GitHub 最新正式 Release，不会在后台静默安装软件。
+## 1.11.0 重要改进
+
+- **真实出口 IP**：在原有右上角连接模块显示油画风格国旗和真实公网 IP；不能取得检测结果时显示 `timeout`。
+- **原生多来源检测**：复用 FlClash/Mihomo `outboundIp`，8 个 HTTPS 数据源，连接后自动检测及失败重试；每 2 分钟刷新一次，切换窗口不会反复清空成功结果。
+- **油画小国旗**：本地图形叠加油彩笔触和画布浮雕纹理，不依赖系统 emoji 字体。
+- **原有特色保留**：日夜油画地图、机场订阅、延迟测速、规则/全局/直连、Android VPN 与三星 One UI「航行开关」快捷操作。
+
+完整说明：[Vela v1.11.0 发布说明](docs/RELEASE_v1.11.0.md)
 
 ## 1.9.0 改进
 
@@ -26,4 +34,4 @@
 
 ## 发布机制
 
-仅 `release/v1.9.0` 分支的双平台签名、构建、Flutter 测试、版本和 SHA-256 校验全部通过后发布 v1.9.0 正式版，保留此前各版本的历史安装包与 Release。
+仅 `release/v1.11.0` 分支的 Flutter/原生编译、Android 长期签名及证书指纹、Windows/Android SHA-256 和 ZIP/APK 校验全部通过后，GitHub Actions 才发布 `v1.11.0` 正式版，并保留历史版本与安装包。
