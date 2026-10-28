@@ -166,22 +166,40 @@ class VelaExitIpProbe {
   void cancel() => _generation++;
 }
 
-/// No stale IP survives a disconnect, a selected node change or a failed
-/// lookup. Network probing is intentionally paused while disconnected.
+/// One verified result per active route. Core/VPN initialization may finish
+/// shortly after "connected", so initial probe failures retry automatically.
+/// Focus changes never clear the displayed IP.
 class VelaExitIpMonitor extends ChangeNotifier {
   VelaExitIpMonitor({
     required VelaExitIpProbe probe,
     Duration interval = const Duration(minutes: 2),
-  }) : _probe = probe, _interval = interval;
+    Duration connectionSettle = const Duration(milliseconds: 700),
+    List<Duration> initialRetries = const [
+      Duration(seconds: 1),
+      Duration(seconds: 2),
+      Duration(seconds: 4),
+      Duration(seconds: 8),
+      Duration(seconds: 15),
+      Duration(seconds: 30),
+    ],
+  }) : _probe = probe,
+       _interval = interval,
+       _connectionSettle = connectionSettle,
+       _initialRetries = initialRetries;
 
   final VelaExitIpProbe _probe;
   final Duration _interval;
+  final Duration _connectionSettle;
+  final List<Duration> _initialRetries;
+
   Timer? _timer;
+  Timer? _retryTimer;
   bool _connected = false;
   bool _loading = false;
   bool _disposed = false;
   String? _route;
   int _generation = 0;
+  int _retryIndex = 0;
   VelaExitIpInfo? _info;
 
   bool get connected => _connected;
@@ -199,14 +217,27 @@ class VelaExitIpMonitor extends ChangeNotifier {
     _route = connected ? routeIdentity : null;
     _probe.cancel();
     _timer?.cancel();
+    _retryTimer?.cancel();
     _timer = null;
+    _retryTimer = null;
+    _retryIndex = 0;
     _loading = false;
     _info = null;
     notifyListeners();
-    if (connected) {
-      unawaited(refresh());
-      _timer = Timer.periodic(_interval, (_) => unawaited(refresh()));
+    if (!connected) {
+      return;
     }
+
+    // Native Mihomo setup can be slightly behind the connected callback.
+    // Automatic retry makes detection independent of focus changes.
+    _loading = true;
+    notifyListeners();
+    _retryTimer = Timer(_connectionSettle, () {
+      _retryTimer = null;
+      _loading = false;
+      unawaited(refresh());
+    });
+    _timer = Timer.periodic(_interval, (_) => unawaited(refresh()));
   }
 
   Future<void> refresh() async {
@@ -215,16 +246,24 @@ class VelaExitIpMonitor extends ChangeNotifier {
     }
     final generation = _generation;
     _loading = true;
-    _info = null;
+    // A successful result remains visible during refresh on the same route.
     notifyListeners();
     try {
       final result = await _probe.lookup();
       if (!_disposed && _connected && generation == _generation) {
-        _info = result;
+        if (result != null) {
+          _info = result;
+          _retryIndex = 0;
+          _retryTimer?.cancel();
+          _retryTimer = null;
+        } else if (_info == null) {
+          _scheduleRetry(generation);
+        }
       }
     } catch (_) {
-      if (!_disposed && _connected && generation == _generation) {
-        _info = null;
+      if (!_disposed && _connected && generation == _generation &&
+          _info == null) {
+        _scheduleRetry(generation);
       }
     } finally {
       if (!_disposed && _connected && generation == _generation) {
@@ -234,11 +273,26 @@ class VelaExitIpMonitor extends ChangeNotifier {
     }
   }
 
+  void _scheduleRetry(int generation) {
+    if (_retryIndex >= _initialRetries.length || _retryTimer != null) {
+      return;
+    }
+    final delay = _initialRetries[_retryIndex++];
+    _retryTimer = Timer(delay, () {
+      _retryTimer = null;
+      if (!_disposed && _connected && _generation == generation &&
+          _info == null) {
+        unawaited(refresh());
+      }
+    });
+  }
+
   @override
   void dispose() {
     _disposed = true;
     _generation++;
     _timer?.cancel();
+    _retryTimer?.cancel();
     _probe.cancel();
     super.dispose();
   }
