@@ -19,6 +19,8 @@ import 'package:vela_shuo/src/network/vela_flclash_core_adapter.dart';
 import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
 import 'package:vela_shuo/src/network/vela_routing_mode.dart';
 import 'package:vela_shuo/src/network/flclash_go_node_probe.dart';
+import 'package:vela_shuo/src/network/vela_exit_ip_monitor.dart';
+import 'package:vela_shuo/src/network/vela_exit_ip_indicator.dart';
 import 'package:vela_shuo/src/android/vela_android_vpn.dart';
 import 'package:vela_shuo/src/traffic/vela_traffic_monitor.dart';
 import 'package:vela_shuo/src/smart/vela_node_probe.dart';
@@ -199,6 +201,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   VelaSmartController? smart;
   VelaAndroidVpnController? androidVpn;
   VelaTrafficMonitor? traffic;
+  VelaExitIpMonitor? exitIp;
   int tab = 0;
   String? _lastNotifiedAirport;
 
@@ -246,9 +249,25 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     _vpnWasConnected = connected;
   }
 
+  String get _exitRouteIdentity {
+    final sub = subscription;
+    final backend = sub is VelaFlClashSubscriptionController
+        ? sub.backend : null;
+    return [
+      sub is VelaFlClashSubscriptionController
+          ? sub.activeProfileId ?? '' : '',
+      sub?.selectedIndex?.toString() ?? '',
+      sub?.selected?.name ?? '',
+      backend?.activeGroup ?? '',
+      routing?.current.wire ?? '',
+    ].join('|');
+  }
+
   void syncRealGlobe() {
-    traffic?.sync(Platform.isAndroid
-        ? androidVpn?.connected == true : connection?.connected == true);
+    final connected = Platform.isAndroid
+        ? androidVpn?.connected == true : connection?.connected == true;
+    traffic?.sync(connected);
+    exitIp?.sync(connected, _exitRouteIdentity);
     final sub = subscription;
     final vpn = androidVpn;
     if (Platform.isAndroid && vpn != null) {
@@ -278,6 +297,13 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    final flclash = widget.core;
+    if (flclash is VelaFlClashCoreController &&
+        (Platform.isWindows || Platform.isAndroid)) {
+      exitIp = VelaExitIpMonitor(
+        probe: VelaExitIpProbe(flclash.backend.api),
+      );
+    }
     traffic = VelaTrafficMonitor(reader: () async {
       if (Platform.isAndroid) {
         return await androidVpn?.readTrafficCounters();
@@ -297,6 +323,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
               core: widget.core!, previewOnly: Platform.isAndroid);
       if (runtime is VelaFlClashCoreController) {
         routing = VelaRoutingModeController(runtime.backend);
+        routing!.addListener(syncRealGlobe);
         unawaited(routing!.restore().then((_) => _synchronizeRouting()));
         subscription!.addListener(_synchronizeRouting);
         subscription!.addListener(_syncAndroidNotificationName);
@@ -372,7 +399,13 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       widget.diagnostics?.record(VelaDiagnosticEvent.appResumed);
-      if (androidVpn != null) unawaited(androidVpn!.refresh());
+      // FlClash holds a verified exit IP for the current route. Returning
+      // from another window must NOT erase it or trigger a duplicate probe.
+      // Android refreshes only the authoritative VPN status; any real
+      // reconnect is handled by syncRealGlobe and the IP monitor itself.
+      if (androidVpn != null) {
+        unawaited(androidVpn!.refresh());
+      }
       final activeSubscription = subscription;
       if (activeSubscription is VelaFlClashSubscriptionController) {
         unawaited(activeSubscription.checkAutoUpdates());
@@ -395,12 +428,14 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     subscription?.removeListener(_syncAndroidNotificationName);
     subscription?.removeListener(_cacheAndroidCompassSelection);
     routing?.removeListener(_cacheAndroidCompassSelection);
+    routing?.removeListener(syncRealGlobe);
     connection?.removeListener(syncRealGlobe);
     smart?.dispose();
     androidVpn?.removeListener(syncRealGlobe);
     androidVpn?.removeListener(_onVpnForRouting);
     androidVpn?.dispose();
     traffic?.dispose();
+    exitIp?.dispose();
     widget.windowExitGuard?.shutdownConnection = null;
     widget.windowExitGuard?.flushSavedProfiles = null;
     // Restore WinINet BEFORE terminating its local endpoint. Never kill
@@ -446,6 +481,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       demo: demo, desktop: desktop,
       connection: connection, subscription: subscription, smart: smart,
       androidVpn: androidVpn, traffic: traffic, routing: routing,
+      exitIp: exitIp,
       showNodes: () => navigate(1), showSmart: () => navigate(2),
       onNavigate: navigate,
     ),
@@ -545,6 +581,7 @@ class _HomePage extends StatelessWidget {
     this.androidVpn,
     this.traffic,
     this.routing,
+    this.exitIp,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
@@ -553,6 +590,7 @@ class _HomePage extends StatelessWidget {
   final VelaAndroidVpnController? androidVpn;
   final VelaTrafficMonitor? traffic;
   final VelaRoutingModeController? routing;
+  final VelaExitIpMonitor? exitIp;
   final bool desktop;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
@@ -561,18 +599,19 @@ class _HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: Listenable.merge([demo, ?connection,
-      ?subscription, ?smart, ?androidVpn, ?traffic]),
+      ?subscription, ?smart, ?androidVpn, ?traffic, ?exitIp]),
     builder: (context, _) => desktop && !Platform.isAndroid
       ? _DesktopHome(
           demo: demo, connection: connection, subscription: subscription,
           smart: smart, traffic: traffic, routing: routing,
+          exitIp: exitIp,
           showNodes: showNodes, showSmart: showSmart,
           onNavigate: onNavigate,
         )
       : _MobileHome(
           demo: demo, connection: connection, subscription: subscription,
           smart: smart, androidVpn: androidVpn, traffic: traffic,
-          routing: routing, showNodes: showNodes,
+          routing: routing, exitIp: exitIp, showNodes: showNodes,
         ),
   );
 }
@@ -582,6 +621,7 @@ class _DesktopHome extends StatelessWidget {
     required this.demo, required this.showNodes, required this.showSmart,
     required this.onNavigate,
     this.connection, this.subscription, this.smart, this.traffic, this.routing,
+    this.exitIp,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
@@ -589,6 +629,7 @@ class _DesktopHome extends StatelessWidget {
   final VelaSmartController? smart;
   final VelaTrafficMonitor? traffic;
   final VelaRoutingModeController? routing;
+  final VelaExitIpMonitor? exitIp;
   final VoidCallback showNodes;
   final VoidCallback showSmart;
   final ValueChanged<int> onNavigate;
@@ -693,6 +734,8 @@ class _DesktopHome extends StatelessWidget {
                         style: TextStyle(color: _blue, fontSize: 10)),
                       Text(node, maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: TextStyle(color: _muted, fontSize: 10)),
+                      if (exitIp != null) _ExitIpInline(
+                        monitor: exitIp!, key: const ValueKey('desktop_exit_ip')),
                     ],
                   )),
                   if (routing != null)
@@ -733,6 +776,24 @@ class _DesktopHome extends StatelessWidget {
         ),
       ]);
     },
+  );
+}
+
+/// Integrated into the existing top-right connection plate, not a new card.
+class _ExitIpInline extends StatelessWidget {
+  const _ExitIpInline({super.key, required this.monitor});
+
+  final VelaExitIpMonitor monitor;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 2),
+    child: VelaExitIpIndicator(
+      info: monitor.info,
+      statusText: monitor.label,
+      accentColor: _blue,
+      mutedColor: _muted,
+    ),
   );
 }
 
@@ -956,7 +1017,7 @@ class _MobileHome extends StatelessWidget {
   const _MobileHome({
     required this.demo, required this.showNodes,
     this.connection, this.subscription, this.androidVpn,
-    this.traffic, this.routing, this.smart,
+    this.traffic, this.routing, this.smart, this.exitIp,
   });
   final VelaDemoController demo;
   final VelaConnectionCoordinator? connection;
@@ -965,6 +1026,7 @@ class _MobileHome extends StatelessWidget {
   final VelaTrafficMonitor? traffic;
   final VelaRoutingModeController? routing;
   final VelaSmartController? smart;
+  final VelaExitIpMonitor? exitIp;
   final VoidCallback showNodes;
 
   Future<void> _toggle(BuildContext context) async {
@@ -1147,6 +1209,8 @@ class _MobileHome extends StatelessWidget {
                         Text(node, maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: _muted, fontSize: 11)),
+                        if (exitIp != null) _ExitIpInline(
+                          monitor: exitIp!, key: const ValueKey('mobile_exit_ip')),
                       ],
                     ),
                   )),
