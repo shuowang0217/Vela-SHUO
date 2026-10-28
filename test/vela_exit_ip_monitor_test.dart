@@ -1,18 +1,30 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vela_shuo/src/network/flclash_core_api.dart';
 import 'package:vela_shuo/src/network/vela_exit_ip_monitor.dart';
 
+class _RecordingTransport implements FlClashCoreTransport {
+  final requests = <Map<String, dynamic>>[];
+  final replies = <Map<String, dynamic>>[];
+
+  @override
+  Future<String?> invoke(String requestJson) async {
+    final request = jsonDecode(requestJson) as Map<String, dynamic>;
+    requests.add(request);
+    final result = replies.removeAt(0);
+    return jsonEncode({'id': request['id'], 'result': result});
+  }
+}
+
 class _FakeExitProbe extends VelaExitIpProbe {
-  final requests = <(bool, int?)>[];
+  _FakeExitProbe() : super(FlClashCoreApi(_RecordingTransport()));
   final pending = <Completer<VelaExitIpInfo?>>[];
   int cancelled = 0;
 
   @override
-  Future<VelaExitIpInfo?> lookup({
-    required bool useProxy, int? proxyPort,
-  }) {
-    requests.add((useProxy, proxyPort));
+  Future<VelaExitIpInfo?> lookup() {
     final future = Completer<VelaExitIpInfo?>();
     pending.add(future);
     return future.future;
@@ -23,46 +35,112 @@ class _FakeExitProbe extends VelaExitIpProbe {
 }
 
 void main() {
-  test('trace parser renders real country flag and address only', () {
-    final result = VelaExitIpInfo.parseTrace(
-        'fl=test\nip=203.0.113.11\nloc=JP\ncolo=NRT\n');
-    expect(result?.address, '203.0.113.11');
-    expect(result?.label, '🇯🇵 203.0.113.11');
-    expect(VelaExitIpInfo.parseTrace('ip=203.0.113.11\n'), isNull);
-    expect(VelaExitIpInfo.parseTrace('ip=not-an-ip\nloc=US\n'), isNull);
-    expect(VelaExitIpInfo.parseTrace('ip=127.0.0.1\nloc=JP\n'), isNull);
-    expect(VelaExitIpInfo.parseTrace('ip=203.0.113.11\nloc=??\n'), isNull);
-    expect(VelaExitIpInfo.parseCountryResponse(
-        '{"ip":"203.0.113.40","country":"US"}')?.label,
-        '🇺🇸 203.0.113.40');
-    expect(VelaExitIpInfo.parseCountryResponse('{}'), isNull);
-    expect(VelaExitIpInfo.parseCountryResponse('invalid'), isNull);
+  test('FlClash source formats decode the real exit address and flag', () {
+    final sources = <(String, String)>[
+      (VelaExitIpProbe.cloudflare,
+          'fl=test\nip=203.0.113.11\nloc=JP\ncolo=NRT\n'),
+      (VelaExitIpProbe.ipSb,
+          '{"ip":"203.0.113.11","country_code":"JP"}'),
+      (VelaExitIpProbe.ipInfo,
+          '{"ip":"203.0.113.11","country":"JP"}'),
+      (VelaExitIpProbe.ipWhoIs,
+          '{"ip":"203.0.113.11","country_code":"JP"}'),
+      (VelaExitIpProbe.geoJs,
+          '{"ip":"203.0.113.11","country_code":"JP"}'),
+      (VelaExitIpProbe.countryIs,
+          '{"ip":"203.0.113.11","country":"JP"}'),
+      (VelaExitIpProbe.ipQuery,
+          '{"ip":"203.0.113.11","location":{"country_code":"JP"}}'),
+      (VelaExitIpProbe.identMe,
+          '{"ip":"203.0.113.11","cc":"JP"}'),
+    ];
+    expect(VelaExitIpProbe.sources, hasLength(8));
+    for (final (url, body) in sources) {
+      expect(VelaExitIpInfo.parseSource(url, body)?.label,
+          '🇯🇵 203.0.113.11', reason: url);
+    }
   });
 
-  test('disconnected state never sends a probe and reads timeout', () {
+  test('rejects private addresses, invalid countries and unknown sources', () {
+    expect(VelaExitIpInfo.parseSource(
+        VelaExitIpProbe.cloudflare, 'ip=127.0.0.1\nloc=JP\n'), isNull);
+    expect(VelaExitIpInfo.parseSource(
+        VelaExitIpProbe.cloudflare, 'ip=192.168.1.2\nloc=JP\n'), isNull);
+    expect(VelaExitIpInfo.parseSource(
+        VelaExitIpProbe.cloudflare, 'ip=100.64.0.1\nloc=JP\n'), isNull);
+    expect(VelaExitIpInfo.parseSource(
+        VelaExitIpProbe.cloudflare, 'ip=203.0.113.1\nloc=ZZ\n'), isNull);
+    expect(VelaExitIpInfo.parseSource(
+        VelaExitIpProbe.cloudflare, 'ip=203.0.113.1\n'), isNull);
+    expect(VelaExitIpInfo.parseSource(
+        'https://unknown.example', '{"ip":"203.0.113.1","country":"JP"}'),
+        isNull);
+    expect(VelaExitIpInfo.parseSource(
+        VelaExitIpProbe.countryIs, '{"ip":23}'), isNull);
+  });
+
+  test('sends eight HTTPS providers through the real FlClash Go RPC',
+      () async {
+    final transport = _RecordingTransport();
+    transport.replies.add({
+      'url': VelaExitIpProbe.cloudflare,
+      'body': 'ip=203.0.113.15\nloc=US\n',
+      'chains': ['US-01', 'GLOBAL'],
+      'core-epoch': 2,
+      'picks-version': 8,
+    });
+    final probe = VelaExitIpProbe(FlClashCoreApi(transport));
+    final result = await probe.lookup();
+    expect(result?.label, '🇺🇸 203.0.113.15');
+    expect(transport.requests, hasLength(1));
+    final request = transport.requests.single;
+    expect(request['method'], 'outboundIp');
+    final args = request['arguments'] as Map;
+    expect(args['proxy-name'], '');
+    expect(args['timeout'], 6000);
+    expect(args['urls'], VelaExitIpProbe.sources);
+    expect((args['urls'] as List).every((x) =>
+        (x as String).startsWith('https://')), isTrue);
+  });
+
+  test('bad provider body retries without the rejected source', () async {
+    final transport = _RecordingTransport();
+    transport.replies.addAll([
+      {
+        'url': VelaExitIpProbe.cloudflare,
+        'body': 'ip=203.0.113.12\nloc=ZZ\n',
+      },
+      {
+        'url': VelaExitIpProbe.countryIs,
+        'body': '{"ip":"203.0.113.12","country":"GB"}',
+      },
+    ]);
+    final result = await VelaExitIpProbe(
+        FlClashCoreApi(transport)).lookup();
+    expect(result?.label, '🇬🇧 203.0.113.12');
+    expect(transport.requests, hasLength(2));
+    final second = transport.requests[1]['arguments'] as Map;
+    expect(second['urls'], isNot(contains(VelaExitIpProbe.cloudflare)));
+  });
+
+  test('disconnected state never probes and displays timeout', () {
     final probe = _FakeExitProbe();
     final monitor = VelaExitIpMonitor(
-      useProxy: true, proxyPort: () => 20808,
-      probe: probe, interval: const Duration(days: 1),
-    );
+        probe: probe, interval: const Duration(days: 1));
     expect(monitor.label, 'timeout');
     monitor.sync(false, 'JP');
-    expect(probe.requests, isEmpty);
+    expect(probe.pending, isEmpty);
     monitor.dispose();
   });
 
-  test('connected route shows flag and IP; failed refresh shows timeout',
-      () async {
+  test('success then failed refresh clears old address', () async {
     final probe = _FakeExitProbe();
     final monitor = VelaExitIpMonitor(
-      useProxy: true, proxyPort: () => 20808,
-      probe: probe, interval: const Duration(days: 1),
-    );
+        probe: probe, interval: const Duration(days: 1));
     monitor.sync(true, 'airport-a|JP');
     expect(monitor.label, '检测中…');
-    expect(probe.requests, [(true, 20808)]);
     probe.pending.first.complete(const VelaExitIpInfo(
-      address: '203.0.113.17', countryCode: 'JP'));
+        address: '203.0.113.17', countryCode: 'JP'));
     await Future<void>.delayed(Duration.zero);
     expect(monitor.label, '🇯🇵 203.0.113.17');
 
@@ -75,16 +153,14 @@ void main() {
     monitor.dispose();
   });
 
-  test('old node response cannot overwrite new route or disconnect',
+  test('old node results cannot overwrite a new route or disconnect',
       () async {
     final probe = _FakeExitProbe();
     final monitor = VelaExitIpMonitor(
-      useProxy: false, proxyPort: () => null,
-      probe: probe, interval: const Duration(days: 1),
-    );
+        probe: probe, interval: const Duration(days: 1));
     monitor.sync(true, 'node-one');
     monitor.sync(true, 'node-two');
-    expect(probe.requests, [(false, null), (false, null)]);
+    expect(probe.pending, hasLength(2));
     probe.pending.first.complete(const VelaExitIpInfo(
         address: '203.0.113.1', countryCode: 'US'));
     await Future<void>.delayed(Duration.zero);
