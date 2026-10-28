@@ -4,8 +4,11 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
-/// Public exit observed by an HTTPS endpoint, not a country guessed from the
-/// selected node name. Never persisted or sent to diagnostics.
+import 'flclash_core_api.dart';
+
+/// IP detection uses the SAME FlClash Go/Mihomo outboundIp RPC on both
+/// platforms. The core chooses the real route (including RULE/DIRECT); a
+/// node name is never used to guess IP geolocation.
 class VelaExitIpInfo {
   const VelaExitIpInfo({required this.address, required this.countryCode});
 
@@ -19,132 +22,144 @@ class VelaExitIpInfo {
 
   String get label => '$flag $address';
 
-  /// Cloudflare's /cdn-cgi/trace has "ip=" and "loc=" lines.
-  /// Reject malformed/partial responses instead of displaying a guessed flag.
-  static VelaExitIpInfo? parseTrace(String body) {
-    if (body.length > 4096) return null;
-    final fields = <String, String>{};
-    for (final line in const LineSplitter().convert(body)) {
-      final equal = line.indexOf('=');
-      if (equal <= 0) continue;
-      fields[line.substring(0, equal)] = line.substring(equal + 1).trim();
+  /// Parse only a known provider's expected fields, never a random 200 page.
+  /// Source formats mirror FlClash's lib/common/service_probe.dart.
+  static VelaExitIpInfo? parseSource(String url, String body) {
+    if (body.isEmpty || body.length > 4096) return null;
+    String? ip;
+    String? country;
+    try {
+      if (url == VelaExitIpProbe.cloudflare) {
+        final fields = <String, String>{};
+        for (final line in const LineSplitter().convert(body)) {
+          final separator = line.indexOf('=');
+          if (separator > 0) {
+            fields[line.substring(0, separator)] =
+                line.substring(separator + 1).trim();
+          }
+        }
+        ip = fields['ip'];
+        country = fields['loc'];
+      } else {
+        final decoded = jsonDecode(body);
+        if (decoded is! Map<String, dynamic>) return null;
+        if (url == VelaExitIpProbe.ipInfo ||
+            url == VelaExitIpProbe.countryIs) {
+          ip = decoded['ip'] as String?;
+          country = decoded['country'] as String?;
+        } else if (url == VelaExitIpProbe.ipSb ||
+            url == VelaExitIpProbe.ipWhoIs ||
+            url == VelaExitIpProbe.geoJs) {
+          ip = decoded['ip'] as String?;
+          country = decoded['country_code'] as String?;
+        } else if (url == VelaExitIpProbe.identMe) {
+          ip = decoded['ip'] as String?;
+          country = decoded['cc'] as String?;
+        } else if (url == VelaExitIpProbe.ipQuery) {
+          ip = decoded['ip'] as String?;
+          final location = decoded['location'];
+          if (location is Map) {
+            country = location['country_code'] as String?;
+          }
+        } else {
+          return null;
+        }
+      }
+    } on FormatException {
+      return null;
+    } on TypeError {
+      return null;
     }
-    final ip = fields['ip'];
-    final country = fields['loc'];
     if (ip == null || country == null ||
-        !RegExp(r'^[A-Z]{2}$').hasMatch(country)) {
+        !RegExp(r'^[A-Z]{2}$').hasMatch(country) ||
+        country == 'ZZ') {
       return null;
     }
     final address = InternetAddress.tryParse(ip);
     if (address == null || address.isLoopback ||
-        address.isLinkLocal || address.isMulticast ||
-        (address.type != InternetAddressType.IPv4 &&
-         address.type != InternetAddressType.IPv6)) {
+        address.isLinkLocal || address.isMulticast) {
+      return null;
+    }
+    if (address.type == InternetAddressType.IPv4) {
+      final bytes = address.rawAddress;
+      if (bytes[0] == 0 || bytes[0] == 10 ||
+          (bytes[0] == 100 && bytes[1] >= 64 && bytes[1] <= 127) ||
+          (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
+          (bytes[0] == 192 && bytes[1] == 168)) {
+        return null;
+      }
+    } else if (address.type == InternetAddressType.IPv6) {
+      if (address.rawAddress[0] & 0xfe == 0xfc) return null;
+    } else {
       return null;
     }
     return VelaExitIpInfo(address: ip, countryCode: country);
   }
-
-  /// Alternate endpoint is used only if the Cloudflare trace is unavailable.
-  static VelaExitIpInfo? parseCountryResponse(String body) {
-    if (body.length > 4096) return null;
-    try {
-      final response = jsonDecode(body);
-      if (response is! Map || response['ip'] is! String ||
-          response['country'] is! String) {
-        return null;
-      }
-      final ip = response['ip'] as String;
-      final country = response['country'] as String;
-      return parseTrace('ip=$ip\nloc=$country\n');
-    } catch (_) {
-      return null;
-    }
-  }
 }
 
-/// Windows MUST use Mihomo's local mixed HTTP proxy (never a DIRECT fallback).
-/// Android sockets use the already-established Android VPN TUN.
+/// FlClash Go's native outboundIp engine performs staggered probes (up to
+/// three concurrent, 800ms apart), using Mihomo's tunnel and route chain.
+/// All sources are HTTPS; the upstream Custom fork also offers an HTTP-only
+/// endpoint which is intentionally omitted for this sensitive IP lookup.
 class VelaExitIpProbe {
-  HttpClient? _active;
+  VelaExitIpProbe(this.api);
+
+  final FlClashCoreApi api;
   int _generation = 0;
 
-  Future<VelaExitIpInfo?> lookup({required bool useProxy, int? proxyPort}) async {
-    if (useProxy && (proxyPort == null || proxyPort < 1 ||
-        proxyPort > 65535)) {
-      return null;
-    }
+  static const cloudflare = 'https://www.cloudflare.com/cdn-cgi/trace';
+  static const ipSb = 'https://api.ip.sb/geoip';
+  static const ipInfo = 'https://ipinfo.io/json';
+  static const ipWhoIs = 'https://ipwho.is';
+  static const geoJs = 'https://get.geojs.io/v1/ip/geo.json';
+  static const countryIs = 'https://api.country.is';
+  static const ipQuery = 'https://api.ipquery.io/?format=json';
+  static const identMe = 'https://ident.me/json';
+
+  static const sources = <String>[
+    cloudflare, ipSb, ipInfo, ipWhoIs,
+    geoJs, countryIs, ipQuery, identMe,
+  ];
+
+  Future<VelaExitIpInfo?> lookup() async {
     final generation = _generation;
-    final endpoints = <(Uri, VelaExitIpInfo? Function(String))>[
-      (Uri.https('www.cloudflare.com', '/cdn-cgi/trace'),
-          VelaExitIpInfo.parseTrace),
-      (Uri.https('api.country.is', '/'),
-          VelaExitIpInfo.parseCountryResponse),
-    ];
-    for (final (url, parse) in endpoints) {
-      if (generation != _generation) return null;
-      final client = HttpClient()
-        ..connectionTimeout = const Duration(seconds: 4);
-      _active = client;
-      if (useProxy) {
-        client.findProxy = (_) => 'PROXY 127.0.0.1:$proxyPort';
-      }
+    var urls = sources;
+    // The Go core accepts the first body containing a public IP. If that
+    // particular provider omits a valid country, exclude it for one retry.
+    for (var attempt = 0; attempt < 2; attempt++) {
+      if (generation != _generation || urls.isEmpty) return null;
       try {
-        final request = await client.getUrl(url)
-            .timeout(const Duration(seconds: 6));
-        request.followRedirects = false;
-        request.headers.set(HttpHeaders.acceptHeader, 'text/plain, application/json');
-        final response = await request.close()
-            .timeout(const Duration(seconds: 8));
-        if (response.statusCode != HttpStatus.ok ||
-            response.contentLength > 4096) {
-          continue;
-        }
-        final body = <int>[];
-        var tooLarge = false;
-        await for (final chunk in response.timeout(const Duration(seconds: 6))) {
-          if (body.length + chunk.length > 4096) {
-            tooLarge = true;
-            break;
-          }
-          body.addAll(chunk);
-        }
-        if (tooLarge || generation != _generation) return null;
-        final result = parse(utf8.decode(body));
-        if (result != null) return result;
+        final reply = await api.outboundIp(urls: urls, timeoutMs: 6000);
+        if (generation != _generation || reply == null) return null;
+        final url = reply['url'];
+        final body = reply['body'];
+        if (url is! String || body is! String) return null;
+        final info = VelaExitIpInfo.parseSource(url, body);
+        if (info != null) return info;
+        if (!urls.contains(url)) return null;
+        urls = urls.where((source) => source != url).toList(growable: false);
       } catch (_) {
-        // A blocked detection endpoint is not proof that the VPN is broken.
-        // Try the second service using the same enforced proxy/VPN route.
-      } finally {
-        if (identical(_active, client)) _active = null;
-        client.close(force: true);
+        // Timeout, JNI/stdio failure or unavailable providers: UI is timeout.
+        return null;
       }
     }
     return null;
   }
 
-  void cancel() {
-    _generation++;
-    _active?.close(force: true);
-    _active = null;
-  }
+  /// Only invalidates Dart responses. The Go handler owns its 6s deadline.
+  void cancel() => _generation++;
 }
 
-/// The old IP must disappear immediately on disconnect, route change or
-/// failed detection. A generation check rejects late responses from old nodes.
+/// No stale IP survives a disconnect, a selected node change or a failed
+/// lookup. Network probing is intentionally paused while disconnected.
 class VelaExitIpMonitor extends ChangeNotifier {
   VelaExitIpMonitor({
-    required this.useProxy,
-    required this.proxyPort,
-    VelaExitIpProbe? probe,
+    required VelaExitIpProbe probe,
     Duration interval = const Duration(minutes: 2),
-  }) : _probe = probe ?? VelaExitIpProbe(), _interval = interval;
+  }) : _probe = probe, _interval = interval;
 
-  final bool useProxy;
-  final int? Function() proxyPort;
   final VelaExitIpProbe _probe;
   final Duration _interval;
-
   Timer? _timer;
   bool _connected = false;
   bool _loading = false;
@@ -185,10 +200,7 @@ class VelaExitIpMonitor extends ChangeNotifier {
     _info = null;
     notifyListeners();
     try {
-      final result = await _probe.lookup(
-        useProxy: useProxy,
-        proxyPort: useProxy ? proxyPort() : null,
-      );
+      final result = await _probe.lookup();
       if (!_disposed && _connected && generation == _generation) {
         _info = result;
       }
