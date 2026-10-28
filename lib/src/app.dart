@@ -20,6 +20,7 @@ import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
 import 'package:vela_shuo/src/network/vela_routing_mode.dart';
 import 'package:vela_shuo/src/network/flclash_go_node_probe.dart';
 import 'package:vela_shuo/src/network/vela_exit_ip_monitor.dart';
+import 'package:vela_shuo/src/network/vela_exit_ip_indicator.dart';
 import 'package:vela_shuo/src/android/vela_android_vpn.dart';
 import 'package:vela_shuo/src/traffic/vela_traffic_monitor.dart';
 import 'package:vela_shuo/src/smart/vela_node_probe.dart';
@@ -787,11 +788,12 @@ class _ExitIpInline extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(top: 2),
-    child: Text(monitor.label,
-      maxLines: 1, overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: monitor.info == null ? _muted : _blue,
-        fontSize: 10.5, fontWeight: FontWeight.w600)),
+    child: VelaExitIpIndicator(
+      info: monitor.info,
+      statusText: monitor.label,
+      accentColor: _blue,
+      mutedColor: _muted,
+    ),
   );
 }
 

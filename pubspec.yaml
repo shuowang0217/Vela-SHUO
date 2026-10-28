@@ -1,7 +1,7 @@
 name: vela_shuo
 description: Vela cross-platform network client.
 publish_to: none
-version: 1.10.1-beta.2+60
+version: 1.10.1-beta.3+61
 
 environment:
   sdk: '>=3.9.0 <4.0.0'
@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   shared_preferences: ^2.5.3
+  country_flags: ^4.1.2
   file_selector: ^1.1.0
   yaml: ^3.1.3
   dio: ^5.9.0
