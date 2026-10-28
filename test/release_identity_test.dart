@@ -14,7 +14,7 @@ void main() {
         .readAsStringSync();
     final windows = File('scripts/configure_windows_product.py')
         .readAsStringSync();
-    expect(pubspec, contains('version: 1.10.1-beta.1+59'));
+    expect(pubspec, contains('version: 1.10.1-beta.2+60'));
     expect(generator, contains('applicationId = "com.shuowang.vela"'));
     expect(generator, contains('android:label="Vela"'));
     expect(generator, contains('signingConfigs.getByName("velaRelease")'));
@@ -26,15 +26,15 @@ void main() {
     expect(signer, contains(
         '3e8826e8aa48576ddfce7a9a2e78106a159c7be05dbb3b2f89eb60fb095ac9d9'));
     expect(generator, contains('keyAlias = "shuo-release"'));
-    expect(workflow, contains('Vela-v1.10.1-beta.1-Android-arm64.apk'));
-    expect(workflow, contains('Vela-v1.10.1-beta.1-Windows-x64.zip'));
-    expect(workflow, contains("versionCode='59' versionName='1.10.1-beta.1'"));
+    expect(workflow, contains('Vela-v1.10.1-beta.2-Android-arm64.apk'));
+    expect(workflow, contains('Vela-v1.10.1-beta.2-Windows-x64.zip'));
+    expect(workflow, contains("versionCode='60' versionName='1.10.1-beta.2'"));
     expect(workflow, isNot(contains('gh release create')));
     expect(stableWorkflow, contains('version: 1.10.0+58'));
     expect(stableWorkflow, contains('gh release create v1.10.0'));
     expect(workflow, contains('feature/v1.10.0-inline-exit-ip'));
     expect(windows, contains('set(BINARY_NAME "Vela")'));
-    expect(VelaUpdateService.currentVersion, '1.10.1-beta.1');
+    expect(VelaUpdateService.currentVersion, '1.10.1-beta.2');
   });
 
   test('update version comparison requires newer semantic release', () {
@@ -43,13 +43,13 @@ void main() {
     expect(VelaUpdateService.isNewer('v1.5.0', '1.5.0'), isFalse);
     expect(VelaUpdateService.isNewer('v1.4.9', '1.5.0'), isFalse);
     expect(VelaUpdateService.isNewer('invalid', '1.5.0'), isFalse);
-    expect(VelaUpdateService.isNewer('v1.10.1', '1.10.1-beta.1'),
+    expect(VelaUpdateService.isNewer('v1.10.1', '1.10.1-beta.2'),
         isTrue);
-    expect(VelaUpdateService.isNewer('v1.10.1-beta.2', '1.10.1-beta.1'),
+    expect(VelaUpdateService.isNewer('v1.10.1-beta.2', '1.10.1-beta.2'),
         isTrue);
-    expect(VelaUpdateService.isNewer('v1.10.1-beta.1', '1.10.1'),
+    expect(VelaUpdateService.isNewer('v1.10.1-beta.2', '1.10.1'),
         isFalse);
-    expect(VelaUpdateService.isNewer('v1.10.0', '1.10.1-beta.1'),
+    expect(VelaUpdateService.isNewer('v1.10.0', '1.10.1-beta.2'),
         isFalse);
 
   });
