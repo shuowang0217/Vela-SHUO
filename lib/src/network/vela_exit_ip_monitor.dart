@@ -25,7 +25,9 @@ class VelaExitIpInfo {
   /// Parse only a known provider's expected fields, never a random 200 page.
   /// Source formats mirror FlClash's lib/common/service_probe.dart.
   static VelaExitIpInfo? parseSource(String url, String body) {
-    if (body.isEmpty || body.length > 4096) return null;
+    if (body.isEmpty || body.length > 4096) {
+      return null;
+    }
     String? ip;
     String? country;
     try {
@@ -42,7 +44,9 @@ class VelaExitIpInfo {
         country = fields['loc'];
       } else {
         final decoded = jsonDecode(body);
-        if (decoded is! Map<String, dynamic>) return null;
+        if (decoded is! Map<String, dynamic>) {
+          return null;
+        }
         if (url == VelaExitIpProbe.ipInfo ||
             url == VelaExitIpProbe.countryIs) {
           ip = decoded['ip'] as String?;
@@ -89,7 +93,9 @@ class VelaExitIpInfo {
         return null;
       }
     } else if (address.type == InternetAddressType.IPv6) {
-      if (address.rawAddress[0] & 0xfe == 0xfc) return null;
+      if ((address.rawAddress[0] & 0xfe) == 0xfc) {
+        return null;
+      }
     } else {
       return null;
     }
@@ -127,16 +133,26 @@ class VelaExitIpProbe {
     // The Go core accepts the first body containing a public IP. If that
     // particular provider omits a valid country, exclude it for one retry.
     for (var attempt = 0; attempt < 2; attempt++) {
-      if (generation != _generation || urls.isEmpty) return null;
+      if (generation != _generation || urls.isEmpty) {
+        return null;
+      }
       try {
         final reply = await api.outboundIp(urls: urls, timeoutMs: 6000);
-        if (generation != _generation || reply == null) return null;
+        if (generation != _generation || reply == null) {
+          return null;
+        }
         final url = reply['url'];
         final body = reply['body'];
-        if (url is! String || body is! String) return null;
+        if (url is! String || body is! String) {
+          return null;
+        }
         final info = VelaExitIpInfo.parseSource(url, body);
-        if (info != null) return info;
-        if (!urls.contains(url)) return null;
+        if (info != null) {
+          return info;
+        }
+        if (!urls.contains(url)) {
+          return null;
+        }
         urls = urls.where((source) => source != url).toList(growable: false);
       } catch (_) {
         // Timeout, JNI/stdio failure or unavailable providers: UI is timeout.
@@ -194,7 +210,9 @@ class VelaExitIpMonitor extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
-    if (_disposed || !_connected || _loading) return;
+    if (_disposed || !_connected || _loading) {
+      return;
+    }
     final generation = _generation;
     _loading = true;
     _info = null;
