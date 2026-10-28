@@ -18,24 +18,52 @@ class VelaUpdateInfo {
 class VelaUpdateService {
   const VelaUpdateService();
 
-  static const String currentVersion = '1.10.0';
+  static const String currentVersion = '1.10.1-beta.1';
   static final Uri _releaseApi = Uri.https(
       'api.github.com', '/repos/shuowang0217/Vela-SHUO/releases/latest');
 
+  /// A beta is older than the matching stable release and newer than the
+  /// previous minor version. Build metadata does not affect precedence.
   static bool isNewer(String candidate, String installed) {
-    List<int>? parts(String version) {
-      final cleaned = version.startsWith('v') ? version.substring(1) : version;
-      if (!RegExp(r'^\d+\.\d+\.\d+$').hasMatch(cleaned)) return null;
-      return cleaned.split('.').map(int.parse).toList();
+    (List<int>, String?)? parse(String version) {
+      final clean = version.startsWith('v') ? version.substring(1) : version;
+      final match = RegExp(
+          r'^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+\d+)?$')
+          .firstMatch(clean);
+      if (match == null) return null;
+      return (
+        [int.parse(match[1]!), int.parse(match[2]!), int.parse(match[3]!)],
+        match[4],
+      );
     }
 
-    final next = parts(candidate);
-    final now = parts(installed);
+    final next = parse(candidate);
+    final now = parse(installed);
     if (next == null || now == null) return false;
     for (var i = 0; i < 3; i++) {
-      if (next[i] != now[i]) return next[i] > now[i];
+      if (next.$1[i] != now.$1[i]) return next.$1[i] > now.$1[i];
     }
-    return false;
+    final preNext = next.$2;
+    final preNow = now.$2;
+    if (preNext == null) return preNow != null;
+    if (preNow == null) return false;
+    final a = preNext.split('.');
+    final b = preNow.split('.');
+    for (var i = 0; i < a.length && i < b.length; i++) {
+      final x = int.tryParse(a[i]);
+      final y = int.tryParse(b[i]);
+      if (x != null && y != null) {
+        if (x != y) return x > y;
+      } else if (x != null && y == null) {
+        return false;
+      } else if (x == null && y != null) {
+        return true;
+      } else {
+        final diff = a[i].compareTo(b[i]);
+        if (diff != 0) return diff > 0;
+      }
+    }
+    return a.length > b.length;
   }
 
   Future<VelaUpdateInfo> check() async {
