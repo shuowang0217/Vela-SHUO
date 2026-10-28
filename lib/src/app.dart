@@ -296,11 +296,11 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    if (widget.core is VelaFlClashCoreController &&
+    final flclash = widget.core;
+    if (flclash is VelaFlClashCoreController &&
         (Platform.isWindows || Platform.isAndroid)) {
       exitIp = VelaExitIpMonitor(
-        useProxy: Platform.isWindows,
-        proxyPort: () => widget.core?.localPort,
+        probe: VelaExitIpProbe(flclash.backend.api),
       );
     }
     traffic = VelaTrafficMonitor(reader: () async {
