@@ -8,7 +8,9 @@ void main() {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final generator = File('scripts/configure_android_vpn.py')
         .readAsStringSync();
-    final workflow = File('.github/workflows/vela-host-flclash-core.yml')
+    final workflow = File('.github/workflows/vela-exit-ip-preview.yml')
+        .readAsStringSync();
+    final stableWorkflow = File('.github/workflows/vela-host-flclash-core.yml')
         .readAsStringSync();
     final windows = File('scripts/configure_windows_product.py')
         .readAsStringSync();
@@ -28,6 +30,9 @@ void main() {
     expect(workflow, contains('Vela-v1.10.1-beta.1-Windows-x64.zip'));
     expect(workflow, contains("versionCode='59' versionName='1.10.1-beta.1'"));
     expect(workflow, isNot(contains('gh release create')));
+    expect(stableWorkflow, contains('version: 1.10.0+58'));
+    expect(stableWorkflow, contains('gh release create v1.10.0'));
+    expect(workflow, contains('feature/v1.10.0-inline-exit-ip'));
     expect(windows, contains('set(BINARY_NAME "Vela")'));
     expect(VelaUpdateService.currentVersion, '1.10.1-beta.1');
   });
