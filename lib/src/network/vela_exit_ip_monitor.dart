@@ -230,13 +230,17 @@ class VelaExitIpMonitor extends ChangeNotifier {
 
     // Native Mihomo setup can be slightly behind the connected callback.
     // Automatic retry makes detection independent of focus changes.
-    _loading = true;
-    notifyListeners();
-    _retryTimer = Timer(_connectionSettle, () {
-      _retryTimer = null;
-      _loading = false;
+    if (_connectionSettle == Duration.zero) {
       unawaited(refresh());
-    });
+    } else {
+      _loading = true;
+      notifyListeners();
+      _retryTimer = Timer(_connectionSettle, () {
+        _retryTimer = null;
+        _loading = false;
+        unawaited(refresh());
+      });
+    }
     _timer = Timer.periodic(_interval, (_) => unawaited(refresh()));
   }
 
