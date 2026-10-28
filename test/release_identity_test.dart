@@ -45,7 +45,7 @@ void main() {
     expect(VelaUpdateService.isNewer('invalid', '1.5.0'), isFalse);
     expect(VelaUpdateService.isNewer('v1.10.1', '1.10.1-beta.2'),
         isTrue);
-    expect(VelaUpdateService.isNewer('v1.10.1-beta.2', '1.10.1-beta.2'),
+    expect(VelaUpdateService.isNewer('v1.10.1-beta.3', '1.10.1-beta.2'),
         isTrue);
     expect(VelaUpdateService.isNewer('v1.10.1-beta.2', '1.10.1'),
         isFalse);
