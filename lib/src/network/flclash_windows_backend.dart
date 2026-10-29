@@ -774,7 +774,7 @@ class FlClashWindowsBackend {
       'http://www.gstatic.com/generate_204',
     ]) {
       try {
-        final reply = await api.probe(url, name);
+        final reply = await api.probe(url, name, timeoutMs: 4000);
         if (reply is! Map) {
           _delayErrors[name] = '航线测速数据为空';
           continue;
