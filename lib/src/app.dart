@@ -21,6 +21,7 @@ import 'package:vela_shuo/src/network/vela_routing_mode.dart';
 import 'package:vela_shuo/src/network/flclash_go_node_probe.dart';
 import 'package:vela_shuo/src/network/vela_exit_ip_monitor.dart';
 import 'package:vela_shuo/src/network/vela_exit_ip_indicator.dart';
+import 'package:vela_shuo/src/network/vela_network_diagnostics.dart';
 import 'package:vela_shuo/src/android/vela_android_vpn.dart';
 import 'package:vela_shuo/src/traffic/vela_traffic_monitor.dart';
 import 'package:vela_shuo/src/smart/vela_node_probe.dart';
@@ -267,7 +268,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     final connected = Platform.isAndroid
         ? androidVpn?.connected == true : connection?.connected == true;
     traffic?.sync(connected);
-    exitIp?.sync(connected, _exitRouteIdentity);
+    exitIp?.sync(connected, _exitRouteIdentity,
+        mode: routing?.current.wire ?? 'rule');
     final sub = subscription;
     final vpn = androidVpn;
     if (Platform.isAndroid && vpn != null) {
@@ -474,6 +476,7 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     3 => _SettingsPage(
       settings: widget.settings,
       diagnostics: widget.diagnostics, core: widget.core,
+      exitIp: exitIp,
       subscription: subscription, connection: connection,
       androidVpn: androidVpn, windowExitGuard: widget.windowExitGuard,
     ),
@@ -1369,7 +1372,7 @@ class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.settings, this.diagnostics, this.core,
     this.subscription, this.connection, this.androidVpn,
-    this.windowExitGuard,
+    this.windowExitGuard, this.exitIp,
   });
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
@@ -1378,6 +1381,7 @@ class _SettingsPage extends StatelessWidget {
   final VelaConnectionCoordinator? connection;
   final VelaAndroidVpnController? androidVpn;
   final VelaWindowExitGuard? windowExitGuard;
+  final VelaExitIpMonitor? exitIp;
   @override
   Widget build(BuildContext context) => _ScreenPadding(
     child: ListView(children: [
@@ -1524,6 +1528,10 @@ class _SettingsPage extends StatelessWidget {
         ],
       ])),
       SizedBox(height: 16),
+      if (exitIp != null) ...[
+        SizedBox(height: 16),
+        _GlassCard(child: VelaNetworkDiagnostics(monitor: exitIp!)),
+      ],
       if (diagnostics != null) ...[
         SizedBox(height: 16),
         _DiagnosticsCard(diagnostics: diagnostics!),
