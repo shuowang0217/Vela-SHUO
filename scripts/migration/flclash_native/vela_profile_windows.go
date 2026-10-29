@@ -211,7 +211,7 @@ func velaCustomDownload(name, endpoint string) (bytes int64, micros int64, reaso
     measured := handleProbe(&ProbeParams{
         Url: endpoint,
         ProxyName: name,
-        Timeout: 10000, // At most 4 endpoints; fit inside Dart's 55s RPC timeout.
+        Timeout: 6500, // Bound each CDN failure; keep full 1 MiB measurement.
         MaxBody: velaDownloadLimit,
         Headers: map[string]string{
             "X-FlClash-Measure-Download": "1",
@@ -341,7 +341,7 @@ func init() {
                 rows := make([]velaLatencyBatchRow, len(params.Names))
                 jobs := make(chan int)
                 var workers sync.WaitGroup
-                const concurrency = 16
+                const concurrency = 20
                 for n := 0; n < concurrency; n++ {
                     workers.Add(1)
                     go func() {
@@ -361,8 +361,8 @@ func init() {
                             // The fallback URL is only tried after a timeout;
                             // slow/offline nodes should not block a huge list.
                             for _, url := range urls {
-                                timeout := int64(2800)
-                                if url != urls[0] { timeout = 1800 }
+                                timeout := int64(2400)
+                                if url != urls[0] { timeout = 1600 }
                                 delay := handleTestDelay(&TestDelayParams{
                                     ProxyName: name, TestUrl: url, Timeout: timeout,
                                 })
