@@ -193,6 +193,20 @@ class VelaSmartController extends ChangeNotifier {
   VelaDownloadSample? downloadAt(int index) => _downloads[index];
   int get downloadsTested => _downloads.length;
   int get downloadsSuccessful => _downloads.values.where((s) => s.ok).length;
+  /// Only safe fixed categories, never a node URL or core error string.
+  String get downloadFailureSummary {
+    final failures = <String, int>{};
+    for (final item in _downloads.values) {
+      if (!item.ok) {
+        final reason = item.failureLabel;
+        failures[reason] = (failures[reason] ?? 0) + 1;
+      }
+    }
+    if (failures.isEmpty) return '';
+    final sorted = failures.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return '，主要原因：${sorted.first.key}（${sorted.first.value}个）';
+  }
   bool _downloading = false;
   int? _downloadIndex;
   String? _downloadStatus;
@@ -422,7 +436,8 @@ class VelaSmartController extends ChangeNotifier {
       if (_disposed || generation != _generation) { return false; }
       _downloads[index] = result;
       _downloadStatus = result.ok && result.mbps != null
-          ? '样本下载成功：${result.mbps!.toStringAsFixed(1)} Mbps（仅1 MiB）'
+          ? '样本下载成功：${result.mbps!.toStringAsFixed(1)} Mbps'
+              '（实际 ${(result.bytes / 1024).round()} KiB）'
           : result.failureLabel;
       return result.ok;
     } catch (_) {
@@ -515,7 +530,8 @@ class VelaSmartController extends ChangeNotifier {
         final cancelled = _cancelRequested || run != _generation;
         if (!cancelled) {
           _lastScan = _clock();
-          _status = '下载测速完成：成功 $_successful，失败 $_failed，共 $_total 个。';
+          _status = '下载测速完成：成功 $_successful，失败 $_failed，'
+              '共 $_total 个$downloadFailureSummary。';
         } else if (run == _generation) {
           _status = '下载测速已停止：已测 $_finished / $_total。';
         }
@@ -704,7 +720,7 @@ class VelaSmartController extends ChangeNotifier {
                       : 'Vela 节点测速完成：延迟成功 $_successful，'
                           '延迟失败 $_failed，'
                           '下载成功 ${_downloads.values.where((s) => s.ok).length}，'
-                          '共 $_total 个。')
+                          '共 $_total 个$downloadFailureSummary。')
                   : '本批次完成：成功 $_successful，失败 $_failed，共 $_total 个。';
         } else if (run == _generation) {
           _status = '测速已停止：完成 $_finished / $_total，剩余节点未测。';
