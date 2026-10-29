@@ -84,7 +84,7 @@ class _GoCoreFake implements FlClashCoreTransport {
         final params = data['arguments'] as Map;
         final url = params['test-url'] as String;
         testedUrls.add(url);
-        expect(params['timeout'], 8000);
+        expect(params['timeout'], 4500);
         result = {
           'name': params['proxy-name'],
           'value': blockEveryUrlTest ||
