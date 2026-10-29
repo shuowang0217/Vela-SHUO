@@ -204,15 +204,15 @@ func velaLocalDownloadURL(raw string) bool {
     return err == nil && port > 0 && port <= 65535
 }
 
-func velaCustomDownload(name, endpoint string) (bytes int64, micros int64, reason string) {
+func velaCustomDownload(name, endpoint string, byteLimit, timeoutMs int64) (bytes int64, micros int64, reason string) {
     // The Go Core's existing probe() owns the selected proxy, TLS, DNS,
     // response reading, and the body-only measurement. Its internal header
     // is removed before making the outbound HTTP request.
     measured := handleProbe(&ProbeParams{
         Url: endpoint,
         ProxyName: name,
-        Timeout: 6500, // Bound each CDN failure; keep full 1 MiB measurement.
-        MaxBody: velaDownloadLimit,
+        Timeout: timeoutMs, // Slow nodes need enough time for TLS + response body.
+        MaxBody: byteLimit,
         Headers: map[string]string{
             "X-FlClash-Measure-Download": "1",
             "Accept-Encoding": "identity",
@@ -236,7 +236,7 @@ func velaCustomDownload(name, endpoint string) (bytes int64, micros int64, reaso
     n, errN := strconv.ParseInt(values[0], 10, 64)
     us, errUs := strconv.ParseInt(values[1], 10, 64)
     if errN != nil || errUs != nil || us <= 0 ||
-        n < velaDownloadMinimum || n > velaDownloadLimit {
+        n < velaDownloadMinimum || n > byteLimit {
         return 0, 0, "short_sample"
     }
     return n, us, ""
@@ -258,31 +258,51 @@ func init() {
                     response.success(map[string]any{"ok": false, "reason": "missing"})
                     return
                 }
-                // Public endpoints are bounded to a single MiB. A node may
-                // block one CDN while allowing another, so try alternatives.
-                endpoints := []string{
-                    "https://speed.cloudflare.com/__down?bytes=1048576",
-                    "https://cachefly.cachefly.net/1mb.test",
-                    "https://proof.ovh.net/files/1Mb.dat",
-                    "https://speed.hetzner.de/1MB.bin",
+                // First try a full 1 MiB sample. A slow but working node
+                // may need more than the old 6.5 s deadline. If a CDN
+                // declines a large response, try a smaller REAL download,
+                // never a guessed or cached Mbps value.
+                type downloadTarget struct {
+                    url string
+                    maxBytes int64
+                    timeoutMs int64
+                }
+                endpoints := []downloadTarget{
+                    {"https://speed.cloudflare.com/__down?bytes=1048576", velaDownloadLimit, 11000},
+                    {"https://speed.cloudflare.com/__down?bytes=524288", 512 * 1024, 9000},
+                    {"https://cachefly.cachefly.net/1mb.test", velaDownloadLimit, 11000},
+                    {"https://proof.ovh.net/files/1Mb.dat", velaDownloadLimit, 11000},
                 }
                 if params.TestURL != "" {
                     if !velaLocalDownloadURL(params.TestURL) {
                         response.failure("invalid_arguments", "Download fixture must use local loopback", nil)
                         return
                     }
-                    endpoints = []string{params.TestURL}
+                    endpoints = []downloadTarget{{params.TestURL, velaDownloadLimit, 11000}}
                 }
                 lastReason := "no_sample"
+                reasonPriority := map[string]int{
+                    "no_sample": 0, "short_sample": 1,
+                    "invalid_sample": 2, "http_status": 3,
+                    "network": 4, "timeout": 5, "busy": 6,
+                }
                 for _, endpoint := range endpoints {
-                    received, elapsedUs, reason := velaCustomDownload(params.ProxyName, endpoint)
+                    received, elapsedUs, reason := velaCustomDownload(
+                        params.ProxyName, endpoint.url,
+                        endpoint.maxBytes, endpoint.timeoutMs)
                     if reason != "" {
-                        lastReason = reason
+                        // A final blocked CDN must not overwrite a useful
+                        // timeout/busy classification from an earlier one.
+                        if reasonPriority[reason] > reasonPriority[lastReason] {
+                            lastReason = reason
+                        }
                         continue
                     }
-                    mbps := float64(received) * 8 * 1000000 / float64(elapsedUs) / 1000000
+                    mbps := float64(received) * 8 / float64(elapsedUs)
                     if mbps <= 0 {
-                        lastReason = "invalid_sample"
+                        if reasonPriority[lastReason] < reasonPriority["invalid_sample"] {
+                            lastReason = "invalid_sample"
+                        }
                         continue
                     }
                     response.success(map[string]any{
