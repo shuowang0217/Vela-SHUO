@@ -473,7 +473,7 @@ class VelaSmartController extends ChangeNotifier {
   }
 
   /// Separate download-only action. Never triggers URLTest or changes existing
-  /// latency readings; one download at a time to respect native IPC limits.
+  /// latency readings; at most two bounded native requests run together.
   Future<void> testAllDownloads() async {
     if (!canTestAll || _downloadProbe == null) return;
     _downloads.clear();
@@ -488,7 +488,7 @@ class VelaSmartController extends ChangeNotifier {
     _total = totalNodes;
     _successful = 0;
     _failed = 0;
-    _status = '独立下载测速：逐节点测试；不会重测延迟…';
+    _status = '独立下载测速：最多并发 2 个节点，不重测延迟…';
     _emit();
     var next = 0;
     Future<void> worker() async {
@@ -509,7 +509,8 @@ class VelaSmartController extends ChangeNotifier {
       }
     }
     try {
-      await worker();
+      await Future.wait(List.generate(
+          totalNodes < 2 ? totalNodes : 2, (_) => worker()));
     } finally {
       if (!_disposed) {
         final cancelled = _cancelRequested || run != _generation;
@@ -565,16 +566,14 @@ class VelaSmartController extends ChangeNotifier {
       indices = indices.take(50).toList();
     }
     final previousCursor = _cursor;
-    // FlClash's native URLTest is a single batch request. Keep its
-    // concurrency there, but serialize native downloads. The tested
-    // single-node button invokes this same measureDownload() method with
-    // only one RPC in flight; overlapping 1 MiB probes can otherwise
-    // saturate the same native IPC/proxy while reporting generic failures.
+    // FlClash's native URLTest owns its batch concurrency. Keep downloads
+    // bounded to two 1 MiB native requests; never start one per node.
+    // The selected-node button still performs exactly one isolated probe.
     final nativeDownloads = all && !latencyOnly &&
         _probe is VelaBatchLatencyProbe && _downloadProbe != null;
     final workerCount = latencyOnly
         ? (indices.length < 12 ? indices.length : 12)
-        : nativeDownloads ? 1
+        : nativeDownloads ? (indices.length < 2 ? indices.length : 2)
         : all ? (indices.length < 2 ? indices.length : 2) : 1;
     var nextPosition = 0;
     _finished = 0;
@@ -587,7 +586,7 @@ class VelaSmartController extends ChangeNotifier {
         : all
             ? '正在测延迟和下载速度：' +
                 indices.length.toString() +
-                (nativeDownloads ? ' 个节点（逐个下载）…'
+                (nativeDownloads ? ' 个节点（最多并发 2 个下载）…'
                     : ' 个节点（最多并发2）…')
             : '正在检测真实 HTTPS 代理响应时间…';
     _emit();
