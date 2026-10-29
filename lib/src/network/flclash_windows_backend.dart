@@ -751,7 +751,7 @@ class FlClashWindowsBackend {
       'https://cp.cloudflare.com/generate_204',
     ]) {
       try {
-        final ms = await api.testDelay(name, url, timeoutMs: 8000);
+        final ms = await api.testDelay(name, url, timeoutMs: 4500);
         if (ms != null && ms > 0) return ms;
       } on FlClashCoreFailure catch (error) {
         if (error.code == 'not_initialized' ||
