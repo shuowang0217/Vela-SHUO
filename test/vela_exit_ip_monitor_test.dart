@@ -92,6 +92,11 @@ void main() {
     final probe = VelaExitIpProbe(FlClashCoreApi(transport));
     final result = await probe.lookup();
     expect(result?.label, '🇺🇸 203.0.113.15');
+    expect(result?.chains, ['US-01', 'GLOBAL']);
+    expect(result?.routeVerified, isTrue);
+    expect(result?.coreEpoch, 2);
+    expect(result?.picksVersion, 8);
+    expect(result?.source, VelaExitIpProbe.cloudflare);
     expect(transport.requests, hasLength(1));
     final request = transport.requests.single;
     expect(request['method'], 'outboundIp');
@@ -227,4 +232,58 @@ void main() {
     expect(monitor.info, isNull);
     monitor.dispose();
   });
+  testWidgets('old IP expires after six minutes even without a focus change',
+      (tester) async {
+    final probe = _FakeExitProbe();
+    var now = DateTime(2026, 10, 29, 8);
+    final monitor = VelaExitIpMonitor(
+      probe: probe,
+      interval: const Duration(minutes: 20),
+      maxAge: const Duration(minutes: 6),
+      clock: () => now,
+      connectionSettle: Duration.zero,
+      initialRetries: const [],
+    );
+    monitor.sync(true, 'node-one');
+    probe.pending.single.complete(const VelaExitIpInfo(
+      address: '203.0.113.9', countryCode: 'JP'));
+    await tester.pump();
+    expect(monitor.info?.address, '203.0.113.9');
+    expect(monitor.verifiedAt, now);
+    now = now.add(const Duration(minutes: 6));
+    await tester.pump(const Duration(minutes: 6));
+    expect(monitor.info, isNull);
+    expect(monitor.label, 'timeout');
+    expect(monitor.hasExpired, isTrue);
+    monitor.dispose();
+  });
+
+  test('global rejects DIRECT native chain, rule accepts actual DIRECT',
+      () async {
+    final probe = _FakeExitProbe();
+    final monitor = VelaExitIpMonitor(
+      probe: probe,
+      interval: const Duration(days: 1),
+      connectionSettle: Duration.zero,
+      initialRetries: const [],
+    );
+    const directResult = VelaExitIpInfo(
+      address: '203.0.113.19', countryCode: 'JP',
+      chains: ['DIRECT', 'GLOBAL'],
+      coreEpoch: 12, picksVersion: 7,
+    );
+    monitor.sync(true, 'airport|global', mode: 'global');
+    probe.pending[0].complete(directResult);
+    await Future<void>.delayed(Duration.zero);
+    expect(monitor.info, isNull);
+    expect(monitor.failureReason, contains('代理模式不一致'));
+
+    monitor.sync(true, 'airport|rule', mode: 'rule');
+    probe.pending[1].complete(directResult);
+    await Future<void>.delayed(Duration.zero);
+    expect(monitor.info?.chains, ['DIRECT', 'GLOBAL']);
+    expect(monitor.routeValidation, contains('内核真实路由链'));
+    monitor.dispose();
+  });
+
 }
