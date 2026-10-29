@@ -39,8 +39,9 @@ void main() {
     ));
     expect(find.text('网络诊断'), findsOneWidget);
     expect(find.text('未连接'), findsWidgets);
-    expect(find.text('DNS 检测'), findsOneWidget);
-    expect(find.text('未单独测试；IP 检测使用 HTTPS'), findsOneWidget);
+    expect(find.text('系统 DNS'), findsOneWidget);
+    expect(find.text('内核 HTTPS'), findsOneWidget);
+    expect(find.text('尚未单独测试'), findsNWidgets(2));
     monitor.sync(true, 'node-a', mode: 'rule');
     await tester.pump();
     probe.completers.first.complete(const VelaExitIpInfo(
