@@ -20,6 +20,8 @@ import 'package:vela_shuo/src/network/vela_flclash_subscription_adapter.dart';
 import 'package:vela_shuo/src/network/vela_routing_mode.dart';
 import 'package:vela_shuo/src/network/flclash_go_node_probe.dart';
 import 'package:vela_shuo/src/network/vela_exit_ip_monitor.dart';
+import 'package:vela_shuo/src/network/vela_auto_route_watcher.dart';
+import 'package:vela_shuo/src/network/vela_layered_connectivity.dart';
 import 'package:vela_shuo/src/network/vela_exit_ip_indicator.dart';
 import 'package:vela_shuo/src/network/vela_network_diagnostics.dart';
 import 'package:vela_shuo/src/android/vela_android_vpn.dart';
@@ -203,6 +205,9 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   VelaAndroidVpnController? androidVpn;
   VelaTrafficMonitor? traffic;
   VelaExitIpMonitor? exitIp;
+  VelaAutoRouteWatcher? routeWatcher;
+  VelaLayeredConnectivityProbe? layeredProbe;
+  DateTime? _backgroundSince;
   int tab = 0;
   String? _lastNotifiedAirport;
 
@@ -268,8 +273,18 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     final connected = Platform.isAndroid
         ? androidVpn?.connected == true : connection?.connected == true;
     traffic?.sync(connected);
-    exitIp?.sync(connected, _exitRouteIdentity,
-        mode: routing?.current.wire ?? 'rule');
+    final native = subscription;
+    final nativeBackend = native is VelaFlClashSubscriptionController
+        ? native.backend : null;
+    final mode = routing?.current.wire ?? 'rule';
+    final root = mode == 'direct' ? ''
+        : mode == 'global' ? 'GLOBAL'
+        : nativeBackend?.activeGroup ?? 'GLOBAL';
+    // Native URLTest/Fallback "now" changes do not notify the selected
+    // Flutter node. Poll the active native root group, not the Internet.
+    routeWatcher?.sync(connected && mode != 'direct', root);
+    final actualRoute = routeWatcher?.signature ?? '';
+    exitIp?.sync(connected, '$_exitRouteIdentity|$actualRoute', mode: mode);
     final sub = subscription;
     final vpn = androidVpn;
     if (Platform.isAndroid && vpn != null) {
@@ -305,6 +320,9 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       exitIp = VelaExitIpMonitor(
         probe: VelaExitIpProbe(flclash.backend.api),
       );
+      layeredProbe = VelaLayeredConnectivityProbe(api: flclash.backend.api);
+      routeWatcher = VelaAutoRouteWatcher(api: flclash.backend.api);
+      routeWatcher!.addListener(syncRealGlobe);
     }
     traffic = VelaTrafficMonitor(reader: () async {
       if (Platform.isAndroid) {
@@ -408,11 +426,22 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       if (androidVpn != null) {
         unawaited(androidVpn!.refresh());
       }
+      // Do not confuse a quick Alt-Tab with an actual sleep/network change.
+      // Only a long suspension causes a new probe; never auto-connect here.
+      final elapsed = _backgroundSince == null
+          ? Duration.zero : DateTime.now().difference(_backgroundSince!);
+      _backgroundSince = null;
+      if (elapsed >= const Duration(seconds: 45)) {
+        unawaited(routeWatcher?.checkNow() ?? Future<void>.value());
+        unawaited(exitIp?.recheckAfterWake() ?? Future<void>.value());
+      }
       final activeSubscription = subscription;
       if (activeSubscription is VelaFlClashSubscriptionController) {
         unawaited(activeSubscription.checkAutoUpdates());
       }
-    } else if (state == AppLifecycleState.paused) {
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _backgroundSince ??= DateTime.now();
       widget.diagnostics?.record(VelaDiagnosticEvent.appPaused);
     } else if (state == AppLifecycleState.detached) {
       if (connection != null) {
@@ -438,6 +467,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
     androidVpn?.dispose();
     traffic?.dispose();
     exitIp?.dispose();
+    routeWatcher?.removeListener(syncRealGlobe);
+    routeWatcher?.dispose();
     widget.windowExitGuard?.shutdownConnection = null;
     widget.windowExitGuard?.flushSavedProfiles = null;
     // Restore WinINet BEFORE terminating its local endpoint. Never kill
@@ -479,6 +510,8 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
       exitIp: exitIp,
       subscription: subscription, connection: connection,
       androidVpn: androidVpn, windowExitGuard: widget.windowExitGuard,
+      layeredProbe: layeredProbe,
+      routeWatcher: routeWatcher,
     ),
     _ => _HomePage(
       demo: demo, desktop: desktop,
@@ -1372,7 +1405,7 @@ class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.settings, this.diagnostics, this.core,
     this.subscription, this.connection, this.androidVpn,
-    this.windowExitGuard, this.exitIp,
+    this.windowExitGuard, this.exitIp, this.layeredProbe, this.routeWatcher,
   });
   final SettingsController settings;
   final VelaDiagnostics? diagnostics;
@@ -1382,6 +1415,8 @@ class _SettingsPage extends StatelessWidget {
   final VelaAndroidVpnController? androidVpn;
   final VelaWindowExitGuard? windowExitGuard;
   final VelaExitIpMonitor? exitIp;
+  final VelaLayeredConnectivityProbe? layeredProbe;
+  final VelaAutoRouteWatcher? routeWatcher;
   @override
   Widget build(BuildContext context) => _ScreenPadding(
     child: ListView(children: [
@@ -1530,7 +1565,11 @@ class _SettingsPage extends StatelessWidget {
       SizedBox(height: 16),
       if (exitIp != null) ...[
         SizedBox(height: 16),
-        _GlassCard(child: VelaNetworkDiagnostics(monitor: exitIp!)),
+        _GlassCard(child: VelaNetworkDiagnostics(
+          monitor: exitIp!,
+          layeredProbe: layeredProbe,
+          routeWatcher: routeWatcher,
+        )),
       ],
       if (diagnostics != null) ...[
         SizedBox(height: 16),
