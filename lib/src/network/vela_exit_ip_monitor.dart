@@ -370,6 +370,23 @@ class VelaExitIpMonitor extends ChangeNotifier {
     }
   }
 
+  /// Long background suspension can outlive Dart timers; revalidate on
+  /// resume, without disturbing short window-focus changes.
+  Future<void> recheckAfterWake() async {
+    if (_disposed || !_connected) return;
+    final verified = _verifiedAt;
+    if (verified != null &&
+        _clock().difference(verified) >= _maxAge) {
+      _expiryTimer?.cancel();
+      _info = null;
+      _verifiedAt = null;
+      _failure = '上次检测结果已过期';
+      _lastCheckFailed = true;
+      notifyListeners();
+    }
+    await refresh();
+  }
+
   bool _matchesMode(VelaExitIpInfo result) {
     // In RULE mode a DIRECT result can be perfectly legitimate: show its
     // actual chain in diagnostics instead of pretending it is a selected node.
