@@ -286,4 +286,34 @@ void main() {
     monitor.dispose();
   });
 
+  test('long resume rejects expired IP immediately then retries',
+      () async {
+    final probe = _FakeExitProbe();
+    var now = DateTime(2026, 10, 29, 9);
+    final monitor = VelaExitIpMonitor(
+      probe: probe,
+      interval: const Duration(days: 1),
+      maxAge: const Duration(minutes: 6),
+      clock: () => now,
+      connectionSettle: Duration.zero,
+      initialRetries: const [],
+    );
+    monitor.sync(true, 'node-a');
+    probe.pending.first.complete(const VelaExitIpInfo(
+        address: '203.0.113.9', countryCode: 'JP'));
+    await Future<void>.delayed(Duration.zero);
+    expect(monitor.info?.countryCode, 'JP');
+
+    now = now.add(const Duration(minutes: 8));
+    final awake = monitor.recheckAfterWake();
+    expect(monitor.info, isNull);
+    expect(monitor.loading, isTrue);
+    expect(probe.pending, hasLength(2));
+    probe.pending.last.complete(const VelaExitIpInfo(
+        address: '203.0.113.18', countryCode: 'US'));
+    await awake;
+    expect(monitor.info?.countryCode, 'US');
+    monitor.dispose();
+  });
+
 }
