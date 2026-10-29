@@ -49,7 +49,7 @@ class _VelaNetworkDiagnosticsState extends State<VelaNetworkDiagnostics> {
     return AnimatedBuilder(
       animation: Listenable.merge([
         widget.monitor,
-        if (watcher != null) watcher,
+        ?watcher,
       ]),
       builder: (context, _) {
         final colors = Theme.of(context).colorScheme;
