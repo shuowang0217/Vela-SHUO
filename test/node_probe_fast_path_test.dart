@@ -36,7 +36,12 @@ void main() {
     expect(source, contains('const concurrency = 20'));
     expect(source, contains('timeout := int64(2400)'));
     expect(source, contains('timeout = 1600'));
-    expect(source, contains('Timeout: 6500'));
+    expect(source, contains('Timeout: timeoutMs'));
+    expect(source, contains('524288'));
+    expect(source, contains('512 * 1024'));
+    expect(source, contains('11000'));
+    expect(source, contains('reasonPriority'));
+    expect(source, contains('received, elapsedUs, reason'));
     expect(source, contains('velaDownloadLimit int64 = 1024 * 1024'));
     expect(source, contains('MaxBody: velaDownloadLimit'));
     expect(source, contains('received, elapsedUs, reason'));
