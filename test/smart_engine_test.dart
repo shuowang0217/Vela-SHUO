@@ -77,9 +77,9 @@ class _SpeedProbe implements VelaNodeDownloadProbe {
   }
 }
 
-// Models the native single-node download path: overlapping downloads are
-// treated as busy, while consecutive calls all succeed.
-class _SingleFlightDownloadProbe implements VelaNodeDownloadProbe {
+// The core accepts at most two in-flight 1 MiB samples, rejecting a third.
+// A sweep must never schedule unbounded downloads.
+class _TwoFlightDownloadProbe implements VelaNodeDownloadProbe {
   int active = 0;
   int maxActive = 0;
   final List<String> tested = [];
@@ -89,10 +89,10 @@ class _SingleFlightDownloadProbe implements VelaNodeDownloadProbe {
     active++;
     if (active > maxActive) maxActive = active;
     tested.add(node.name);
-    final exclusive = active == 1;
+    final underCap = active <= 2;
     await Future<void>.delayed(const Duration(milliseconds: 2));
     active--;
-    return exclusive
+    return underCap
         ? const VelaDownloadSample(ok: true, mbps: 65.4,
             bytes: VelaHttpsDownloadTransport.sampleBytes)
         : const VelaDownloadSample(ok: false, reason: 'busy');
@@ -292,10 +292,10 @@ void main() {
     }
   });
 
-  test('download-only sweep keeps latency readings and native IPC serial', () async {
+  test('download-only sweep keeps latency readings and caps native IPC at two', () async {
     final (folder, core, sub, proxy, link) = await setup(count: 6);
     final delays = _BatchProbe();
-    final speed = _SingleFlightDownloadProbe();
+    final speed = _TwoFlightDownloadProbe();
     final smart = VelaSmartController(core: core, subscription: sub,
       connection: link, probe: delays, downloadProbe: speed);
     try {
@@ -306,7 +306,7 @@ void main() {
       expect(smart.scanKind, 'download');
       expect(delays.calls, 1); // no URLTest on download button
       expect(smart.resultAt(0)?.lastMs, previous);
-      expect(speed.maxActive, 1);
+      expect(speed.maxActive, 2);
       expect(smart.downloadsTested, 6);
       expect(smart.downloadsSuccessful, 6);
       await smart.testAllLatencies();
@@ -319,11 +319,10 @@ void main() {
     }
   });
 
-  test('all-node native downloads use the working single-node path '
-      'without overlapping RPCs', () async {
+  test('all-node native downloads run at most two independent RPCs', () async {
     final (folder, core, sub, proxy, link) = await setup(count: 6);
     final delay = _BatchProbe();
-    final speed = _SingleFlightDownloadProbe();
+    final speed = _TwoFlightDownloadProbe();
     final smart = VelaSmartController(
       core: core, subscription: sub, connection: link,
       probe: delay, downloadProbe: speed,
@@ -331,7 +330,7 @@ void main() {
     try {
       await smart.testAllNodes(includeAllCountries: true);
       expect(delay.calls, 1);
-      expect(speed.maxActive, 1);
+      expect(speed.maxActive, 2);
       expect(speed.tested, [
         'Node-0', 'Node-1', 'Node-2', 'Node-3', 'Node-4', 'Node-5']);
       expect(smart.downloadsTested, 6);
