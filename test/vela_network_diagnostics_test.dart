@@ -52,6 +52,8 @@ void main() {
       source: VelaExitIpProbe.cloudflare,
     ));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(monitor.info?.chains, ['JP-AWS', 'GLOBAL']);
     expect(find.text('JP-AWS → GLOBAL'), findsOneWidget);
     expect(find.text('核心 9 / 选择 6'), findsOneWidget);
     expect(find.text('已获得内核真实路由链'), findsOneWidget);
