@@ -222,8 +222,10 @@ final class FlClashCoreApi {
     return Map<String, dynamic>.from(result);
   }
 
-  Future<Object?> probe(String url, String proxyName) => invoke('probe',
+  Future<Object?> probe(String url, String proxyName,
+      {int timeoutMs = 8000}) => invoke('probe',
         arguments: {'url': url, 'proxy-name': proxyName,
-                    'timeout': 8000, 'max-body': 2048, 'headers': <String,String>{}},
-        timeout: const Duration(seconds: 16));
+                    'timeout': timeoutMs, 'max-body': 2048,
+                    'headers': <String, String>{}},
+        timeout: Duration(milliseconds: timeoutMs + 8000));
 }
