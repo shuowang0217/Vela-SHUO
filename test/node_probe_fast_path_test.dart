@@ -43,7 +43,9 @@ void main() {
     expect(source, contains('reasonPriority'));
     expect(source, contains('received, elapsedUs, reason'));
     expect(source, contains('velaDownloadLimit int64 = 1024 * 1024'));
-    expect(source, contains('MaxBody: velaDownloadLimit'));
+    expect(source, contains('MaxBody: byteLimit'));
+    expect(source, contains('velaDownloadLimit int64 = 1024 * 1024'));
+    expect(source, contains('maxBytes int64'));
     expect(source, contains('received, elapsedUs, reason'));
     expect(source, contains('mbps := float64(received)'));
     expect(source, contains('velaLocalDownloadURL(params.TestURL)'));
