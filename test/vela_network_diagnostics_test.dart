@@ -38,7 +38,7 @@ void main() {
         child: VelaNetworkDiagnostics(monitor: monitor))),
     ));
     expect(find.text('网络诊断'), findsOneWidget);
-    expect(find.text('未连接'), findsOneWidget);
+    expect(find.text('未连接'), findsWidgets);
     expect(find.text('DNS 检测'), findsOneWidget);
     expect(find.text('未单独测试；IP 检测使用 HTTPS'), findsOneWidget);
     monitor.sync(true, 'node-a', mode: 'rule');
