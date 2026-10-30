@@ -258,18 +258,18 @@ func init() {
                     response.success(map[string]any{"ok": false, "reason": "missing"})
                     return
                 }
-                // First try a full 1 MiB sample. A slow but working node
-                // may need more than the old 6.5 s deadline. If a CDN
-                // declines a large response, try a smaller REAL download,
-                // never a guessed or cached Mbps value.
+                // Fast path: a real 512 KiB sample is sufficient for a
+                // responsive batch scan. Preserve beta.3's sequential native
+                // probe route and use longer/full samples only as fallback.
+                // Never guess bandwidth when no bytes were received.
                 type downloadTarget struct {
                     url string
                     maxBytes int64
                     timeoutMs int64
                 }
                 endpoints := []downloadTarget{
+                    {"https://speed.cloudflare.com/__down?bytes=524288", 512 * 1024, 7000},
                     {"https://speed.cloudflare.com/__down?bytes=1048576", velaDownloadLimit, 11000},
-                    {"https://speed.cloudflare.com/__down?bytes=524288", 512 * 1024, 9000},
                     {"https://cachefly.cachefly.net/1mb.test", velaDownloadLimit, 11000},
                     {"https://proof.ovh.net/files/1Mb.dat", velaDownloadLimit, 11000},
                 }
