@@ -503,7 +503,7 @@ class VelaSmartController extends ChangeNotifier {
     _total = totalNodes;
     _successful = 0;
     _failed = 0;
-    _status = '独立下载测速：逐节点检查下载源，不重测延迟…';
+    _status = '独立下载测速：最多双节点并发，不重测延迟…';
     _emit();
     var next = 0;
     Future<void> worker() async {
@@ -524,7 +524,8 @@ class VelaSmartController extends ChangeNotifier {
       }
     }
     try {
-      await worker();
+      await Future.wait(List.generate(totalNodes < 2 ? totalNodes : 2,
+          (_) => worker()));
     } finally {
       if (!_disposed) {
         final cancelled = _cancelRequested || run != _generation;
@@ -581,15 +582,14 @@ class VelaSmartController extends ChangeNotifier {
       indices = indices.take(50).toList();
     }
     final previousCursor = _cursor;
-    // FlClash's native URLTest owns its batch concurrency. Keep native
-    // download probes serial until network paths are validated on devices:
-    // overlapping CDN requests can saturate the pinned core and cause
-    // "all nodes failed" even when HTTPS latency succeeds.
+    // Native latency batch is already bounded inside Go. Download concurrency
+    // is limited separately to two nodes to avoid excessive CDN traffic.
+    // Every node still uses its own real proxy-name through the native core.
     final nativeDownloads = all && !latencyOnly &&
         _probe is VelaBatchLatencyProbe && _downloadProbe != null;
     final workerCount = latencyOnly
         ? (indices.length < 12 ? indices.length : 12)
-        : nativeDownloads ? 1
+        : nativeDownloads ? (indices.length < 2 ? indices.length : 2)
         : all ? (indices.length < 2 ? indices.length : 2) : 1;
     var nextPosition = 0;
     _finished = 0;
@@ -602,7 +602,7 @@ class VelaSmartController extends ChangeNotifier {
         : all
             ? '正在测延迟和下载速度：' +
                 indices.length.toString() +
-                (nativeDownloads ? ' 个节点（逐节点下载）…'
+                (nativeDownloads ? ' 个节点（最多并发2）…'
                     : ' 个节点（最多并发2）…')
             : '正在检测真实 HTTPS 代理响应时间…';
     _emit();
