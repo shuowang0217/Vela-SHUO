@@ -79,7 +79,7 @@ class _SpeedProbe implements VelaNodeDownloadProbe {
 
 // A slow native CDN probe cannot safely overlap with the next node here.
 // A sweep must use one active native download at a time.
-class _SingleFlightDownloadProbe implements VelaNodeDownloadProbe {
+class _BoundedDownloadProbe implements VelaNodeDownloadProbe {
   int active = 0;
   int maxActive = 0;
   final List<String> tested = [];
@@ -89,7 +89,7 @@ class _SingleFlightDownloadProbe implements VelaNodeDownloadProbe {
     active++;
     if (active > maxActive) maxActive = active;
     tested.add(node.name);
-    final underCap = active == 1;
+    final underCap = active <= 2;
     await Future<void>.delayed(const Duration(milliseconds: 2));
     active--;
     return underCap
@@ -292,10 +292,10 @@ void main() {
     }
   });
 
-  test('download-only sweep keeps latency readings and native IPC serial', () async {
+  test('download-only sweep keeps latency and bounds two node downloads', () async {
     final (folder, core, sub, proxy, link) = await setup(count: 6);
     final delays = _BatchProbe();
-    final speed = _SingleFlightDownloadProbe();
+    final speed = _BoundedDownloadProbe();
     final smart = VelaSmartController(core: core, subscription: sub,
       connection: link, probe: delays, downloadProbe: speed);
     try {
@@ -306,7 +306,7 @@ void main() {
       expect(smart.scanKind, 'download');
       expect(delays.calls, 1); // no URLTest on download button
       expect(smart.resultAt(0)?.lastMs, previous);
-      expect(speed.maxActive, 1);
+      expect(speed.maxActive, 2);
       expect(smart.downloadsTested, 6);
       expect(smart.downloadsSuccessful, 6);
       await smart.testAllLatencies();
@@ -319,10 +319,10 @@ void main() {
     }
   });
 
-  test('all-node native downloads remain single-flight with fallback retry', () async {
+  test('all-node native downloads are bounded to two workers', () async {
     final (folder, core, sub, proxy, link) = await setup(count: 6);
     final delay = _BatchProbe();
-    final speed = _SingleFlightDownloadProbe();
+    final speed = _BoundedDownloadProbe();
     final smart = VelaSmartController(
       core: core, subscription: sub, connection: link,
       probe: delay, downloadProbe: speed,
@@ -330,7 +330,7 @@ void main() {
     try {
       await smart.testAllNodes(includeAllCountries: true);
       expect(delay.calls, 1);
-      expect(speed.maxActive, 1);
+      expect(speed.maxActive, 2);
       expect(speed.tested, [
         'Node-0', 'Node-1', 'Node-2', 'Node-3', 'Node-4', 'Node-5']);
       expect(smart.downloadsTested, 6);
