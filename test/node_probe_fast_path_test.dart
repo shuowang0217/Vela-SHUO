@@ -38,6 +38,7 @@ void main() {
     expect(source, contains('timeout = 1600'));
     expect(source, contains('Timeout: timeoutMs'));
     expect(source, contains('524288'));
+    expect(source, contains('512 * 1024, 10000'));
     expect(source, contains('512 * 1024'));
     expect(source, contains('11000'));
     expect(source, contains('reasonPriority'));
@@ -48,7 +49,7 @@ void main() {
     expect(source, contains('maxBytes int64'));
     // Failed nodes must not block the entire serial scan on four full CDN
     // timeouts; connection errors should use a different CDN next.
-    expect(source, contains('const totalBudgetMs int64 = 18000'));
+    expect(source, contains('const totalBudgetMs int64 = 30000'));
     expect(source, contains('remainingMs := totalBudgetMs -'));
     expect(source, contains('skipLargeCloudflare := false'));
     expect(source, contains('reason == "timeout"'));
