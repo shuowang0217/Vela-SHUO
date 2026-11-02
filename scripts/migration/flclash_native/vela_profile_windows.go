@@ -269,7 +269,7 @@ func init() {
                     timeoutMs int64
                 }
                 endpoints := []downloadTarget{
-                    {"https://speed.cloudflare.com/__down?bytes=524288", 512 * 1024, 7000},
+                    {"https://speed.cloudflare.com/__down?bytes=524288", 512 * 1024, 10000},
                     {"https://speed.cloudflare.com/__down?bytes=1048576", velaDownloadLimit, 11000},
                     {"https://cachefly.cachefly.net/1mb.test", velaDownloadLimit, 11000},
                     {"https://proof.ovh.net/files/1Mb.dat", velaDownloadLimit, 11000},
@@ -290,9 +290,10 @@ func init() {
                 // Bound total failure time, not just each CDN separately.
                 // The successful first 512 KiB path remains unchanged.
                 // A failed node previously occupied the serial queue for
-                // up to 40 seconds over four HTTPS endpoints.
+                // up to 40 seconds over four HTTPS endpoints. A 30-second overall
+                // ceiling retains enough room for slow but valid nodes.
                 started := time.Now()
-                const totalBudgetMs int64 = 18000
+                const totalBudgetMs int64 = 30000
                 skipLargeCloudflare := false
                 for index, endpoint := range endpoints {
                     if params.TestURL == "" && index == 1 && skipLargeCloudflare {
