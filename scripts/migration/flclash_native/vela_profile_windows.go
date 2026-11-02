@@ -10,6 +10,7 @@ import (
     "path/filepath"
     "sync"
     "strings"
+    "time"
 
     "github.com/metacubex/mihomo/config"
     yaml "github.com/metacubex/mihomo/common/yaml"
@@ -286,10 +287,25 @@ func init() {
                     "invalid_sample": 2, "http_status": 3,
                     "network": 4, "timeout": 5, "busy": 6,
                 }
+                // Bound total failure time, not just each CDN separately.
+                // The successful first 512 KiB path remains unchanged.
+                // A failed node previously occupied the serial queue for
+                // up to 40 seconds over four HTTPS endpoints.
+                started := time.Now()
+                const totalBudgetMs int64 = 18000
                 for _, endpoint := range endpoints {
+                    timeoutMs := endpoint.timeoutMs
+                    if params.TestURL == "" {
+                        remainingMs := totalBudgetMs -
+                            time.Since(started).Milliseconds()
+                        if remainingMs < 2000 { break }
+                        if timeoutMs > remainingMs {
+                            timeoutMs = remainingMs
+                        }
+                    }
                     received, elapsedUs, reason := velaCustomDownload(
                         params.ProxyName, endpoint.url,
-                        endpoint.maxBytes, endpoint.timeoutMs)
+                        endpoint.maxBytes, timeoutMs)
                     if reason != "" {
                         // A final blocked CDN must not overwrite a useful
                         // timeout/busy classification from an earlier one.
