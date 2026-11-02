@@ -503,7 +503,7 @@ class VelaSmartController extends ChangeNotifier {
     _total = totalNodes;
     _successful = 0;
     _failed = 0;
-    _status = '独立下载测速：最多双节点并发，不重测延迟…';
+    _status = '独立下载测速：稳定串行模式，不重测延迟…';
     _emit();
     var next = 0;
     Future<void> worker() async {
@@ -524,8 +524,7 @@ class VelaSmartController extends ChangeNotifier {
       }
     }
     try {
-      await Future.wait(List.generate(totalNodes < 2 ? totalNodes : 2,
-          (_) => worker()));
+      await worker();
     } finally {
       if (!_disposed) {
         final cancelled = _cancelRequested || run != _generation;
@@ -589,7 +588,7 @@ class VelaSmartController extends ChangeNotifier {
         _probe is VelaBatchLatencyProbe && _downloadProbe != null;
     final workerCount = latencyOnly
         ? (indices.length < 12 ? indices.length : 12)
-        : nativeDownloads ? (indices.length < 2 ? indices.length : 2)
+        : nativeDownloads ? 1
         : all ? (indices.length < 2 ? indices.length : 2) : 1;
     var nextPosition = 0;
     _finished = 0;
@@ -602,7 +601,7 @@ class VelaSmartController extends ChangeNotifier {
         : all
             ? '正在测延迟和下载速度：' +
                 indices.length.toString() +
-                (nativeDownloads ? ' 个节点（最多并发2）…'
+                (nativeDownloads ? ' 个节点（稳定串行下载）…'
                     : ' 个节点（最多并发2）…')
             : '正在检测真实 HTTPS 代理响应时间…';
     _emit();
