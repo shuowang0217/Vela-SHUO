@@ -184,8 +184,22 @@ void main() {
         await _setup();
     try {
       expect(await connection.connect(), isTrue);
-      runner.handles.last.crash();
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+      // Core-exit restoration is asynchronous. Wait for the coordinator's
+      // completed error transition rather than relying on a 10 ms CI delay.
+      final recovered = Completer<void>();
+      void onRecovery() {
+        if (connection.phase == VelaRealPhase.error &&
+            !recovered.isCompleted) {
+          recovered.complete();
+        }
+      }
+      connection.addListener(onRecovery);
+      try {
+        runner.handles.last.crash();
+        await recovered.future.timeout(const Duration(seconds: 3));
+      } finally {
+        connection.removeListener(onRecovery);
+      }
       expect(proxy.active, isFalse);
       expect(backend.state.server, '127.0.0.1:7890');
       expect(connection.phase, VelaRealPhase.error);
