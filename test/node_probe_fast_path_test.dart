@@ -46,6 +46,13 @@ void main() {
     expect(source, contains('MaxBody: byteLimit'));
     expect(source, contains('velaDownloadLimit int64 = 1024 * 1024'));
     expect(source, contains('maxBytes int64'));
+    // Failed nodes must not block the entire serial scan on four full CDN
+    // timeouts; connection errors should use a different CDN next.
+    expect(source, contains('const totalBudgetMs int64 = 18000'));
+    expect(source, contains('remainingMs := totalBudgetMs -'));
+    expect(source, contains('skipLargeCloudflare := false'));
+    expect(source, contains('reason == "timeout"'));
+    expect(source, contains('reason == "network"'));
     expect(source, contains('received, elapsedUs, reason'));
     expect(source, contains('mbps := float64(received)'));
     expect(source, contains('velaLocalDownloadURL(params.TestURL)'));
