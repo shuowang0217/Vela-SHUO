@@ -58,7 +58,7 @@ void main() {
     expect(source, contains('velaLocalDownloadURL(params.TestURL)'));
     // Regression: beta.2 parallel downloads returned no samples on devices.
     // Keep native download requests sequential while latency workers remain 20.
-    expect(source, contains('for _, endpoint := range endpoints {'));
+    expect(source, contains('for index, endpoint := range endpoints {'));
     expect(source, contains('received, elapsedUs, reason := velaCustomDownload('));
     expect(source, contains('"https://speed.cloudflare.com/__down?bytes=1048576"'));
     expect(source, contains('"https://speed.cloudflare.com/__down?bytes=524288"'));
