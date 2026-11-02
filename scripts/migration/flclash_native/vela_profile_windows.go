@@ -293,7 +293,11 @@ func init() {
                 // up to 40 seconds over four HTTPS endpoints.
                 started := time.Now()
                 const totalBudgetMs int64 = 18000
-                for _, endpoint := range endpoints {
+                skipLargeCloudflare := false
+                for index, endpoint := range endpoints {
+                    if params.TestURL == "" && index == 1 && skipLargeCloudflare {
+                        continue
+                    }
                     timeoutMs := endpoint.timeoutMs
                     if params.TestURL == "" {
                         remainingMs := totalBudgetMs -
@@ -307,6 +311,14 @@ func init() {
                         params.ProxyName, endpoint.url,
                         endpoint.maxBytes, timeoutMs)
                     if reason != "" {
+                        // A larger payload to the same unreachable CDN cannot
+                        // repair its DNS/TLS/connection failure. Try a different
+                        // provider instead; retain full sample fallback on
+                        // short/invalid payloads and HTTP-status errors.
+                        if index == 0 && (reason == "timeout" ||
+                            reason == "network" || reason == "busy") {
+                            skipLargeCloudflare = true
+                        }
                         // A final blocked CDN must not overwrite a useful
                         // timeout/busy classification from an earlier one.
                         if reasonPriority[reason] > reasonPriority[lastReason] {
