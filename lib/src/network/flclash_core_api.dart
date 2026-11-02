@@ -60,7 +60,13 @@ final class FlClashCoreApi {
       'method': method,
       'arguments': arguments,
     });
-    final raw = await transport.invoke(request).timeout(timeout);
+    // A download scan can legitimately exhaust its bounded native CDN
+    // fallback window. Do not abort its RPC before the Go core finishes.
+    final effectiveTimeout = method == 'velaTestDownload' &&
+            timeout < const Duration(seconds: 40)
+        ? const Duration(seconds: 40)
+        : timeout;
+    final raw = await transport.invoke(request).timeout(effectiveTimeout);
     if (raw == null || raw.length > 16 * 1024 * 1024) {
       throw const FlClashCoreFailure('transport_error', 'Invalid native reply');
     }
