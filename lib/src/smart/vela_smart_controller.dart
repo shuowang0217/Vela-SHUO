@@ -256,6 +256,16 @@ class VelaSmartController extends ChangeNotifier {
   int _failed = 0;
   int _generation = 0;
   String? _status;
+  Duration? _lastDownloadScanElapsed;
+  Duration? get lastDownloadScanElapsed => _lastDownloadScanElapsed;
+
+  static String formatScanElapsed(Duration elapsed) {
+    final seconds = elapsed.inSeconds;
+    final minutes = seconds ~/ 60;
+    return minutes == 0 ? '${seconds}秒'
+        : '${minutes}分${(seconds % 60).toString().padLeft(2, '0')}秒';
+  }
+
   DateTime? _lastSelection;
   bool get scanning => _scanning;
   bool get cancelling => _cancelRequested && _scanning;
@@ -496,6 +506,8 @@ class VelaSmartController extends ChangeNotifier {
     _cancelRequested = false;
     _allNodesScan = true;
     _scanKind = 'download';
+    _lastDownloadScanElapsed = null;
+    final scanWatch = Stopwatch()..start();
     final run = ++_generation;
     final nodes = subscription.nodes;
     final totalNodes = nodes.length;
@@ -526,14 +538,20 @@ class VelaSmartController extends ChangeNotifier {
     try {
       await worker();
     } finally {
+      scanWatch.stop();
       if (!_disposed) {
         final cancelled = _cancelRequested || run != _generation;
+        if (run == _generation) {
+          _lastDownloadScanElapsed = scanWatch.elapsed;
+        }
         if (!cancelled) {
           _lastScan = _clock();
           _status = '下载测速完成：成功 $_successful，失败 $_failed，'
-              '共 $_total 个$downloadFailureSummary。';
+              '共 $_total 个$downloadFailureSummary。'
+              ' 总耗时：${formatScanElapsed(scanWatch.elapsed)}。';
         } else if (run == _generation) {
-          _status = '下载测速已停止：已测 $_finished / $_total。';
+          _status = '下载测速已停止：已测 $_finished / $_total，'
+              '已耗时：${formatScanElapsed(scanWatch.elapsed)}。';
         }
         _scanning = false;
         _cancelRequested = false;
@@ -574,6 +592,8 @@ class VelaSmartController extends ChangeNotifier {
     _cancelRequested = false;
     _allNodesScan = all;
     _scanKind = latencyOnly ? 'latency' : 'combined';
+    if (!latencyOnly) _lastDownloadScanElapsed = null;
+    final scanWatch = Stopwatch()..start();
     final run = ++_generation;
     final nodes = subscription.nodes; // stable snapshot for this scan
     // Automatic rounds are capped at ~50 MiB of download samples.
@@ -700,8 +720,12 @@ class VelaSmartController extends ChangeNotifier {
     try {
       await Future.wait(List.generate(workerCount, (_) => worker()));
     } finally {
+      scanWatch.stop();
       if (!_disposed) {
         final cancelled = _cancelRequested || run != _generation;
+        if (!latencyOnly && run == _generation) {
+          _lastDownloadScanElapsed = scanWatch.elapsed;
+        }
         if (!cancelled) {
           if (all) {
             _cursor = 0;
@@ -723,6 +747,10 @@ class VelaSmartController extends ChangeNotifier {
                   : '本批次完成：成功 $_successful，失败 $_failed，共 $_total 个。';
         } else if (run == _generation) {
           _status = '测速已停止：完成 $_finished / $_total，剩余节点未测。';
+        }
+        if (!latencyOnly && run == _generation) {
+          _status = '${_status ?? ''} 整轮耗时：'
+              '${formatScanElapsed(scanWatch.elapsed)}。';
         }
         _scanning = false;
         _cancelRequested = false;
