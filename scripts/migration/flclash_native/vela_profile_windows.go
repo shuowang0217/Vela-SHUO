@@ -270,7 +270,9 @@ func init() {
                 }
                 endpoints := []downloadTarget{
                     {"https://speed.cloudflare.com/__down?bytes=524288", 512 * 1024, 10000},
-                    {"https://speed.cloudflare.com/__down?bytes=1048576", velaDownloadLimit, 11000},
+                    // A timeout on 512 KiB may be a slow-but-live link.
+                    // Retry a smaller real payload before slower 1 MiB CDNs.
+                    {"https://speed.cloudflare.com/__down?bytes=262144", 256 * 1024, 8000},
                     {"https://cachefly.cachefly.net/1mb.test", velaDownloadLimit, 11000},
                     {"https://proof.ovh.net/files/1Mb.dat", velaDownloadLimit, 11000},
                 }
@@ -294,7 +296,7 @@ func init() {
                 // ceiling retains enough room for slow but valid nodes.
                 started := time.Now()
                 const totalBudgetMs int64 = 30000
-                skipLargeCloudflare := false
+                skipSmallCloudflare := false
                 for index, endpoint := range endpoints {
                     if params.TestURL == "" && index == 1 && skipLargeCloudflare {
                         continue
@@ -312,12 +314,11 @@ func init() {
                         params.ProxyName, endpoint.url,
                         endpoint.maxBytes, timeoutMs)
                     if reason != "" {
-                        // A larger payload to the same unreachable CDN cannot
-                        // repair its DNS/TLS/connection failure. Try a different
-                        // provider instead; retain full sample fallback on
-                        // short/invalid payloads and HTTP-status errors.
-                        if index == 0 && (reason == "timeout" ||
-                            reason == "network" || reason == "busy") {
+                        // A network/busy error on this CDN should move to
+                        // a different provider; a timeout may be slow throughput
+                        // and deserves one smaller 256 KiB real sample.
+                        if index == 0 && (reason == "network" ||
+                            reason == "busy" || reason == "http_status") {
                             skipLargeCloudflare = true
                         }
                         // A final blocked CDN must not overwrite a useful
