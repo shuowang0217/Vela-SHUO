@@ -292,6 +292,14 @@ void main() {
     }
   });
 
+  test('download scan duration displays seconds and minutes', () {
+    expect(VelaSmartController.formatScanElapsed(Duration.zero), '0秒');
+    expect(VelaSmartController.formatScanElapsed(
+        const Duration(seconds: 59)), '59秒');
+    expect(VelaSmartController.formatScanElapsed(
+        const Duration(seconds: 138)), '2分18秒');
+  });
+
   test('download-only sweep keeps latency readings and native IPC serial', () async {
     final (folder, core, sub, proxy, link) = await setup(count: 6);
     final delays = _BatchProbe();
@@ -304,6 +312,9 @@ void main() {
       final previous = smart.resultAt(0)?.lastMs;
       await smart.testAllDownloads();
       expect(smart.scanKind, 'download');
+      expect(smart.lastDownloadScanElapsed, isNotNull);
+      expect(smart.status, contains('总耗时：'));
+      expect(smart.status, contains('秒'));
       expect(delays.calls, 1); // no URLTest on download button
       expect(smart.resultAt(0)?.lastMs, previous);
       expect(speed.maxActive, 1);
