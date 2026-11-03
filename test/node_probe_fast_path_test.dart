@@ -39,6 +39,7 @@ void main() {
     expect(source, contains('Timeout: timeoutMs'));
     expect(source, contains('524288'));
     expect(source, contains('512 * 1024, 10000'));
+    expect(source, contains('256 * 1024, 8000'));
     expect(source, contains('512 * 1024'));
     expect(source, contains('11000'));
     expect(source, contains('reasonPriority'));
@@ -51,8 +52,8 @@ void main() {
     // timeouts; connection errors should use a different CDN next.
     expect(source, contains('const totalBudgetMs int64 = 30000'));
     expect(source, contains('remainingMs := totalBudgetMs -'));
-    expect(source, contains('skipLargeCloudflare := false'));
-    expect(source, contains('reason == "timeout"'));
+    expect(source, contains('skipSmallCloudflare := false'));
+    expect(source, contains('reason == "http_status"'));
     expect(source, contains('reason == "network"'));
     expect(source, contains('received, elapsedUs, reason'));
     expect(source, contains('mbps := float64(received)'));
@@ -61,7 +62,7 @@ void main() {
     // Keep native download requests sequential while latency workers remain 20.
     expect(source, contains('for index, endpoint := range endpoints {'));
     expect(source, contains('received, elapsedUs, reason := velaCustomDownload('));
-    expect(source, contains('"https://speed.cloudflare.com/__down?bytes=1048576"'));
+    expect(source, contains('"https://speed.cloudflare.com/__down?bytes=262144"'));
     expect(source, contains('"https://speed.cloudflare.com/__down?bytes=524288"'));
     expect(source, contains('"https://cachefly.cachefly.net/1mb.test"'));
     expect(source, contains('"https://proof.ovh.net/files/1Mb.dat"'));
