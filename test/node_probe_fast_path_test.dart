@@ -53,6 +53,9 @@ void main() {
     expect(source, contains('const totalBudgetMs int64 = 30000'));
     expect(source, contains('remainingMs := totalBudgetMs -'));
     expect(source, contains('skipSmallCloudflare := false'));
+    expect(source, contains('index == 1 && skipSmallCloudflare'));
+    expect(source, contains('skipSmallCloudflare = true'));
+    expect(source, isNot(contains('skipLargeCloudflare')));
     expect(source, contains('reason == "http_status"'));
     expect(source, contains('reason == "network"'));
     expect(source, contains('received, elapsedUs, reason'));
