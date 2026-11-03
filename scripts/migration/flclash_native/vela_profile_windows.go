@@ -298,7 +298,7 @@ func init() {
                 const totalBudgetMs int64 = 30000
                 skipSmallCloudflare := false
                 for index, endpoint := range endpoints {
-                    if params.TestURL == "" && index == 1 && skipLargeCloudflare {
+                    if params.TestURL == "" && index == 1 && skipSmallCloudflare {
                         continue
                     }
                     timeoutMs := endpoint.timeoutMs
@@ -319,7 +319,7 @@ func init() {
                         // and deserves one smaller 256 KiB real sample.
                         if index == 0 && (reason == "network" ||
                             reason == "busy" || reason == "http_status") {
-                            skipLargeCloudflare = true
+                            skipSmallCloudflare = true
                         }
                         // A final blocked CDN must not overwrite a useful
                         // timeout/busy classification from an earlier one.
