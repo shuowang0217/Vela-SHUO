@@ -340,6 +340,8 @@ void main() {
     );
     try {
       await smart.testAllNodes(includeAllCountries: true);
+      expect(smart.lastDownloadScanElapsed, isNotNull);
+      expect(smart.status, contains('整轮耗时：'));
       expect(delay.calls, 1);
       expect(speed.maxActive, 1);
       expect(speed.tested, [
