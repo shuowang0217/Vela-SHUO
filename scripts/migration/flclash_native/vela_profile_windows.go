@@ -271,15 +271,17 @@ func init() {
                 }
                 verify := params.Mode == "verify"
                 timeoutMs := int64(5000)
-                totalBudgetMs := int64(15000)
+                // Fast ranking must not spend fifteen seconds on every
+                // unreachable node. Reserve longer samples for the leaders.
+                totalBudgetMs := int64(9000)
                 if verify {
                     timeoutMs = 9000
-                    totalBudgetMs = 20000
+                    totalBudgetMs = 9000
                 }
                 endpoints := []downloadTarget{
                     {"https://speed.cloudflare.com/__down?bytes=16777216", 16 * 1024 * 1024, timeoutMs},
-                    {"https://cachefly.cachefly.net/1mb.test", velaDownloadLimit, 7500},
-                    {"https://proof.ovh.net/files/1Mb.dat", velaDownloadLimit, 7500},
+                    {"https://cachefly.cachefly.net/1mb.test", velaDownloadLimit, 4000},
+                    {"https://proof.ovh.net/files/1Mb.dat", velaDownloadLimit, 4000},
                 }
                 if params.TestURL != "" {
                     if !velaLocalDownloadURL(params.TestURL) {
@@ -295,7 +297,12 @@ func init() {
                     "network": 4, "timeout": 5, "busy": 6,
                 }
                 started := time.Now()
-                for _, endpoint := range endpoints {
+                for index, endpoint := range endpoints {
+                    // A verified leader already produced a working quick
+                    // sample; never waste its long pass trying unrelated CDNs.
+                    if verify && params.TestURL == "" && index > 0 {
+                        break
+                    }
                     remainingMs := totalBudgetMs - time.Since(started).Milliseconds()
                     if params.TestURL == "" && remainingMs < 1500 {
                         break
