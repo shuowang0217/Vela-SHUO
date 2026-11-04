@@ -502,8 +502,10 @@ class VelaSmartController extends ChangeNotifier {
   Future<int> _verifyDownloadLeaders(
       List<VelaSubscriptionNode> nodes, int generation) async {
     final probe = _downloadProbe;
-    if (probe is! VelaDownloadVerificationProbe ||
-        _cancelRequested || _disposed || generation != _generation) {
+    // Separate the type guard from scan guards so Dart promotes this nullable
+    // interface to a non-null verification probe before invocation.
+    if (probe is! VelaDownloadVerificationProbe) return 0;
+    if (_cancelRequested || _disposed || generation != _generation) {
       return 0;
     }
     final leaders = _downloads.entries.where((entry) =>
