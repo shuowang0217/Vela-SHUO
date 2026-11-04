@@ -499,37 +499,52 @@ class VelaSmartController extends ChangeNotifier {
 
   /// Confirm up to five fastest preliminary real download samples using
   /// a longer native stream. Keep the valid quick sample on retry failure.
+  /// Re-check the current top five after each verification. A verified
+  /// candidate may drop below a quick-only sample, so promote and verify its
+  /// replacement. At most three additional candidates keep the scan bounded.
   Future<int> _verifyDownloadLeaders(
       List<VelaSubscriptionNode> nodes, int generation) async {
     final probe = _downloadProbe;
-    // Separate the type guard from scan guards so Dart promotes this nullable
-    // interface to a non-null verification probe before invocation.
     if (probe is! VelaDownloadVerificationProbe) return 0;
     final VelaDownloadVerificationProbe verifier =
         probe as VelaDownloadVerificationProbe;
     if (_cancelRequested || _disposed || generation != _generation) {
       return 0;
     }
-    final leaders = _downloads.entries.where((entry) =>
-        entry.key < nodes.length && entry.value.ok &&
-        (entry.value.mbps ?? 0) > 0).toList()
-      ..sort((a, b) => b.value.mbps!.compareTo(a.value.mbps!));
-    final limit = leaders.length < 5 ? leaders.length : 5;
-    if (limit == 0) return 0;
-    _status = '下载初筛完成，正在复测最快的 $limit 个节点…';
-    _emit();
+    final available = _downloads.values.where((sample) =>
+        sample.ok && (sample.mbps ?? 0) > 0).length;
+    final topCount = available < 5 ? available : 5;
+    final attemptLimit = available < 8 ? available : 8;
+    if (topCount == 0) return 0;
+    final attempted = <int>{};
     var verified = 0;
-    for (final candidate in leaders.take(limit)) {
+    for (var attempt = 0; attempt < attemptLimit; attempt++) {
       if (_disposed || _cancelRequested || generation != _generation) break;
+      final leaders = _downloads.entries.where((entry) =>
+          entry.key < nodes.length && entry.value.ok &&
+          (entry.value.mbps ?? 0) > 0).toList()
+        ..sort((a, b) {
+          final cmp = b.value.mbps!.compareTo(a.value.mbps!);
+          return cmp != 0 ? cmp : a.key.compareTo(b.key);
+        });
+      final candidates = leaders.take(topCount).where((entry) =>
+          !entry.value.verified && !attempted.contains(entry.key)).toList();
+      if (candidates.isEmpty) break;
+      final candidate = candidates.first;
+      attempted.add(candidate.key);
+      _status = '前五排名验证中：已复测 ${attempted.length - 1} / '
+          '$attemptLimit 个候选节点…';
+      _emit();
       try {
-        final sample = await verifier.verifyDownload(nodes[candidate.key], candidate.value);
+        final sample = await verifier.verifyDownload(
+            nodes[candidate.key], candidate.value);
         if (_disposed || _cancelRequested || generation != _generation) break;
         if (sample.ok && (sample.mbps ?? 0) > 0) {
           _downloads[candidate.key] = sample;
           verified++;
         }
       } catch (_) {
-        // Preserve the valid first-stage measurement.
+        // Keep the quick result visible and marked as unverified.
       }
       _emit();
     }
@@ -591,7 +606,7 @@ class VelaSmartController extends ChangeNotifier {
           _lastScan = _clock();
           _status = '下载测速完成：成功 $_successful，失败 $_failed，'
               '共 $_total 个$downloadFailureSummary。'
-              ' 前五复测成功 $verifiedCount 个。'
+              ' 前五排名候选复测成功 $verifiedCount 个。'
               ' 总耗时：${formatScanElapsed(scanWatch.elapsed)}。';
         } else if (run == _generation) {
           _status = '下载测速已停止：已测 $_finished / $_total，'
@@ -798,7 +813,7 @@ class VelaSmartController extends ChangeNotifier {
           _status = '测速已停止：完成 $_finished / $_total，剩余节点未测。';
         }
         if (!latencyOnly && run == _generation) {
-          _status = '${_status ?? ''} 前五复测成功 $verifiedCount 个。整轮耗时：'
+          _status = '${_status ?? ''} 前五排名候选复测成功 $verifiedCount 个。整轮耗时：'
               '${formatScanElapsed(scanWatch.elapsed)}。';
         }
         _scanning = false;
