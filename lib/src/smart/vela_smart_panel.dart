@@ -258,7 +258,9 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
     if (delay == null && download == null) { return '未测试'; }
     final speed = download?.megabytesPerSecond;
     return (speed == null || speed <= 0
-        ? '下载失败' : speed.toStringAsFixed(2) + ' MB/s') +
+        ? '下载失败'
+        : speed.toStringAsFixed(2) + ' MB/s' +
+            (download!.verified ? ' · 已复测' : ' · 初测')) +
         ' · ' + (delay == null ? '—' : delay.toString() + ' ms');
   }
 }
