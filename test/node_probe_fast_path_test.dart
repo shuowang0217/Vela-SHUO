@@ -28,7 +28,7 @@ void main() {
     expect(transport.request?['arguments']['proxy-name'], 'JP-01');
   });
 
-  test('native speed controls remain bounded and preserve full 1 MiB bytes',
+  test('native speed uses bounded real stream and guarded fallback',
       () {
     final source = File(
         'scripts/migration/flclash_native/vela_profile_windows.go')
@@ -37,38 +37,26 @@ void main() {
     expect(source, contains('timeout := int64(2400)'));
     expect(source, contains('timeout = 1600'));
     expect(source, contains('Timeout: timeoutMs'));
-    expect(source, contains('524288'));
-    expect(source, contains('512 * 1024, 10000'));
-    expect(source, contains('256 * 1024, 8000'));
-    expect(source, contains('512 * 1024'));
-    expect(source, contains('11000'));
-    expect(source, contains('reasonPriority'));
-    expect(source, contains('received, elapsedUs, reason'));
+    expect(source, contains('velaDownloadMinimum int64 = 64 * 1024'));
     expect(source, contains('velaDownloadLimit int64 = 1024 * 1024'));
     expect(source, contains('MaxBody: byteLimit'));
-    expect(source, contains('velaDownloadLimit int64 = 1024 * 1024'));
-    expect(source, contains('maxBytes int64'));
-    // Failed nodes must not block the entire serial scan on four full CDN
-    // timeouts; connection errors should use a different CDN next.
-    expect(source, contains('const totalBudgetMs int64 = 30000'));
-    expect(source, contains('remainingMs := totalBudgetMs -'));
-    expect(source, contains('skipSmallCloudflare := false'));
-    expect(source, contains('index == 1 && skipSmallCloudflare'));
-    expect(source, contains('skipSmallCloudflare = true'));
-    expect(source, isNot(contains('skipLargeCloudflare')));
-    expect(source, contains('reason == "http_status"'));
-    expect(source, contains('reason == "network"'));
+    expect(source, contains('reasonPriority'));
     expect(source, contains('received, elapsedUs, reason'));
     expect(source, contains('mbps := float64(received)'));
     expect(source, contains('velaLocalDownloadURL(params.TestURL)'));
-    // Regression: beta.2 parallel downloads returned no samples on devices.
-    // Keep native download requests sequential while latency workers remain 20.
-    expect(source, contains('for index, endpoint := range endpoints {'));
-    expect(source, contains('received, elapsedUs, reason := velaCustomDownload('));
-    expect(source, contains('"https://speed.cloudflare.com/__down?bytes=262144"'));
-    expect(source, contains('"https://speed.cloudflare.com/__down?bytes=524288"'));
+    // Primary endpoints for quick and verified real 16 MiB streams.
+    expect(source, contains('Mode string'));
+    expect(source, contains('verify := params.Mode == "verify"'));
+    expect(source, contains('timeoutMs := int64(5000)'));
+    expect(source, contains('timeoutMs = 9000'));
+    expect(source, contains('totalBudgetMs := int64(15000)'));
+    expect(source, contains('totalBudgetMs = 20000'));
+    expect(source, contains('"https://speed.cloudflare.com/__down?bytes=16777216"'));
+    expect(source, contains('16 * 1024 * 1024'));
     expect(source, contains('"https://cachefly.cachefly.net/1mb.test"'));
     expect(source, contains('"https://proof.ovh.net/files/1Mb.dat"'));
+    expect(source, contains('for _, endpoint := range endpoints {'));
+    expect(source, contains('received, elapsedUs, reason := velaCustomDownload('));
     expect(source, contains('"ok": false, "reason": lastReason'));
     expect(source, isNot(contains('go velaCustomDownload(')));
   });
