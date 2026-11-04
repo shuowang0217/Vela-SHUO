@@ -6,7 +6,7 @@ The pinned upstream source must match these anchors exactly or CI fails closed.
 """
 from pathlib import Path
 
-file = Path("flclash/core/probe.go")
+file = Path(__file__).resolve().parents[3] / "flclash" / "core" / "probe.go"
 source = file.read_text(encoding="utf-8")
 old_cap = 'if req.maxBody <= 0 || req.maxBody > 5*1024*1024 {'
 new_cap = 'if req.maxBody <= 0 || req.maxBody > 16*1024*1024 {'
