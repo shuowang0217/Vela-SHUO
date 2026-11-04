@@ -49,13 +49,14 @@ void main() {
     expect(source, contains('verify := params.Mode == "verify"'));
     expect(source, contains('timeoutMs := int64(5000)'));
     expect(source, contains('timeoutMs = 9000'));
-    expect(source, contains('totalBudgetMs := int64(15000)'));
-    expect(source, contains('totalBudgetMs = 20000'));
+    expect(source, contains('if verify && params.TestURL == "" && index > 0 {'));
+    expect(source, contains('totalBudgetMs := int64(9000)'));
+    expect(source, contains('totalBudgetMs = 9000'));
     expect(source, contains('"https://speed.cloudflare.com/__down?bytes=16777216"'));
     expect(source, contains('16 * 1024 * 1024'));
     expect(source, contains('"https://cachefly.cachefly.net/1mb.test"'));
     expect(source, contains('"https://proof.ovh.net/files/1Mb.dat"'));
-    expect(source, contains('for _, endpoint := range endpoints {'));
+    expect(source, contains('for index, endpoint := range endpoints {'));
     expect(source, contains('received, elapsedUs, reason := velaCustomDownload('));
     expect(source, contains('"ok": false, "reason": lastReason'));
     expect(source, isNot(contains('go velaCustomDownload(')));
