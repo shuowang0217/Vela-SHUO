@@ -505,6 +505,8 @@ class VelaSmartController extends ChangeNotifier {
     // Separate the type guard from scan guards so Dart promotes this nullable
     // interface to a non-null verification probe before invocation.
     if (probe is! VelaDownloadVerificationProbe) return 0;
+    final VelaDownloadVerificationProbe verifier =
+        probe as VelaDownloadVerificationProbe;
     if (_cancelRequested || _disposed || generation != _generation) {
       return 0;
     }
@@ -520,7 +522,7 @@ class VelaSmartController extends ChangeNotifier {
     for (final candidate in leaders.take(limit)) {
       if (_disposed || _cancelRequested || generation != _generation) break;
       try {
-        final sample = await probe.verifyDownload(nodes[candidate.key]);
+        final sample = await verifier.verifyDownload(nodes[candidate.key]);
         if (_disposed || _cancelRequested || generation != _generation) break;
         if (sample.ok && (sample.mbps ?? 0) > 0) {
           _downloads[candidate.key] = sample;
