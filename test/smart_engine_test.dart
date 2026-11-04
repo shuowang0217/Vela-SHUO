@@ -337,14 +337,19 @@ void main() {
       await smart.testAllDownloads();
       expect(speed.quick, [
         'Node-0', 'Node-1', 'Node-2', 'Node-3', 'Node-4', 'Node-5']);
+      // Node-5 drops from first to last after verification. Node-0 then
+      // enters the current top five and must receive a backfill re-test.
       expect(speed.verified, [
-        'Node-5', 'Node-4', 'Node-3', 'Node-2', 'Node-1']);
+        'Node-5', 'Node-4', 'Node-3', 'Node-2', 'Node-1', 'Node-0']);
       expect(speed.verifiedSources, [
-        'cachefly', 'cloudflare', 'cachefly', 'cloudflare', 'cachefly']);
+        'cachefly', 'cloudflare', 'cachefly', 'cloudflare',
+        'cachefly', 'cloudflare']);
       expect(smart.downloadAt(5)?.verified, isTrue);
-      expect(smart.downloadAt(0)?.verified, isFalse);
+      expect(smart.downloadAt(0)?.verified, isTrue);
       expect(smart.sortedIndices.first, 4);
-      expect(smart.status, contains('前五复测成功 5 个'));
+      expect(smart.sortedIndices.take(5)
+          .every((index) => smart.downloadAt(index)?.verified == true), isTrue);
+      expect(smart.status, contains('前五排名候选复测成功 6 个'));
       expect(smart.downloadsTested, 6);
     } finally {
       smart.dispose(); link.dispose(); sub.dispose();
