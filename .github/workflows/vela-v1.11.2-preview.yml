@@ -130,6 +130,11 @@ jobs:
         run: |
           python scripts/migration/attach_flclash_windows_stdio.py
           if ($LASTEXITCODE -ne 0) { throw "FlClash backend bridge mismatch" }
+      - name: Preserve actual partial download bytes on native probe timeout
+        shell: pwsh
+        run: |
+          python vela/scripts/migration/patch_flclash_download_probe.py
+          if ($LASTEXITCODE -ne 0) { throw "Pinned download probe patch failed" }
       - name: Compile full FlClash Go business backend (profiles, proxies, DNS, delay RPC)
         shell: pwsh
         working-directory: flclash/core
@@ -262,6 +267,9 @@ jobs:
           "$SDKMANAGER" --install "ndk;27.3.13750724" "cmake;3.22.1"
           NDK_ROOT="${ANDROID_HOME}/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64"
           test -x "$NDK_ROOT/bin/aarch64-linux-android24-clang"
+      - name: Preserve actual partial download bytes on native probe timeout
+        shell: bash
+        run: python3 vela/scripts/migration/patch_flclash_download_probe.py
       - name: Build only FlClash Go network backend from pinned source (no Flutter UI or Rust)
         working-directory: flclash
         shell: bash
