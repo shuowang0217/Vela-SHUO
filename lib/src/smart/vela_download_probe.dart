@@ -6,12 +6,15 @@ import 'dart:io';
 class VelaDownloadSample {
   const VelaDownloadSample({
     required this.ok, this.mbps, this.bytes = 0, this.reason,
+    this.verified = false,
   });
   final bool ok;
   final double? mbps;
   /// Decimal MB/s, matching the user's FlClash-Custom ranking unit.
   double? get megabytesPerSecond => mbps == null ? null : mbps! / 8;
   final int bytes;
+  /// True after a longer second-stage native download verification.
+  final bool verified;
   // Safe category from the FlClash core, never a URL, credential or body.
   final String? reason;
 
