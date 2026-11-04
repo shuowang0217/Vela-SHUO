@@ -6,7 +6,7 @@ import 'dart:io';
 class VelaDownloadSample {
   const VelaDownloadSample({
     required this.ok, this.mbps, this.bytes = 0, this.reason,
-    this.verified = false,
+    this.verified = false, this.source,
   });
   final bool ok;
   final double? mbps;
@@ -15,6 +15,8 @@ class VelaDownloadSample {
   final int bytes;
   /// True after a longer second-stage native download verification.
   final bool verified;
+  /// Validated native CDN identifier; reused for same-source verification.
+  final String? source;
   // Safe category from the FlClash core, never a URL, credential or body.
   final String? reason;
 
