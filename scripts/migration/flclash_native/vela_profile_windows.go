@@ -188,6 +188,7 @@ type velaDownloadArgs struct {
     ProxyName string `json:"proxy-name"`
     TestURL string `json:"test-url"` // CI-only 127.0.0.1 fixture
     Mode string `json:"mode"` // "verify" for final top-five ranking
+    Source string `json:"source"` // re-test the CDN that succeeded in quick scan
 }
 
 const (
@@ -265,6 +266,7 @@ func init() {
                 // the native probe already received enough real bytes.
                 // All nodes use the same primary CDN and maximum payload.
                 type downloadTarget struct {
+                    source string
                     url string
                     maxBytes int64
                     timeoutMs int64
@@ -279,16 +281,33 @@ func init() {
                     totalBudgetMs = 9000
                 }
                 endpoints := []downloadTarget{
-                    {"https://speed.cloudflare.com/__down?bytes=16777216", 16 * 1024 * 1024, timeoutMs},
-                    {"https://cachefly.cachefly.net/1mb.test", velaDownloadLimit, 4000},
-                    {"https://proof.ovh.net/files/1Mb.dat", velaDownloadLimit, 4000},
+                    {"cloudflare", "https://speed.cloudflare.com/__down?bytes=16777216", 16 * 1024 * 1024, timeoutMs},
+                    {"cachefly", "https://cachefly.cachefly.net/1mb.test", velaDownloadLimit, 4000},
+                    {"ovh", "https://proof.ovh.net/files/1Mb.dat", velaDownloadLimit, 4000},
                 }
                 if params.TestURL != "" {
                     if !velaLocalDownloadURL(params.TestURL) {
                         response.failure("invalid_arguments", "Download fixture must use local loopback", nil)
                         return
                     }
-                    endpoints = []downloadTarget{{params.TestURL, velaDownloadLimit, 11000}}
+                    endpoints = []downloadTarget{{"fixture", params.TestURL, velaDownloadLimit, 11000}}
+                } else if verify && params.Source != "" {
+                    // Verify the *same* successful CDN used by the quick scan.
+                    // Previously every verify attempt forced Cloudflare even
+                    // when quick succeeded only through Cachefly/OVH.
+                    chosen := make([]downloadTarget, 0, 1)
+                    for _, candidate := range endpoints {
+                        if candidate.source == params.Source {
+                            candidate.timeoutMs = timeoutMs
+                            chosen = append(chosen, candidate)
+                            break
+                        }
+                    }
+                    if len(chosen) != 1 {
+                        response.success(map[string]any{"ok": false, "reason": "invalid_sample"})
+                        return
+                    }
+                    endpoints = chosen
                 }
                 lastReason := "no_sample"
                 reasonPriority := map[string]int{
@@ -298,9 +317,9 @@ func init() {
                 }
                 started := time.Now()
                 for index, endpoint := range endpoints {
-                    // A verified leader already produced a working quick
-                    // sample; never waste its long pass trying unrelated CDNs.
-                    if verify && params.TestURL == "" && index > 0 {
+                    // Backward-compatible verify calls without a source use
+                    // the primary provider only, never another unknown CDN.
+                    if verify && params.Source == "" && params.TestURL == "" && index > 0 {
                         break
                     }
                     remainingMs := totalBudgetMs - time.Since(started).Milliseconds()
@@ -326,6 +345,7 @@ func init() {
                     }
                     response.success(map[string]any{
                         "ok": true, "bytes": received, "mbps": mbps,
+                        "source": endpoint.source,
                     })
                     return
                 }
