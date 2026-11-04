@@ -8,7 +8,7 @@ import 'flclash_core_api.dart';
 /// no separate Vela Mihomo process or proprietary protocol translator is used.
 class FlClashGoNodeProbe
     implements VelaNodeLatencyProbe, VelaBatchLatencyProbe,
-        VelaNodeDownloadProbe, VelaFullNodeProbe {
+        VelaNodeDownloadProbe, VelaDownloadVerificationProbe, VelaFullNodeProbe {
   const FlClashGoNodeProbe(this.backend);
   final FlClashWindowsBackend backend;
 
@@ -41,11 +41,19 @@ class FlClashGoNodeProbe
   }
 
   @override
-  Future<VelaDownloadSample> measureDownload(VelaSubscriptionNode node) async {
+  Future<VelaDownloadSample> measureDownload(VelaSubscriptionNode node) =>
+      _sampleDownload(node, verify: false);
+
+  @override
+  Future<VelaDownloadSample> verifyDownload(VelaSubscriptionNode node) =>
+      _sampleDownload(node, verify: true);
+
+  Future<VelaDownloadSample> _sampleDownload(
+      VelaSubscriptionNode node, {required bool verify}) async {
     try {
       final result = await backend.api.invoke('velaTestDownload',
-          arguments: {'proxy-name': node.name},
-          timeout: const Duration(seconds: 55));
+          arguments: {'proxy-name': node.name, 'mode': verify ? 'verify' : 'quick'},
+          timeout: const Duration(seconds: 30));
       // The native endpoint reports a safe reason code for a failed probe.
       // Keep it for the node card instead of hiding every failure behind
       // "下载失败". This method is shared by single and all-node scans.
@@ -64,10 +72,10 @@ class FlClashGoNodeProbe
       // unreachable; validate actual downloaded bytes instead of requiring
       // every provider to return exactly one MiB.
       if (!mbps.isFinite || mbps <= 0 ||
-          bytes < 256 * 1024 || bytes > 1024 * 1024) {
+          bytes < 64 * 1024 || bytes > 16 * 1024 * 1024) {
         return const VelaDownloadSample(ok: false, reason: 'short_sample');
       }
-      return VelaDownloadSample(ok: true, mbps: mbps, bytes: bytes);
+      return VelaDownloadSample(ok: true, mbps: mbps, bytes: bytes, verified: verify);
     } on FlClashCoreFailure catch (error) {
       return VelaDownloadSample(ok: false,
           reason: error.code == 'transport_error'
