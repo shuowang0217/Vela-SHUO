@@ -28,6 +28,12 @@ abstract class VelaNodeDownloadProbe {
   Future<VelaDownloadSample> measureDownload(VelaSubscriptionNode node);
 }
 
+/// Optional second-stage native download measurement for the five leaders.
+/// Other test doubles and isolated probes retain their single-stage behavior.
+abstract class VelaDownloadVerificationProbe {
+  Future<VelaDownloadSample> verifyDownload(VelaSubscriptionNode node);
+}
+
 /// One temporary core for both measurements, avoiding two process starts
 /// and two independent configurations for the same node.
 class VelaFullNodeSample {
