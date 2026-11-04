@@ -352,27 +352,27 @@ class VelaSmartController extends ChangeNotifier {
         (_results[current]?.score ?? double.infinity);
   }
 
+  /// Real measured download throughput always takes precedence when present.
+  /// A blocked latency endpoint must not hide a fast download node.
   List<int> get sortedIndices {
     final result = List<int>.generate(count, (i) => i);
     result.sort((a, b) {
+      if (_hasFullSpeeds) {
+        final av = _downloads[a]?.ok == true ? _downloads[a]?.mbps : null;
+        final bv = _downloads[b]?.ok == true ? _downloads[b]?.mbps : null;
+        if (av != null && bv == null) return -1;
+        if (bv != null && av == null) return 1;
+        if (av != null && bv != null && av != bv) {
+          return bv.compareTo(av);
+        }
+      }
       final ah = _results[a], bh = _results[b];
       final aa = ah != null && ah.reachable && ah.score != null;
       final bb = bh != null && bh.reachable && bh.score != null;
-      if (aa != bb) { return aa ? -1 : 1; }
-      if (aa && bb) {
-        if (_hasFullSpeeds) {
-          final av = _downloads[a]?.mbps, bv = _downloads[b]?.mbps;
-          if (av != null && bv == null) { return -1; }
-          if (bv != null && av == null) { return 1; }
-          if (av != null && bv != null && av != bv) {
-            return bv.compareTo(av);
-          }
-        }
-        return ah.score!.compareTo(bh.score!);
-      }
-      // Not-yet-measured ahead of failed; preserve stable original order.
-      if (ah == null && bh != null) { return -1; }
-      if (bh == null && ah != null) { return 1; }
+      if (aa != bb) return aa ? -1 : 1;
+      if (aa && bb) return ah.score!.compareTo(bh.score!);
+      if (ah == null && bh != null) return -1;
+      if (bh == null && ah != null) return 1;
       return a.compareTo(b);
     });
     return result;
@@ -497,6 +497,41 @@ class VelaSmartController extends ChangeNotifier {
     await _runScan(indices, all: true, latencyOnly: true);
   }
 
+  /// Confirm up to five fastest preliminary real download samples using
+  /// a longer native stream. Keep the valid quick sample on retry failure.
+  Future<int> _verifyDownloadLeaders(
+      List<VelaSubscriptionNode> nodes, int generation) async {
+    final probe = _downloadProbe;
+    if (probe is! VelaDownloadVerificationProbe ||
+        _cancelRequested || _disposed || generation != _generation) {
+      return 0;
+    }
+    final leaders = _downloads.entries.where((entry) =>
+        entry.key < nodes.length && entry.value.ok &&
+        (entry.value.mbps ?? 0) > 0).toList()
+      ..sort((a, b) => b.value.mbps!.compareTo(a.value.mbps!));
+    final limit = leaders.length < 5 ? leaders.length : 5;
+    if (limit == 0) return 0;
+    _status = '下载初筛完成，正在复测最快的 $limit 个节点…';
+    _emit();
+    var verified = 0;
+    for (final candidate in leaders.take(limit)) {
+      if (_disposed || _cancelRequested || generation != _generation) break;
+      try {
+        final sample = await probe.verifyDownload(nodes[candidate.key]);
+        if (_disposed || _cancelRequested || generation != _generation) break;
+        if (sample.ok && (sample.mbps ?? 0) > 0) {
+          _downloads[candidate.key] = sample;
+          verified++;
+        }
+      } catch (_) {
+        // Preserve the valid first-stage measurement.
+      }
+      _emit();
+    }
+    return verified;
+  }
+
   /// Separate download-only action. Never triggers URLTest or changes existing
   /// latency readings; native download requests run one at a time.
   Future<void> testAllDownloads() async {
@@ -535,8 +570,12 @@ class VelaSmartController extends ChangeNotifier {
         _emit();
       }
     }
+    var verifiedCount = 0;
     try {
       await worker();
+      if (!_cancelRequested && run == _generation) {
+        verifiedCount = await _verifyDownloadLeaders(nodes, run);
+      }
     } finally {
       scanWatch.stop();
       if (!_disposed) {
@@ -548,6 +587,7 @@ class VelaSmartController extends ChangeNotifier {
           _lastScan = _clock();
           _status = '下载测速完成：成功 $_successful，失败 $_failed，'
               '共 $_total 个$downloadFailureSummary。'
+              ' 前五复测成功 $verifiedCount 个。'
               ' 总耗时：${formatScanElapsed(scanWatch.elapsed)}。';
         } else if (run == _generation) {
           _status = '下载测速已停止：已测 $_finished / $_total，'
@@ -717,8 +757,13 @@ class VelaSmartController extends ChangeNotifier {
       }
     }
 
+    var verifiedCount = 0;
     try {
       await Future.wait(List.generate(workerCount, (_) => worker()));
+      if (all && !automatic && !latencyOnly && !_cancelRequested &&
+          run == _generation) {
+        verifiedCount = await _verifyDownloadLeaders(nodes, run);
+      }
     } finally {
       scanWatch.stop();
       if (!_disposed) {
@@ -749,7 +794,7 @@ class VelaSmartController extends ChangeNotifier {
           _status = '测速已停止：完成 $_finished / $_total，剩余节点未测。';
         }
         if (!latencyOnly && run == _generation) {
-          _status = '${_status ?? ''} 整轮耗时：'
+          _status = '${_status ?? ''} 前五复测成功 $verifiedCount 个。整轮耗时：'
               '${formatScanElapsed(scanWatch.elapsed)}。';
         }
         _scanning = false;
