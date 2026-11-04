@@ -522,7 +522,7 @@ class VelaSmartController extends ChangeNotifier {
     for (final candidate in leaders.take(limit)) {
       if (_disposed || _cancelRequested || generation != _generation) break;
       try {
-        final sample = await verifier.verifyDownload(nodes[candidate.key]);
+        final sample = await verifier.verifyDownload(nodes[candidate.key], candidate.value);
         if (_disposed || _cancelRequested || generation != _generation) break;
         if (sample.ok && (sample.mbps ?? 0) > 0) {
           _downloads[candidate.key] = sample;
