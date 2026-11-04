@@ -187,11 +187,12 @@ func init() {
 type velaDownloadArgs struct {
     ProxyName string `json:"proxy-name"`
     TestURL string `json:"test-url"` // CI-only 127.0.0.1 fixture
+    Mode string `json:"mode"` // "verify" for final top-five ranking
 }
 
 const (
     velaDownloadLimit int64 = 1024 * 1024
-    velaDownloadMinimum int64 = 256 * 1024
+    velaDownloadMinimum int64 = 64 * 1024
 )
 
 func velaLocalDownloadURL(raw string) bool {
@@ -259,22 +260,26 @@ func init() {
                     response.success(map[string]any{"ok": false, "reason": "missing"})
                     return
                 }
-                // Fast path: a real 512 KiB sample is sufficient for a
-                // responsive batch scan. Preserve beta.3's sequential native
-                // probe route and use longer/full samples only as fallback.
-                // Never guess bandwidth when no bytes were received.
+                // Rank real download throughput with a bounded body-only
+                // transfer. A response deadline is NOT a failed sample when
+                // the native probe already received enough real bytes.
+                // All nodes use the same primary CDN and maximum payload.
                 type downloadTarget struct {
                     url string
                     maxBytes int64
                     timeoutMs int64
                 }
+                verify := params.Mode == "verify"
+                timeoutMs := int64(5000)
+                totalBudgetMs := int64(15000)
+                if verify {
+                    timeoutMs = 9000
+                    totalBudgetMs = 20000
+                }
                 endpoints := []downloadTarget{
-                    {"https://speed.cloudflare.com/__down?bytes=524288", 512 * 1024, 10000},
-                    // A timeout on 512 KiB may be a slow-but-live link.
-                    // Retry a smaller real payload before slower 1 MiB CDNs.
-                    {"https://speed.cloudflare.com/__down?bytes=262144", 256 * 1024, 8000},
-                    {"https://cachefly.cachefly.net/1mb.test", velaDownloadLimit, 11000},
-                    {"https://proof.ovh.net/files/1Mb.dat", velaDownloadLimit, 11000},
+                    {"https://speed.cloudflare.com/__down?bytes=16777216", 16 * 1024 * 1024, timeoutMs},
+                    {"https://cachefly.cachefly.net/1mb.test", velaDownloadLimit, 7500},
+                    {"https://proof.ovh.net/files/1Mb.dat", velaDownloadLimit, 7500},
                 }
                 if params.TestURL != "" {
                     if !velaLocalDownloadURL(params.TestURL) {
@@ -289,40 +294,19 @@ func init() {
                     "invalid_sample": 2, "http_status": 3,
                     "network": 4, "timeout": 5, "busy": 6,
                 }
-                // Bound total failure time, not just each CDN separately.
-                // The successful first 512 KiB path remains unchanged.
-                // A failed node previously occupied the serial queue for
-                // up to 40 seconds over four HTTPS endpoints. A 30-second overall
-                // ceiling retains enough room for slow but valid nodes.
                 started := time.Now()
-                const totalBudgetMs int64 = 30000
-                skipSmallCloudflare := false
-                for index, endpoint := range endpoints {
-                    if params.TestURL == "" && index == 1 && skipSmallCloudflare {
-                        continue
+                for _, endpoint := range endpoints {
+                    remainingMs := totalBudgetMs - time.Since(started).Milliseconds()
+                    if params.TestURL == "" && remainingMs < 1500 {
+                        break
                     }
-                    timeoutMs := endpoint.timeoutMs
-                    if params.TestURL == "" {
-                        remainingMs := totalBudgetMs -
-                            time.Since(started).Milliseconds()
-                        if remainingMs < 2000 { break }
-                        if timeoutMs > remainingMs {
-                            timeoutMs = remainingMs
-                        }
+                    perRequest := endpoint.timeoutMs
+                    if params.TestURL == "" && remainingMs < perRequest {
+                        perRequest = remainingMs
                     }
                     received, elapsedUs, reason := velaCustomDownload(
-                        params.ProxyName, endpoint.url,
-                        endpoint.maxBytes, timeoutMs)
+                        params.ProxyName, endpoint.url, endpoint.maxBytes, perRequest)
                     if reason != "" {
-                        // A network/busy error on this CDN should move to
-                        // a different provider; a timeout may be slow throughput
-                        // and deserves one smaller 256 KiB real sample.
-                        if index == 0 && (reason == "network" ||
-                            reason == "busy" || reason == "http_status") {
-                            skipSmallCloudflare = true
-                        }
-                        // A final blocked CDN must not overwrite a useful
-                        // timeout/busy classification from an earlier one.
                         if reasonPriority[reason] > reasonPriority[lastReason] {
                             lastReason = reason
                         }
@@ -330,9 +314,7 @@ func init() {
                     }
                     mbps := float64(received) * 8 / float64(elapsedUs)
                     if mbps <= 0 {
-                        if reasonPriority[lastReason] < reasonPriority["invalid_sample"] {
-                            lastReason = "invalid_sample"
-                        }
+                        lastReason = "invalid_sample"
                         continue
                     }
                     response.success(map[string]any{
