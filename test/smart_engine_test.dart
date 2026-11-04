@@ -103,21 +103,25 @@ class _TwoStageSpeedProbe
     implements VelaNodeDownloadProbe, VelaDownloadVerificationProbe {
   final List<String> quick = [];
   final List<String> verified = [];
+  final List<String?> verifiedSources = [];
   @override
   Future<VelaDownloadSample> measureDownload(VelaSubscriptionNode node) async {
     quick.add(node.name);
     final index = int.parse(node.name.substring(5));
     return VelaDownloadSample(
-        ok: true, mbps: (index + 1) * 10.0, bytes: 512 * 1024);
+        ok: true, mbps: (index + 1) * 10.0, bytes: 512 * 1024,
+        source: index.isEven ? 'cloudflare' : 'cachefly');
   }
 
   @override
-  Future<VelaDownloadSample> verifyDownload(VelaSubscriptionNode node) async {
+  Future<VelaDownloadSample> verifyDownload(
+      VelaSubscriptionNode node, VelaDownloadSample preliminary) async {
     verified.add(node.name);
+    verifiedSources.add(preliminary.source);
     final index = int.parse(node.name.substring(5));
     return VelaDownloadSample(
         ok: true, mbps: index == 5 ? 5.0 : (index + 1) * 10.0,
-        bytes: 1024 * 1024, verified: true);
+        bytes: 1024 * 1024, verified: true, source: preliminary.source);
   }
 }
 
@@ -335,6 +339,8 @@ void main() {
         'Node-0', 'Node-1', 'Node-2', 'Node-3', 'Node-4', 'Node-5']);
       expect(speed.verified, [
         'Node-5', 'Node-4', 'Node-3', 'Node-2', 'Node-1']);
+      expect(speed.verifiedSources, [
+        'cachefly', 'cloudflare', 'cachefly', 'cloudflare', 'cachefly']);
       expect(smart.downloadAt(5)?.verified, isTrue);
       expect(smart.downloadAt(0)?.verified, isFalse);
       expect(smart.sortedIndices.first, 4);
