@@ -262,8 +262,8 @@ class VelaSmartController extends ChangeNotifier {
   static String formatScanElapsed(Duration elapsed) {
     final seconds = elapsed.inSeconds;
     final minutes = seconds ~/ 60;
-    return minutes == 0 ? '$seconds秒'
-        : '$minutes分${(seconds % 60).toString().padLeft(2, '0')}秒';
+    return minutes == 0 ? '${seconds.toString()}秒'
+        : '${minutes.toString()}分${(seconds % 60).toString().padLeft(2, '0')}秒';
   }
 
   DateTime? _lastSelection;
