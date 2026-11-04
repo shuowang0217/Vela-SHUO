@@ -45,14 +45,20 @@ class FlClashGoNodeProbe
       _sampleDownload(node, verify: false);
 
   @override
-  Future<VelaDownloadSample> verifyDownload(VelaSubscriptionNode node) =>
-      _sampleDownload(node, verify: true);
+  Future<VelaDownloadSample> verifyDownload(
+      VelaSubscriptionNode node, VelaDownloadSample preliminary) =>
+      _sampleDownload(node, verify: true, source: preliminary.source);
 
   Future<VelaDownloadSample> _sampleDownload(
-      VelaSubscriptionNode node, {required bool verify}) async {
+      VelaSubscriptionNode node, {required bool verify, String? source}) async {
     try {
+      final arguments = <String, String>{
+        'proxy-name': node.name,
+        'mode': verify ? 'verify' : 'quick',
+      };
+      if (verify && source != null) arguments['source'] = source;
       final result = await backend.api.invoke('velaTestDownload',
-          arguments: {'proxy-name': node.name, 'mode': verify ? 'verify' : 'quick'},
+          arguments: arguments,
           timeout: const Duration(seconds: 30));
       // The native endpoint reports a safe reason code for a failed probe.
       // Keep it for the node card instead of hiding every failure behind
@@ -75,7 +81,13 @@ class FlClashGoNodeProbe
           bytes < 64 * 1024 || bytes > 16 * 1024 * 1024) {
         return const VelaDownloadSample(ok: false, reason: 'short_sample');
       }
-      return VelaDownloadSample(ok: true, mbps: mbps, bytes: bytes, verified: verify);
+      final nativeSource = result['source'];
+      final measuredSource = nativeSource is String &&
+          const {'cloudflare', 'cachefly', 'ovh'}.contains(nativeSource)
+          ? nativeSource : null;
+      return VelaDownloadSample(
+          ok: true, mbps: mbps, bytes: bytes,
+          verified: verify, source: measuredSource);
     } on FlClashCoreFailure catch (error) {
       return VelaDownloadSample(ok: false,
           reason: error.code == 'transport_error'
