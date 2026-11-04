@@ -49,7 +49,10 @@ void main() {
     expect(source, contains('verify := params.Mode == "verify"'));
     expect(source, contains('timeoutMs := int64(5000)'));
     expect(source, contains('timeoutMs = 9000'));
-    expect(source, contains('if verify && params.TestURL == "" && index > 0 {'));
+    expect(source, contains('Source string `json:"source"`'));
+    expect(source, contains('candidate.source == params.Source'));
+    expect(source, contains('"source": endpoint.source'));
+    expect(source, contains('if verify && params.Source == "" && params.TestURL == "" && index > 0 {'));
     expect(source, contains('totalBudgetMs := int64(9000)'));
     expect(source, contains('totalBudgetMs = 9000'));
     expect(source, contains('"https://speed.cloudflare.com/__down?bytes=16777216"'));
