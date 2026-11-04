@@ -99,6 +99,28 @@ class _SingleFlightDownloadProbe implements VelaNodeDownloadProbe {
   }
 }
 
+class _TwoStageSpeedProbe
+    implements VelaNodeDownloadProbe, VelaDownloadVerificationProbe {
+  final List<String> quick = [];
+  final List<String> verified = [];
+  @override
+  Future<VelaDownloadSample> measureDownload(VelaSubscriptionNode node) async {
+    quick.add(node.name);
+    final index = int.parse(node.name.substring(5));
+    return VelaDownloadSample(
+        ok: true, mbps: (index + 1) * 10.0, bytes: 512 * 1024);
+  }
+
+  @override
+  Future<VelaDownloadSample> verifyDownload(VelaSubscriptionNode node) async {
+    verified.add(node.name);
+    final index = int.parse(node.name.substring(5));
+    return VelaDownloadSample(
+        ok: true, mbps: index == 5 ? 5.0 : (index + 1) * 10.0,
+        bytes: 1024 * 1024, verified: true);
+  }
+}
+
 class _GatedDownloadProbe implements VelaNodeDownloadProbe {
   final Completer<void> gate = Completer<void>();
   final List<String> tested = [];
@@ -298,6 +320,31 @@ void main() {
         const Duration(seconds: 59)), '59秒');
     expect(VelaSmartController.formatScanElapsed(
         const Duration(seconds: 138)), '2分18秒');
+  });
+
+  test('quick scan verifies top five and ranks actual speed over latency',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 6);
+    final speed = _TwoStageSpeedProbe();
+    final smart = VelaSmartController(core: core, subscription: sub,
+        connection: link, probe: _BatchProbe(), downloadProbe: speed);
+    try {
+      await smart.testAllLatencies();
+      await smart.testAllDownloads();
+      expect(speed.quick, [
+        'Node-0', 'Node-1', 'Node-2', 'Node-3', 'Node-4', 'Node-5']);
+      expect(speed.verified, [
+        'Node-5', 'Node-4', 'Node-3', 'Node-2', 'Node-1']);
+      expect(smart.downloadAt(5)?.verified, isTrue);
+      expect(smart.downloadAt(0)?.verified, isFalse);
+      expect(smart.sortedIndices.first, 4);
+      expect(smart.status, contains('前五复测成功 5 个'));
+      expect(smart.downloadsTested, 6);
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
   });
 
   test('download-only sweep keeps latency readings and native IPC serial', () async {
