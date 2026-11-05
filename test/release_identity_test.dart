@@ -4,14 +4,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vela_shuo/src/update/vela_update_service.dart';
 
 void main() {
-  test('v1.11.2 beta build 67 signed and isolated from stable release', () {
+  test('v1.11.2 stable build 68 with release provenance and signing', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final generator = File('scripts/configure_android_vpn.py').readAsStringSync();
     final preview = File('.github/workflows/vela-v1.11.2-preview.yml')
         .readAsStringSync();
+    final release = File('.github/workflows/vela-v1.11.2-release.yml')
+        .readAsStringSync();
     final stable = File('.github/workflows/vela-v1.11.0-release.yml')
         .readAsStringSync();
-    expect(pubspec, contains('version: 1.11.2-beta.3+67'));
+    expect(pubspec, contains('version: 1.11.2+68'));
+    expect(release, contains('branches: [release/v1.11.2]'));
+    expect(release, contains("versionCode='68' versionName='1.11.2'"));
+    expect(release, contains('Vela-v1.11.2-Windows-x64.zip'));
+    expect(release, contains('Vela-v1.11.2-Android-arm64.apk'));
+    expect(release, contains(r'gh release create "$tag"'));
     expect(generator, contains('applicationId = "com.shuowang.vela"'));
     expect(generator, contains('signingConfigs.getByName("velaRelease")'));
     expect(preview, contains('feature/v1.11.2-network-resilience'));
@@ -22,7 +29,7 @@ void main() {
     expect(preview, contains('Vela-v1.11.2-beta.3-Android-arm64.apk'));
     expect(preview, isNot(contains('gh release create')));
     expect(stable, contains('gh release create v1.11.0'));
-    expect(VelaUpdateService.currentVersion, '1.11.2-beta.3');
+    expect(VelaUpdateService.currentVersion, '1.11.2');
   });
 
   test('preview precedence stays below stable 1.11.2', () {
