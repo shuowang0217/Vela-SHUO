@@ -441,10 +441,15 @@ void main() {
       expect(smart.resultAt(0)?.lastMs, 100);
       expect(smart.resultAt(1)?.reachable, false);
       expect(smart.resultAt(2)?.lastMs, 102);
+      // Latency has arrived, but download data has not: pending != failed.
       expect(smart.downloadAt(0), isNull);
+      expect(smart.downloadsTested, 0);
+      expect(smart.isDownloadTesting(0), isTrue);
+      expect(smart.isDownloadTesting(1), isFalse);
       expect(smart.scanned, 0);
       download.gate.complete();
       await pending;
+      expect(smart.isDownloadTesting(0), isFalse);
       expect(smart.scanned, 4);
       expect(smart.downloadsSuccessful, 4);
       expect(smart.resultAt(0)?.samples, 1);
