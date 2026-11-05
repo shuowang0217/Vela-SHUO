@@ -33,9 +33,10 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
         context: context,
         builder: (dialog) => AlertDialog(
           title: const Text('确认全节点测速流量'),
-          content: Text('本轮预计测试 ' + count.toString() +
-              ' 个节点，每个约下载 1 MiB，总共约 ' +
-              count.toString() + ' MiB（另有协议开销）。仍要开始吗？'),
+          content: Text('本轮将测试 ' + count.toString() +
+              ' 个节点。真实 HTTPS 限时下载的流量随速度变化；'
+              '单次采样最多 16 MiB，失败时可能尝试备用源，'
+              '最快候选还会复测。仍要开始吗？'),
           actions: [
             TextButton(onPressed: () => Navigator.of(dialog).pop(false),
                 child: const Text('取消')),
@@ -242,8 +243,8 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
                 ],
               ),
             const SizedBox(height: 10),
-            Text('测速下载每节点约1 MiB；使用 HTTPS 完整请求计时。'
-                 '自动模式只在空闲时更新所选节点，'
+            Text('测速使用真实 HTTPS 限时流式下载，实际流量因速度而异；'
+                 '最快候选会额外复测。自动模式仅在空闲时更新所选节点，'
                  '暂不支持 sing-box 在线无缝热切换。',
                 style: TextStyle(color: theme.muted, fontSize: 11)),
           ],
