@@ -444,7 +444,7 @@ class VelaSmartController extends ChangeNotifier {
     final generation = _generation;
     _downloading = true;
     _downloadIndex = index;
-    _downloadStatus = '正在通过所选节点下载 1 MiB HTTPS 测试数据…';
+    _downloadStatus = '正在通过所选节点进行 HTTPS 限时下载测速…';
     _emit();
     try {
       final result = await _downloadProbe!.measureDownload(node);
