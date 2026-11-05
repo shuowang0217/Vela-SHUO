@@ -255,12 +255,22 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
   static String _measure(VelaSmartController e, int i) {
     final delay = e.resultAt(i)?.lastMs;
     final download = e.downloadAt(i);
-    if (delay == null && download == null) { return '未测试'; }
-    final speed = download?.megabytesPerSecond;
-    return (speed == null || speed <= 0
-        ? '下载失败'
-        : speed.toStringAsFixed(2) + ' MB/s' +
-            (download!.verified ? ' · 已复测' : ' · 初测')) +
-        ' · ' + (delay == null ? '—' : delay.toString() + ' ms');
+    final delayLabel = delay == null ? '—' : '$delay ms';
+    if (e.isDownloadTesting(i)) {
+      return '下载测速中… · $delayLabel';
+    }
+    // A finished latency probe does not imply the download has been run.
+    // During a serial sweep most nodes are still queued, not failed.
+    if (download == null) {
+      final pending = e.scanning && e.scanKind != 'latency';
+      return '${pending ? '待下载测速' : '未测下载速度'} · $delayLabel';
+    }
+    final speed = download.megabytesPerSecond;
+    if (!download.ok || speed == null || speed <= 0) {
+      return '${download.failureLabel} · $delayLabel';
+    }
+    return '${speed.toStringAsFixed(2)} MB/s' +
+        (download.verified ? ' · 已复测' : ' · 初测') +
+        ' · $delayLabel';
   }
 }
