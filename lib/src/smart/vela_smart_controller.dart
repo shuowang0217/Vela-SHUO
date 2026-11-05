@@ -134,6 +134,10 @@ class VelaSmartController extends ChangeNotifier {
   bool _smartSelecting = false;
   final Map<int, VelaNodeHealth> _results = {};
   final Map<int, VelaDownloadSample> _downloads = {};
+  final Set<int> _activeDownloadIndices = <int>{};
+  bool isDownloadTesting(int index) =>
+      _activeDownloadIndices.contains(index) ||
+      (_downloading && _downloadIndex == index);
   bool _aiMode = false;
   String _country = 'JP';
   bool _manualHold = false;
@@ -311,6 +315,7 @@ class VelaSmartController extends ChangeNotifier {
     _manualHold = false;
     _results.clear();
     _downloads.clear();
+    _activeDownloadIndices.clear();
     _downloadStatus = null;
     _regionFirstPick = _aiMode;
     _lastScan = null;
@@ -474,6 +479,7 @@ class VelaSmartController extends ChangeNotifier {
     if (!canTestAll) { return; }
     _results.clear();
     _downloads.clear();
+    _activeDownloadIndices.clear();
     _cursor = 0;
     final indices = List<int>.generate(count, (i) => i)
         .where((i) => includeAllCountries || _eligible(i)).toList();
@@ -556,6 +562,7 @@ class VelaSmartController extends ChangeNotifier {
   Future<void> testAllDownloads() async {
     if (!canTestAll || _downloadProbe == null) return;
     _downloads.clear();
+    _activeDownloadIndices.clear();
     _scanning = true;
     _cancelRequested = false;
     _allNodesScan = true;
@@ -576,11 +583,15 @@ class VelaSmartController extends ChangeNotifier {
       while (!_disposed && !_cancelRequested && run == _generation) {
         if (next >= totalNodes) return;
         final index = next++;
+        _activeDownloadIndices.add(index);
+        _emit();
         VelaDownloadSample sample;
         try {
           sample = await _downloadProbe.measureDownload(nodes[index]);
         } catch (_) {
           sample = const VelaDownloadSample(ok: false, reason: 'transport_error');
+        } finally {
+          _activeDownloadIndices.remove(index);
         }
         if (_disposed || _cancelRequested || run != _generation) return;
         _downloads[index] = sample;
@@ -597,6 +608,7 @@ class VelaSmartController extends ChangeNotifier {
       }
     } finally {
       scanWatch.stop();
+      _activeDownloadIndices.clear();
       if (!_disposed) {
         final cancelled = _cancelRequested || run != _generation;
         if (run == _generation) {
@@ -648,6 +660,7 @@ class VelaSmartController extends ChangeNotifier {
       return;
     }
     _scanning = true;
+    _activeDownloadIndices.clear();
     _cancelRequested = false;
     _allNodesScan = all;
     _scanKind = latencyOnly ? 'latency' : 'combined';
@@ -728,6 +741,12 @@ class VelaSmartController extends ChangeNotifier {
         if (nextPosition >= indices.length) { return; }
         // Dart's single event loop reserves each index before the first await.
         final index = indices[nextPosition++];
+        final measuresDownload = all && !latencyOnly &&
+            (_downloadProbe != null || _fullProbe != null);
+        if (measuresDownload) {
+          _activeDownloadIndices.add(index);
+          _emit();
+        }
         VelaLatencySample sample;
         VelaDownloadSample? speed;
         try {
@@ -754,6 +773,8 @@ class VelaSmartController extends ChangeNotifier {
           if (all && !latencyOnly && _fullProbe != null) {
             speed = const VelaDownloadSample(ok: false);
           }
+        } finally {
+          _activeDownloadIndices.remove(index);
         }
         if (_disposed || _cancelRequested || run != _generation) { return; }
         if (speed != null) { _downloads[index] = speed; }
@@ -785,6 +806,7 @@ class VelaSmartController extends ChangeNotifier {
       }
     } finally {
       scanWatch.stop();
+      _activeDownloadIndices.clear();
       if (!_disposed) {
         final cancelled = _cancelRequested || run != _generation;
         if (!latencyOnly && run == _generation) {
