@@ -122,7 +122,9 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
                             value: minutes,
                             child: Text(minutes.toString() + ' 分钟')),
                     ],
-                    onChanged: e.setScanIntervalMinutes,
+                    onChanged: (value) {
+                      if (value != null) e.setScanIntervalMinutes(value);
+                    },
                   ),
                 ]),
                 Row(mainAxisSize: MainAxisSize.min, children: [
@@ -138,7 +140,9 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
                             value: percent,
                             child: Text(percent.toString() + '%')),
                     ],
-                    onChanged: e.setMinimumImprovementPercent,
+                    onChanged: (value) {
+                      if (value != null) e.setMinimumImprovementPercent(value);
+                    },
                   ),
                 ]),
                 Row(mainAxisSize: MainAxisSize.min, children: [
@@ -155,7 +159,9 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
                             child: Text(minutes == 0 ? '不限制'
                                 : minutes.toString() + ' 分钟')),
                     ],
-                    onChanged: e.setSwitchCooldownMinutes,
+                    onChanged: (value) {
+                      if (value != null) e.setSwitchCooldownMinutes(value);
+                    },
                   ),
                 ]),
               ],
