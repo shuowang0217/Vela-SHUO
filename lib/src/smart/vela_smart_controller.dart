@@ -133,7 +133,9 @@ class VelaSmartController extends ChangeNotifier {
   SharedPreferencesAsync? _preferences;
 
   SharedPreferencesAsync? get _availablePreferences {
-    if (!persistPreferences) return null;
+    if (!persistPreferences) {
+      return null;
+    }
     try {
       return _preferences ??= SharedPreferencesAsync();
     } catch (_) {
@@ -608,7 +610,9 @@ class VelaSmartController extends ChangeNotifier {
     } finally {
       _smartSelecting = false;
     }
-    if (_disposed || generation != _generation) return false;
+    if (_disposed || generation != _generation) {
+      return false;
+    }
     if (!ok) {
       _status = '自动切换未确认成功，原节点状态以原生内核为准；稍后可重试';
       _emit();
