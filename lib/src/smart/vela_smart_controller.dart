@@ -1,5 +1,8 @@
 // ignore_for_file: prefer_interpolation_to_compose_strings
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter/foundation.dart';
 
@@ -89,9 +92,9 @@ class VelaSmartSwitchPolicy {
   }
 }
 
-/// In v0.3-a smart selection is idle-only: never interrupt a live connection,
-/// never change WinINet proxy settings, and never initiate a connection without
-/// the user's explicit consent.
+/// Smart selection scans without changing the VPN/proxy lifecycle. Online
+/// switching requires opt-in plus a verified native selection callback;
+/// this controller never starts a connection or directly alters WinINet.
 class VelaSmartController extends ChangeNotifier {
   VelaSmartController({
     required this.subscription,
@@ -99,13 +102,16 @@ class VelaSmartController extends ChangeNotifier {
     this.connection,
     this.sessionActive,
     this.sessionBusy,
+    this.switchActiveNode,
+    this.persistPreferences = false,
     required VelaNodeLatencyProbe probe,
     VelaNodeDownloadProbe? downloadProbe,
     VelaFullNodeProbe? fullProbe,
     VelaSmartSwitchPolicy policy = const VelaSmartSwitchPolicy(),
     DateTime Function()? clock,
     Duration Function(int minutes)? periodicInterval,
-  }) : _probe = probe, _downloadProbe = downloadProbe,
+  }) : _preferences = persistPreferences ? SharedPreferencesAsync() : null,
+       _probe = probe, _downloadProbe = downloadProbe,
        _fullProbe = fullProbe, _policy = policy,
        _clock = clock ?? DateTime.now,
        _periodicInterval = periodicInterval ?? _normalInterval {
@@ -121,6 +127,21 @@ class VelaSmartController extends ChangeNotifier {
   final VelaConnectionCoordinator? connection;
   final bool Function()? sessionActive;
   final bool Function()? sessionBusy;
+  /// An opt-in native live switch; caller verifies actual Mihomo selection.
+  final Future<bool> Function(int index)? switchActiveNode;
+  final bool persistPreferences;
+  final SharedPreferencesAsync? _preferences;
+  Future<void> _pendingSave = Future<void>.value();
+  bool _loadingPreferences = false;
+  int _settingsRevision = 0;
+  static const String _preferencesKey = 'vela.smart.settings.v1';
+  bool get _online => (connection?.connected ?? false) ||
+      (sessionActive?.call() ?? false);
+  bool get canAutoScan => canTestAll &&
+      (safeToSelect || (_online && switchActiveNode != null));
+  bool get _canChangeRoute => safeToSelect ||
+      (_online && switchActiveNode != null && !_connectionBusy &&
+       !core.busy && !subscription.loading);
   bool get _connectionBusy =>
       (connection?.busy ?? false) || (sessionBusy?.call() ?? false);
   final VelaNodeLatencyProbe _probe;
@@ -156,8 +177,9 @@ class VelaSmartController extends ChangeNotifier {
     if (_aiMode == value) { return; }
     _aiMode = value;
     _regionFirstPick = value;
+    _savePreferences();
     _emit();
-    if (value && canTestAll && safeToSelect && _fullProbe != null) {
+    if (value && canAutoScan && _fullProbe != null) {
       unawaited(testAllNodes(automatic: true));
     }
   }
@@ -168,8 +190,9 @@ class VelaSmartController extends ChangeNotifier {
     }
     _country = value;
     _regionFirstPick = _aiMode;
+    _savePreferences();
     _emit();
-    if (_aiMode && canTestAll && safeToSelect && _fullProbe != null) {
+    if (_aiMode && canAutoScan && _fullProbe != null) {
       unawaited(testAllNodes(automatic: true));
     }
   }
@@ -188,7 +211,7 @@ class VelaSmartController extends ChangeNotifier {
     _status = '已恢复自动优选';
     _history.insert(0, '恢复自动优选');
     _emit();
-    if (_autoPickWhenIdle && canTestAll && safeToSelect && _fullProbe != null) {
+    if (_autoPickWhenIdle && canAutoScan && _fullProbe != null) {
       unawaited(testAllNodes(automatic: true));
     }
   }
@@ -230,27 +253,124 @@ class VelaSmartController extends ChangeNotifier {
   bool _autoPickWhenIdle = false;
   Timer? _periodicTimer;
   int _scheduledMinutes = 0;
+  int _scanIntervalMinutes = 10;
+  int _minimumImprovementPercent = 20;
+  int _switchCooldownMinutes = 3;
+  static const scanIntervalChoices = <int>[1, 3, 5, 10, 15, 30, 60];
+  static const improvementChoices = <int>[0, 5, 10, 15, 20, 25, 30, 50, 100];
+  static const cooldownChoices = <int>[0, 1, 3, 5, 10, 15, 30];
   int get scheduledMinutes => _scheduledMinutes;
+  int get scanIntervalMinutes => _scanIntervalMinutes;
+  int get minimumImprovementPercent => _minimumImprovementPercent;
+  int get switchCooldownMinutes => _switchCooldownMinutes;
   static Duration _normalInterval(int minutes) => Duration(minutes: minutes);
 
-  /// Checks just 8 nodes per interval and never interrupts a live session.
-  /// Default off; running only while this application is open.
+  /// Settings persist only on the real app, not on isolated unit-test engines.
+  /// An async restore must not overwrite a setting the user has just changed.
+  Future<void> restorePreferences() async {
+    final store = _preferences;
+    if (store == null || _disposed) return;
+    final revision = _settingsRevision;
+    try {
+      final raw = await store.getString(_preferencesKey);
+      if (raw == null || _disposed || revision != _settingsRevision) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      _loadingPreferences = true;
+      try {
+        final interval = decoded['interval'];
+        final improvement = decoded['improvement'];
+        final cooldown = decoded['cooldown'];
+        final country = decoded['country'];
+        if (interval is int && scanIntervalChoices.contains(interval)) {
+          _scanIntervalMinutes = interval;
+        }
+        if (improvement is int && improvementChoices.contains(improvement)) {
+          _minimumImprovementPercent = improvement;
+        }
+        if (cooldown is int && cooldownChoices.contains(cooldown)) {
+          _switchCooldownMinutes = cooldown;
+        }
+        if (country is String && velaSmartCountries.containsKey(country)) {
+          _country = country;
+        }
+        _aiMode = decoded['aiMode'] == true;
+        _regionFirstPick = _aiMode;
+        _autoPickWhenIdle = decoded['enabled'] == true;
+        setScheduledMinutes(_autoPickWhenIdle ? _scanIntervalMinutes : 0);
+      } finally {
+        _loadingPreferences = false;
+      }
+      if (_autoPickWhenIdle && canAutoScan && _fullProbe != null) {
+        unawaited(testAllNodes(automatic: true));
+      }
+    } catch (_) {
+      // A broken preference store must never prevent Vela from starting.
+    }
+  }
+
+  void _savePreferences() {
+    final store = _preferences;
+    if (store == null || _loadingPreferences || _disposed) return;
+    _settingsRevision++;
+    final payload = jsonEncode({
+      'enabled': _autoPickWhenIdle,
+      'aiMode': _aiMode,
+      'country': _country,
+      'interval': _scanIntervalMinutes,
+      'improvement': _minimumImprovementPercent,
+      'cooldown': _switchCooldownMinutes,
+    });
+    // Order writes so a slow older save cannot override a newer preference.
+    _pendingSave = _pendingSave.then((_) =>
+        store.setString(_preferencesKey, payload)).catchError((Object _) {});
+  }
+
+  /// A scan timer is active only while Vela is running. Never auto-connect.
+  /// Connected sessions can scan only when a verified native switch exists.
   void setScheduledMinutes(int minutes) {
-    if (![0, 10, 15, 30, 60].contains(minutes) || _disposed) { return; }
+    if ((minutes != 0 && !scanIntervalChoices.contains(minutes)) ||
+        _disposed) return;
     _periodicTimer?.cancel();
     _periodicTimer = null;
     _scheduledMinutes = minutes;
     if (minutes > 0) {
+      _scanIntervalMinutes = minutes;
       final interval = _periodicInterval(minutes);
       if (interval > Duration.zero) {
         _periodicTimer = Timer.periodic(interval, (_) {
-          if (!_disposed && !_scanning && !_downloading &&
-              safeToSelect && count > 0 && core.hasCore) {
+          if (!_disposed && !_scanning && !_downloading && canAutoScan) {
             unawaited(testAllNodes(automatic: true));
           }
         });
       }
     }
+    _savePreferences();
+    _emit();
+  }
+
+  void setScanIntervalMinutes(int minutes) {
+    if (!scanIntervalChoices.contains(minutes) || _disposed) return;
+    if (_autoPickWhenIdle) {
+      setScheduledMinutes(minutes);
+    } else {
+      _scanIntervalMinutes = minutes;
+      _savePreferences();
+      _emit();
+    }
+  }
+
+  void setMinimumImprovementPercent(int percent) {
+    if (!improvementChoices.contains(percent) || _disposed) return;
+    _minimumImprovementPercent = percent;
+    _savePreferences();
+    _emit();
+  }
+
+  void setSwitchCooldownMinutes(int minutes) {
+    if (!cooldownChoices.contains(minutes) || _disposed) return;
+    _switchCooldownMinutes = minutes;
+    _savePreferences();
     _emit();
   }
   int _cursor = 0;
@@ -294,9 +414,9 @@ class VelaSmartController extends ChangeNotifier {
 
   void setAutoPick(bool enabled) {
     _autoPickWhenIdle = enabled;
-    setScheduledMinutes(enabled ? 10 : 0);
+    setScheduledMinutes(enabled ? _scanIntervalMinutes : 0);
     _emit();
-    if (enabled && canTestAll && safeToSelect && _fullProbe != null) {
+    if (enabled && canAutoScan && _fullProbe != null) {
       unawaited(testAllNodes(automatic: true));
     }
   }
@@ -327,17 +447,31 @@ class VelaSmartController extends ChangeNotifier {
     _lastSelection = null;
     _status = _scanning ? '订阅已更新，正在停止旧的测速任务…' : null;
     _emit();
+    // A restored subscription may become ready after smart settings load.
+    scheduleMicrotask(() {
+      if (_autoPickWhenIdle && canAutoScan && _fullProbe != null) {
+        unawaited(testAllNodes(automatic: true));
+      }
+    });
   }
 
   VelaNodeHealth? resultAt(int index) => _results[index];
 
   int? get recommendedIndex {
+    // Valid real downloads outrank an unreachable URLTest CDN.
+    if (_hasFullSpeeds) {
+      for (final index in sortedIndices) {
+        if (!_eligible(index)) continue;
+        final sample = _downloads[index];
+        if (sample?.ok == true && (sample!.mbps ?? 0) > 0) return index;
+      }
+    }
     int? best;
     for (final entry in _results.entries) {
       final health = entry.value;
       if (!health.reachable || health.score == null ||
-          !_eligible(entry.key)) { continue; }
-      if (best == null || _better(entry.key, best)) { best = entry.key; }
+          !_eligible(entry.key)) continue;
+      if (best == null || _better(entry.key, best)) best = entry.key;
     }
     return best;
   }
@@ -390,49 +524,71 @@ class VelaSmartController extends ChangeNotifier {
 
   bool get canRecommend {
     final winner = recommendedIndex;
-    if (winner == null || !safeToSelect || _scanning || _manualHold) {
-      return false;
-    }
+    if (winner == null || !_canChangeRoute || _scanning ||
+        _manualHold || _smartSelecting) return false;
     final selected = subscription.selectedIndex;
     if (selected == winner) return false;
+    final now = _clock();
+    final cooldown = Duration(minutes: _switchCooldownMinutes);
+    if (_lastSelection != null &&
+        now.difference(_lastSelection!) < cooldown) return false;
+
     if (_hasFullSpeeds) {
       final bestSpeed = _downloads[winner]?.mbps;
       final currentSpeed = selected == null ? null : _downloads[selected]?.mbps;
-      if (bestSpeed == null || bestSpeed <= 0) { return false; }
-      if (_regionFirstPick && _aiMode) { return true; }
-      if (currentSpeed == null || currentSpeed <= 0) { return false; }
-      if (_lastSelection != null &&
-          _clock().difference(_lastSelection!) < _policy.cooldown) {
-        return false;
-      }
-      return bestSpeed >= currentSpeed * 1.2;
+      if (bestSpeed == null || bestSpeed <= 0) return false;
+      if (_regionFirstPick && _aiMode) return true;
+      // A candidate with measured throughput is preferable to a failed
+      // current-node sample; never invent a speed for the failed node.
+      if (currentSpeed == null || currentSpeed <= 0) return true;
+      return bestSpeed > currentSpeed &&
+          bestSpeed >= currentSpeed *
+              (1 + _minimumImprovementPercent / 100.0);
     }
-    return _policy.shouldPrefer(
+    return VelaSmartSwitchPolicy(
+      cooldown: cooldown,
+      minimumImprovementMs: _policy.minimumImprovementMs,
+      minimumImprovementRatio: _minimumImprovementPercent / 100.0,
+    ).shouldPrefer(
       current: selected == null ? null : _results[selected],
       candidate: _results[winner],
-      now: _clock(), lastSelection: _lastSelection,
+      now: now, lastSelection: _lastSelection,
     );
   }
 
   Future<bool> useRecommended() async {
     final winner = recommendedIndex;
-    if (winner == null || !canRecommend) { return false; }
+    if (winner == null || !canRecommend) return false;
+    final online = _online;
     _smartSelecting = true;
-    bool ok;
+    bool ok = false;
     try {
-      ok = await subscription.selectNode(winner);
+      if (online) {
+        // The app supplies Windows/Android native switching with verification
+        // and rollback. Never disable a VPN or rewrite system proxy here.
+        ok = await switchActiveNode!(winner);
+      } else {
+        ok = await subscription.selectNode(winner);
+      }
+    } catch (_) {
+      ok = false;
     } finally {
       _smartSelecting = false;
     }
-    if (ok) {
-      _lastSelection = _clock();
-      _regionFirstPick = false;
-      _status = '已优选节点。请在首页手动连接；不会中断当前网络。';
-      _history.insert(0, '已优选：' + subscription.nodes[winner].name);
-      if (_history.length > 50) { _history.removeLast(); }
+    if (!ok) {
+      _status = '自动切换未确认成功，原节点状态以原生内核为准；稍后可重试';
       _emit();
+      return false;
     }
-    return ok;
+    _lastSelection = _clock();
+    _regionFirstPick = false;
+    _status = online
+        ? '已通过原生代理核心在线切换节点'
+        : '已优选待连接节点；请在首页手动连接';
+    _history.insert(0, '已优选：' + subscription.nodes[winner].name);
+    if (_history.length > 50) _history.removeLast();
+    _emit();
+    return true;
   }
 
   /// Optional 1 MiB sample test of only the explicitly selected node.
@@ -841,7 +997,7 @@ class VelaSmartController extends ChangeNotifier {
         _scanning = false;
         _cancelRequested = false;
         _emit();
-        // Never switch an active connection, even if auto-pick is enabled.
+        // Only an opted-in, verified native live route may change online.
         if (!cancelled && _autoPickWhenIdle && canRecommend) {
           await useRecommended();
         }
