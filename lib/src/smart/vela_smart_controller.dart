@@ -111,7 +111,6 @@ class VelaSmartController extends ChangeNotifier {
     DateTime Function()? clock,
     Duration Function(int minutes)? periodicInterval,
   }) : persistPreferences = persistPreferences,
-       _preferences = persistPreferences ? SharedPreferencesAsync() : null,
        _probe = probe, _downloadProbe = downloadProbe,
        _fullProbe = fullProbe, _policy = policy,
        _clock = clock ?? DateTime.now,
@@ -131,7 +130,17 @@ class VelaSmartController extends ChangeNotifier {
   /// An opt-in native live switch; caller verifies actual Mihomo selection.
   final Future<bool> Function(int index)? switchActiveNode;
   final bool persistPreferences;
-  final SharedPreferencesAsync? _preferences;
+  SharedPreferencesAsync? _preferences;
+
+  SharedPreferencesAsync? get _availablePreferences {
+    if (!persistPreferences) return null;
+    try {
+      return _preferences ??= SharedPreferencesAsync();
+    } catch (_) {
+      // Widget tests and environments without the plugin can still start.
+      return null;
+    }
+  }
   Future<void> _pendingSave = Future<void>.value();
   bool _loadingPreferences = false;
   int _settingsRevision = 0;
@@ -269,7 +278,7 @@ class VelaSmartController extends ChangeNotifier {
   /// Settings persist only on the real app, not on isolated unit-test engines.
   /// An async restore must not overwrite a setting the user has just changed.
   Future<void> restorePreferences() async {
-    final store = _preferences;
+    final store = _availablePreferences;
     if (store == null || _disposed) return;
     final revision = _settingsRevision;
     try {
@@ -311,7 +320,7 @@ class VelaSmartController extends ChangeNotifier {
   }
 
   void _savePreferences() {
-    final store = _preferences;
+    final store = _availablePreferences;
     if (store == null || _loadingPreferences || _disposed) return;
     _settingsRevision++;
     final payload = jsonEncode({
@@ -581,6 +590,9 @@ class VelaSmartController extends ChangeNotifier {
       return false;
     }
     final online = _online;
+    // Keep a stable label even if a subscription refresh races the switch.
+    final name = subscription.nodes[winner].name;
+    final generation = _generation;
     _smartSelecting = true;
     bool ok = false;
     try {
@@ -596,6 +608,7 @@ class VelaSmartController extends ChangeNotifier {
     } finally {
       _smartSelecting = false;
     }
+    if (_disposed || generation != _generation) return false;
     if (!ok) {
       _status = '自动切换未确认成功，原节点状态以原生内核为准；稍后可重试';
       _emit();
@@ -606,7 +619,7 @@ class VelaSmartController extends ChangeNotifier {
     _status = online
         ? '已通过原生代理核心在线切换节点'
         : '已优选待连接节点；请在首页手动连接';
-    _history.insert(0, '已优选：' + subscription.nodes[winner].name);
+    _history.insert(0, '已优选：' + name);
     if (_history.length > 50) {
       _history.removeLast();
     }
