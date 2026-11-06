@@ -36,6 +36,6 @@ void main() {
     expect(vpn, contains('VelaCompassShortcut.refresh(this)'));
     expect(state, contains('VelaCompassShortcut.refresh(it)'));
     expect(File('pubspec.yaml').readAsStringSync(),
-        contains('version: 1.11.2+68'));
+        contains('version: 1.11.3+69'));
   });
 }

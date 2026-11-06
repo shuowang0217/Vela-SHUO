@@ -99,10 +99,76 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
               value: e.autoPickWhenIdle,
               title: Text('启用智能优选',
                   style: TextStyle(color: theme.text)),
-              subtitle: Text('每10分钟检查 · 下载速度提升至少20%才考虑改选',
+              subtitle: Text('每' + e.scanIntervalMinutes.toString() +
+                  '分钟检查 · 下载速度提升至少' +
+                  e.minimumImprovementPercent.toString() + '%才考虑改选',
                   style: TextStyle(color: theme.muted, fontSize: 11)),
               onChanged: e.setAutoPick,
             ),
+            Wrap(
+              spacing: 16, runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('检测间隔',
+                      style: TextStyle(color: theme.muted, fontSize: 12)),
+                  const SizedBox(width: 7),
+                  DropdownButton<int>(
+                    key: const ValueKey('smart_scan_interval'),
+                    value: e.scanIntervalMinutes,
+                    items: [
+                      for (final minutes in VelaSmartController.scanIntervalChoices)
+                        DropdownMenuItem<int>(
+                            value: minutes,
+                            child: Text(minutes.toString() + ' 分钟')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) e.setScanIntervalMinutes(value);
+                    },
+                  ),
+                ]),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('速度提升阈值',
+                      style: TextStyle(color: theme.muted, fontSize: 12)),
+                  const SizedBox(width: 7),
+                  DropdownButton<int>(
+                    key: const ValueKey('smart_speed_improvement'),
+                    value: e.minimumImprovementPercent,
+                    items: [
+                      for (final percent in VelaSmartController.improvementChoices)
+                        DropdownMenuItem<int>(
+                            value: percent,
+                            child: Text(percent.toString() + '%')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) e.setMinimumImprovementPercent(value);
+                    },
+                  ),
+                ]),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('切换冷却',
+                      style: TextStyle(color: theme.muted, fontSize: 12)),
+                  const SizedBox(width: 7),
+                  DropdownButton<int>(
+                    key: const ValueKey('smart_switch_cooldown'),
+                    value: e.switchCooldownMinutes,
+                    items: [
+                      for (final minutes in VelaSmartController.cooldownChoices)
+                        DropdownMenuItem<int>(
+                            value: minutes,
+                            child: Text(minutes == 0 ? '不限制'
+                                : minutes.toString() + ' 分钟')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) e.setSwitchCooldownMinutes(value);
+                    },
+                  ),
+                ]),
+              ],
+            ),
+            Text('自动设置会保存。只在程序运行期间检测；已连接时通过'
+                '原生内核验证并切换线路，失败则按原切换逻辑回退。',
+                style: TextStyle(color: theme.muted, fontSize: 11)),
             SwitchListTile.adaptive(
               key: const ValueKey('smart_ai_mode'),
               contentPadding: EdgeInsets.zero,
@@ -244,8 +310,8 @@ class _VelaSmartPanelState extends State<VelaSmartPanel> {
               ),
             const SizedBox(height: 10),
             Text('测速使用真实 HTTPS 限时流式下载，实际流量因速度而异；'
-                 '最快候选会额外复测。自动模式仅在空闲时更新所选节点，'
-                 '暂不支持 sing-box 在线无缝热切换。',
+                 '最快候选会额外复测。启用智能优选后，可在已连接时通过'
+                 '原生核心在线切换；手动指定节点后需点击恢复自动优选。',
                 style: TextStyle(color: theme.muted, fontSize: 11)),
           ],
         ),

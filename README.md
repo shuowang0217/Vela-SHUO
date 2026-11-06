@@ -1,6 +1,6 @@
 # Vela
 
-**正式版 1.11.0**（Android build 63） · Windows x64 / Android ARM64
+**正式版 1.11.3**（Android build 69） · Windows x64 / Android ARM64
 
 原创航海油画风格网络客户端，使用固定版本的原生 FlClash / Mihomo 内核处理代理、规则与 DNS，源码仓库仍为 `Vela-SHUO`。
 
@@ -8,9 +8,19 @@
 
 [GitHub Releases · 最新 Vela](https://github.com/shuowang0217/Vela-SHUO/releases/latest)
 
-- **Android**：`Vela-v1.11.0-Android-arm64.apk`；固定应用 ID `com.shuowang.vela`、长期正式签名、versionCode=63。可覆盖较低 build 的同签名安装版，正常保留机场数据。
-- **Windows**：`Vela-v1.11.0-Windows-x64.zip`；安全退出旧版，完整解压后运行 `Vela.exe`，请勿只替换 EXE。
+- **Android**：`Vela-v1.11.3-Android-arm64.apk`；固定应用 ID `com.shuowang.vela`、长期正式签名、versionCode=69。可覆盖较低 build 的同签名安装版，正常保留机场数据。
+- **Windows**：`Vela-v1.11.3-Windows-x64.zip`；安全退出旧版，完整解压后运行 `Vela.exe`，请勿只替换 EXE。
 - **版本更新**：应用只提示 GitHub 最新正式 Release，不在后台静默下载安装。
+
+## 1.11.3 重要改进
+
+- **智能优选自动运行**：开启后，程序运行期间按自定义间隔进行真实 HTTPS 节点测速；已连接的 Windows 系统代理或 Android VPN 不再阻止自动检测。
+- **原生在线切换**：符合速度提升阈值和切换冷却条件时，使用 FlClash / Mihomo 既有的 Windows / Android 原生接口在线切换并确认节点；失败时使用既有恢复路径，绝不自动建立 VPN 或系统代理连接。
+- **参数可配置**：检测周期支持 1、3、5、10、15、30、60 分钟；速度提升门槛支持 0%～100% 多档；切换冷却支持关闭或 1～30 分钟。设置、自动开关及 AI 国家筛选本地持久保存。
+- **测速优选联动**：独立下载测速结束后也可以参与自动优选；真实下载样本成功但延迟源失败的节点仍能进入速度候选。
+- **兼容旧版数据**：沿用 Android 正式签名和原应用 ID；Windows 继续提供包含完整原生内核的便携 ZIP，不静默下载安装。
+
+完整说明：[Vela v1.11.3 发布说明](docs/releases/v1.11.3.md)
 
 ## 1.11.0 重要改进
 
@@ -34,4 +44,4 @@
 
 ## 发布机制
 
-仅 `release/v1.11.0` 分支的 Flutter/原生编译、Android 长期签名及证书指纹、Windows/Android SHA-256 和 ZIP/APK 校验全部通过后，GitHub Actions 才发布 `v1.11.0` 正式版，并保留历史版本与安装包。
+仅 `release/v1.11.3` 分支的 Flutter/原生编译、Android 长期签名及证书指纹、Windows/Android SHA-256 和 ZIP/APK 校验全部通过后，GitHub Actions 才发布 `v1.11.3` 正式版，并保留历史版本与安装包。

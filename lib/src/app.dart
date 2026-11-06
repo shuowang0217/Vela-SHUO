@@ -402,9 +402,27 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
               ? () => androidVpn?.active == true : null,
           sessionBusy: Platform.isAndroid
               ? () => androidVpn?.busy == true : null,
+          switchActiveNode: (int index) async {
+            if (Platform.isAndroid) {
+              final vpn = androidVpn;
+              final current = subscription;
+              if (vpn == null || current == null || !vpn.connected ||
+                  vpn.busy) {
+                return false;
+              }
+              return vpn.switchNode(current, index);
+            }
+            final active = connection;
+            if (active == null || !active.connected || active.busy) {
+              return false;
+            }
+            return active.switchNode(index);
+          },
+          persistPreferences: true,
           probe: latencyProbe,
           downloadProbe: downloadProbe, fullProbe: fullProbe,
         );
+        unawaited(smart!.restorePreferences());
       }
     }
     if (androidVpn != null) {
