@@ -331,7 +331,9 @@ class VelaSmartController extends ChangeNotifier {
   /// Connected sessions can scan only when a verified native switch exists.
   void setScheduledMinutes(int minutes) {
     if ((minutes != 0 && !scanIntervalChoices.contains(minutes)) ||
-        _disposed) return;
+        _disposed) {
+      return;
+    }
     _periodicTimer?.cancel();
     _periodicTimer = null;
     _scheduledMinutes = minutes;
@@ -472,7 +474,9 @@ class VelaSmartController extends ChangeNotifier {
       final health = entry.value;
       if (!health.reachable || health.score == null ||
           !_eligible(entry.key)) continue;
-      if (best == null || _better(entry.key, best)) best = entry.key;
+      if (best == null || _better(entry.key, best)) {
+        best = entry.key;
+      }
     }
     return best;
   }
@@ -526,9 +530,13 @@ class VelaSmartController extends ChangeNotifier {
   bool get canRecommend {
     final winner = recommendedIndex;
     if (winner == null || !_canChangeRoute || _scanning ||
-        _manualHold || _smartSelecting) return false;
+        _manualHold || _smartSelecting) {
+      return false;
+    }
     final selected = subscription.selectedIndex;
-    if (selected == winner) return false;
+    if (selected == winner) {
+      return false;
+    }
     final now = _clock();
     final cooldown = Duration(minutes: _switchCooldownMinutes);
     if (_lastSelection != null &&
@@ -537,11 +545,17 @@ class VelaSmartController extends ChangeNotifier {
     if (_hasFullSpeeds) {
       final bestSpeed = _downloads[winner]?.mbps;
       final currentSpeed = selected == null ? null : _downloads[selected]?.mbps;
-      if (bestSpeed == null || bestSpeed <= 0) return false;
-      if (_regionFirstPick && _aiMode) return true;
+      if (bestSpeed == null || bestSpeed <= 0) {
+        return false;
+      }
+      if (_regionFirstPick && _aiMode) {
+        return true;
+      }
       // A candidate with measured throughput is preferable to a failed
       // current-node sample; never invent a speed for the failed node.
-      if (currentSpeed == null || currentSpeed <= 0) return true;
+      if (currentSpeed == null || currentSpeed <= 0) {
+        return true;
+      }
       return bestSpeed > currentSpeed &&
           bestSpeed >= currentSpeed *
               (1 + _minimumImprovementPercent / 100.0);
@@ -559,7 +573,9 @@ class VelaSmartController extends ChangeNotifier {
 
   Future<bool> useRecommended() async {
     final winner = recommendedIndex;
-    if (winner == null || !canRecommend) return false;
+    if (winner == null || !canRecommend) {
+      return false;
+    }
     final online = _online;
     _smartSelecting = true;
     bool ok = false;
@@ -587,7 +603,9 @@ class VelaSmartController extends ChangeNotifier {
         ? '已通过原生代理核心在线切换节点'
         : '已优选待连接节点；请在首页手动连接';
     _history.insert(0, '已优选：' + subscription.nodes[winner].name);
-    if (_history.length > 50) _history.removeLast();
+    if (_history.length > 50) {
+      _history.removeLast();
+    }
     _emit();
     return true;
   }
