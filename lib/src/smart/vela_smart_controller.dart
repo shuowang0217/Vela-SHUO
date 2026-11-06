@@ -783,6 +783,9 @@ class VelaSmartController extends ChangeNotifier {
         _scanning = false;
         _cancelRequested = false;
         _emit();
+        if (!cancelled && _autoPickWhenIdle && canRecommend) {
+          await useRecommended();
+        }
       }
     }
   }
