@@ -996,6 +996,82 @@ void main() {
     }
   });
 
+  test('opt-in smart scan switches a connected node with native verification',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 5);
+    final switched = Completer<int>();
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link,
+      probe: _Probe(), fullProbe: _BothProbe(),
+      switchActiveNode: (index) async {
+        // Mimic the platform callback after native core confirmation.
+        final confirmed = sub.confirmRunningSelection(index);
+        if (confirmed && !switched.isCompleted) switched.complete(index);
+        return confirmed;
+      },
+    );
+    try {
+      expect(await link.connect(), true);
+      smart.setScanIntervalMinutes(5);
+      smart.setMinimumImprovementPercent(20);
+      smart.setSwitchCooldownMinutes(10);
+      expect(smart.scanIntervalMinutes, 5);
+      expect(smart.minimumImprovementPercent, 20);
+      expect(smart.switchCooldownMinutes, 10);
+      expect(smart.safeToSelect, false);
+      expect(smart.canAutoScan, true);
+      smart.setAutoPick(true);
+      expect(smart.scheduledMinutes, 5);
+      expect(await switched.future.timeout(const Duration(seconds: 3)), 1);
+      expect(sub.selectedIndex, 1);
+      expect(smart.manualHold, false);
+      expect(link.connected, true);
+      expect(proxy.active, true);
+      expect(core.isListening, true);
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
+  test('configured speed improvement is enforced before live switching',
+      () async {
+    final (folder, core, sub, proxy, link) = await setup(count: 5);
+    // Node-3 has 64 Mbps. Node-1 is best at 88 Mbps (37.5% gain).
+    expect(await sub.selectNode(3), true);
+    var switches = 0;
+    final smart = VelaSmartController(
+      core: core, subscription: sub, connection: link,
+      probe: _Probe(), fullProbe: _BothProbe(),
+      switchActiveNode: (index) async {
+        switches++;
+        return sub.confirmRunningSelection(index);
+      },
+    );
+    try {
+      expect(await link.connect(), true);
+      smart.setMinimumImprovementPercent(50);
+      smart.setAutoPick(true);
+      while (smart.scanning) {
+        await Future<void>.delayed(const Duration(milliseconds: 2));
+      }
+      expect(switches, 0);
+      expect(sub.selectedIndex, 3);
+      expect(smart.canRecommend, false);
+      smart.setMinimumImprovementPercent(20);
+      expect(smart.canRecommend, true);
+      expect(await smart.useRecommended(), true);
+      expect(switches, 1);
+      expect(sub.selectedIndex, 1);
+      expect(link.connected, true);
+    } finally {
+      smart.dispose(); link.dispose(); sub.dispose();
+      core.dispose(); proxy.dispose();
+      await folder.delete(recursive: true);
+    }
+  });
+
   test('AI country name matcher never matches incidental "us" in Russia',
       () {
     expect(velaSmartCountryMatches('🇯🇵 Tokyo-01', 'JP'), true);
