@@ -473,7 +473,9 @@ class VelaSmartController extends ChangeNotifier {
     for (final entry in _results.entries) {
       final health = entry.value;
       if (!health.reachable || health.score == null ||
-          !_eligible(entry.key)) continue;
+          !_eligible(entry.key)) {
+        continue;
+      }
       if (best == null || _better(entry.key, best)) {
         best = entry.key;
       }
@@ -540,7 +542,9 @@ class VelaSmartController extends ChangeNotifier {
     final now = _clock();
     final cooldown = Duration(minutes: _switchCooldownMinutes);
     if (_lastSelection != null &&
-        now.difference(_lastSelection!) < cooldown) return false;
+        now.difference(_lastSelection!) < cooldown) {
+      return false;
+    }
 
     if (_hasFullSpeeds) {
       final bestSpeed = _downloads[winner]?.mbps;
