@@ -407,7 +407,9 @@ class _ShellState extends State<_Shell> with WidgetsBindingObserver {
               final vpn = androidVpn;
               final current = subscription;
               if (vpn == null || current == null || !vpn.connected ||
-                  vpn.busy) return false;
+                  vpn.busy) {
+                return false;
+              }
               return vpn.switchNode(current, index);
             }
             final active = connection;
