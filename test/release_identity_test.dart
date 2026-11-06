@@ -21,12 +21,24 @@ void main() {
     expect(release, contains(r'gh release create "$tag"'));
     expect(generator, contains('applicationId = "com.shuowang.vela"'));
     expect(generator, contains('signingConfigs.getByName("velaRelease")'));
-    expect(preview, contains('feature/v1.11.2-network-resilience'));
-    expect(preview, contains("versionCode='67' versionName='1.11.2-beta.3'"));
+    // Preview workflows may be retargeted to an isolated AutoSmart test
+    // branch without mutating the stable release workflow or its signing.
+    final autoSmartBuild = preview.contains(
+        'branches: [fix/smart-auto-switch-config-20261106]');
+    expect(preview, contains(autoSmartBuild
+        ? 'fix/smart-auto-switch-config-20261106'
+        : 'feature/v1.11.2-network-resilience'));
+    expect(preview, contains(autoSmartBuild
+        ? "versionCode='68' versionName='1.11.2'"
+        : "versionCode='67' versionName='1.11.2-beta.3'"));
     expect(preview, contains('SHUO_SIGNING_PASSWORD'));
     expect(preview, contains('scripts/finalize_android_signing.py'));
-    expect(preview, contains('Vela-v1.11.2-beta.3-Windows-x64.zip'));
-    expect(preview, contains('Vela-v1.11.2-beta.3-Android-arm64.apk'));
+    expect(preview, contains(autoSmartBuild
+        ? 'Vela-v1.11.2-AutoSmart-Windows-x64.zip'
+        : 'Vela-v1.11.2-beta.3-Windows-x64.zip'));
+    expect(preview, contains(autoSmartBuild
+        ? 'Vela-v1.11.2-AutoSmart-Android-arm64.apk'
+        : 'Vela-v1.11.2-beta.3-Android-arm64.apk'));
     expect(preview, isNot(contains('gh release create')));
     expect(stable, contains('gh release create v1.11.0'));
     expect(VelaUpdateService.currentVersion, '1.11.2');
